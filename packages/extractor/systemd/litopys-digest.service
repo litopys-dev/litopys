@@ -1,0 +1,16 @@
+[Unit]
+Description=Litopys Weekly Digest Generator
+After=network.target
+
+[Service]
+Type=oneshot
+# Adjust User= and paths to match your installation
+User=%i
+WorkingDirectory=/home/%i/litopys
+ExecStart=/usr/local/bin/bun packages/extractor/src/digest.ts
+Environment=LITOPYS_GRAPH_PATH=/home/%i/.litopys/graph
+# Uncomment and set your preferred provider:
+# Environment=LITOPYS_EXTRACTOR_PROVIDER=anthropic
+# Environment=ANTHROPIC_API_KEY=sk-...
+StandardOutput=journal
+StandardError=journal

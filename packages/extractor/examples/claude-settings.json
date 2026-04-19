@@ -1,0 +1,9 @@
+{
+  "hooks": {
+    "SessionEnd": [
+      {
+        "command": "bun /path/to/litopys/packages/extractor/src/session-end.ts"
+      }
+    ]
+  }
+}

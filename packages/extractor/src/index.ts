@@ -1,5 +1,33 @@
 export const PACKAGE_NAME = "@litopys/extractor";
 export const VERSION = "0.1.0";
 
-// Model-agnostic extractor (Anthropic, OpenAI, Ollama) + SessionEnd hook
-// will be implemented in Part 4.
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+export { createAdapter } from "./adapters/factory.ts";
+export type { AdapterName, AdapterOptions } from "./adapters/factory.ts";
+
+export type {
+  ExtractorAdapter,
+  ExtractorInput,
+  ExtractorOutput,
+  CandidateNode,
+  CandidateRelation,
+} from "./adapters/types.ts";
+export { CandidateNodeSchema, CandidateRelationSchema, LLMOutputSchema } from "./adapters/types.ts";
+
+export { buildSystemPrompt, buildUserPrompt } from "./prompt.ts";
+
+export {
+  writeQuarantine,
+  writeQuarantineTo,
+  listQuarantine,
+  listQuarantineFrom,
+  promoteCandidate,
+  rejectCandidate,
+} from "./quarantine.ts";
+export type { QuarantineMeta, QuarantineFile } from "./quarantine.ts";
+
+export { generateDigest } from "./digest.ts";
+export type { DigestOptions, DigestResult } from "./digest.ts";

@@ -41,8 +41,8 @@ Memory systems for AI agents today force a tradeoff: either heavy vector databas
 ## Roadmap
 
 - [x] **Part 1** — Monorepo scaffolding
-- [ ] **Part 2** — Core graph model (loader, resolver, conflicts)
-- [ ] **Part 3** — MCP server (5 tools, SSE + stdio)
+- [x] **Part 2** — Core graph model (loader, resolver, conflicts)
+- [x] **Part 3** — MCP server (5 tools, SSE + stdio)
 - [ ] **Part 4** — Model-agnostic extractor + SessionEnd hook
 - [ ] **Part 5** — Migration from flat markdown memory
 - [ ] **Part 6** — Web dashboard with full CRUD

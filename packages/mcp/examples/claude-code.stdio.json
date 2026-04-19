@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "litopys": {
+      "command": "bun",
+      "args": ["/home/denis/litopys/packages/mcp/src/stdio.ts"],
+      "env": {
+        "LITOPYS_GRAPH_PATH": "/home/denis/.litopys/graph"
+      }
+    }
+  }
+}

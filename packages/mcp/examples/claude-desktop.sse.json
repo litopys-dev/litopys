@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "litopys": {
+      "transport": "sse",
+      "url": "http://<HOST>:7777/sse",
+      "headers": {
+        "Authorization": "Bearer <BEARER_TOKEN>"
+      }
+    }
+  }
+}

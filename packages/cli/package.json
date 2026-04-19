@@ -13,6 +13,7 @@
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
+    "@litopys/core": "workspace:*",
     "@litopys/extractor": "workspace:*"
   }
 }

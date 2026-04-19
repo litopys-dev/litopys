@@ -14,6 +14,7 @@
       "name": "@litopys/cli",
       "version": "0.1.0",
       "dependencies": {
+        "@litopys/core": "workspace:*",
         "@litopys/extractor": "workspace:*",
       },
     },

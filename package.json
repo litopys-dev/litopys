@@ -3,6 +3,12 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "author": "Denis Blashchytsia <REDACTED> (REDACTED)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/litopys-dev/litopys.git"
+  },
   "workspaces": ["packages/*"],
   "scripts": {
     "test": "bun test",

@@ -7,7 +7,7 @@
 Persistent graph-based memory that survives across sessions and clients.
 Built for Claude Code, Claude Desktop, and any MCP-compatible agent.
 
-[![CI](REDACTED/litopys/actions/workflows/ci.yml/badge.svg)](REDACTED/litopys/actions/workflows/ci.yml)
+[![CI](https://github.com/litopys-dev/litopys/actions/workflows/ci.yml/badge.svg)](https://github.com/litopys-dev/litopys/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Bun](https://img.shields.io/badge/runtime-Bun-black)](https://bun.sh)
 
@@ -50,4 +50,4 @@ Memory systems for AI agents today force a tradeoff: either heavy vector databas
 
 ## License
 
-MIT © 2026 Denis ([REDACTED](REDACTED)) and Litopys contributors.
+MIT © 2026 Denis Blashchytsia ([REDACTED](REDACTED)) and Litopys contributors.

@@ -15,6 +15,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@litopys/core": "workspace:*",
+        "@litopys/daemon": "workspace:*",
         "@litopys/extractor": "workspace:*",
       },
     },
@@ -24,6 +25,14 @@
       "dependencies": {
         "gray-matter": "^4.0.3",
         "zod": "^3.23.0",
+      },
+    },
+    "packages/daemon": {
+      "name": "@litopys/daemon",
+      "version": "0.1.0",
+      "dependencies": {
+        "@litopys/core": "workspace:*",
+        "@litopys/extractor": "workspace:*",
       },
     },
     "packages/extractor": {
@@ -78,6 +87,8 @@
     "@litopys/cli": ["@litopys/cli@workspace:packages/cli"],
 
     "@litopys/core": ["@litopys/core@workspace:packages/core"],
+
+    "@litopys/daemon": ["@litopys/daemon@workspace:packages/daemon"],
 
     "@litopys/extractor": ["@litopys/extractor@workspace:packages/extractor"],
 

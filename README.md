@@ -49,7 +49,7 @@ Memory systems for AI agents today force a tradeoff: either heavy vector databas
   - [x] MCP `startup-context` resource — clients auto-load recent events + active projects on connect
   - [x] MCP server-level `instructions` — prompt-imprint for any agent ("search before answering, create on learning")
   - [x] Generic CLI `litopys ingest <file>` — agent-agnostic entry point for transcripts (not tied to any specific client)
-  - Periodic timer-daemon — incremental extraction from live transcripts without requiring session end
+  - [x] Periodic timer-daemon — incremental extraction from live transcripts without requiring session end
   - Web dashboard (Bun + SolidJS) — `/graph`, `/table`, `/node/:id` CRUD, `/quarantine`, `/conflicts`
 - [ ] **Part 7** — Remote transport + installer + integrations
   - MCP SSE/HTTP mode for remote clients (Claude Desktop, ChatGPT connectors, etc.)

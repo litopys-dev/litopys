@@ -1,0 +1,19 @@
+[Unit]
+Description=Litopys incremental transcript extractor (one-shot tick)
+Documentation=https://github.com/litopys-dev/litopys
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=litopys daemon tick
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=litopys-daemon
+
+# Override these if needed:
+# Environment=LITOPYS_GRAPH_PATH=%h/.litopys/graph
+# Environment=LITOPYS_EXTRACTOR_PROVIDER=anthropic
+# Environment=LITOPYS_DAEMON_STATE=%h/.litopys/daemon-state.json
+
+[Install]
+WantedBy=default.target

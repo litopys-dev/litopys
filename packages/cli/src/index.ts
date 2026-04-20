@@ -5,6 +5,7 @@ import {
   promoteCandidate,
   rejectCandidate,
 } from "@litopys/extractor";
+import { cmdDaemon } from "./daemon.ts";
 import { cmdIngest } from "./ingest.ts";
 
 export const PACKAGE_NAME = "@litopys/cli";
@@ -28,6 +29,10 @@ Commands:
     --dry-run                               Print what would be written, skip quarantine
     --max-chunk-bytes <N>                   Split large files (default: 100000)
 
+  daemon tick [--dry-run] [--provider N]   Run one incremental tick (for systemd timer)
+  daemon status                            Show daemon state file
+  daemon reset [path]                      Reset byte offset(s)
+
   quarantine list                           List all pending quarantine items
   quarantine accept <file> <index>          Promote a candidate to the graph
   quarantine reject <file> <index> [reason] Reject a candidate (with audit log)
@@ -41,6 +46,8 @@ Source adapters:
 Environment:
   LITOPYS_GRAPH_PATH             Path to the graph directory (default: .litopys/graph)
   LITOPYS_EXTRACTOR_PROVIDER     LLM provider: anthropic | openai | ollama (default: anthropic)
+  LITOPYS_DAEMON_STATE           Override daemon state file path
+  LITOPYS_DAEMON_SOURCES         JSON array of {adapter,glob} source configs
 `);
 }
 
@@ -138,6 +145,8 @@ async function main(): Promise<void> {
 
   if (cmd === "ingest") {
     await cmdIngest(args.slice(1), graphPath());
+  } else if (cmd === "daemon") {
+    await cmdDaemon(args.slice(1), graphPath());
   } else if (cmd === "quarantine") {
     if (sub === "list") {
       await cmdQuarantineList();

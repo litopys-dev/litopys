@@ -5,6 +5,7 @@ import {
   promoteCandidate,
   rejectCandidate,
 } from "@litopys/extractor";
+import { cmdIngest } from "./ingest.ts";
 
 export const PACKAGE_NAME = "@litopys/cli";
 export const VERSION = "0.1.0";
@@ -21,13 +22,25 @@ function usage(): void {
   process.stderr.write(`litopys CLI v${VERSION}
 
 Commands:
+  ingest <spec> [options]                   Ingest a transcript into quarantine
+    <spec>  <adapter>:<path-or-glob>        e.g. text:/tmp/chat.txt
+    --provider <anthropic|openai|ollama>    Override LLM provider
+    --dry-run                               Print what would be written, skip quarantine
+    --max-chunk-bytes <N>                   Split large files (default: 100000)
+
   quarantine list                           List all pending quarantine items
   quarantine accept <file> <index>          Promote a candidate to the graph
   quarantine reject <file> <index> [reason] Reject a candidate (with audit log)
   digest                                    Generate weekly digest
 
+Source adapters:
+  text:<path>         Plain text file
+  jsonl:<path>        Generic JSONL (one {"role","content"} object per line)
+  claude-code:<path>  Claude Code session JSONL (auto-extracts sessionId)
+
 Environment:
-  LITOPYS_GRAPH_PATH   Path to the graph directory (default: .litopys/graph)
+  LITOPYS_GRAPH_PATH             Path to the graph directory (default: .litopys/graph)
+  LITOPYS_EXTRACTOR_PROVIDER     LLM provider: anthropic | openai | ollama (default: anthropic)
 `);
 }
 
@@ -123,7 +136,9 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  if (cmd === "quarantine") {
+  if (cmd === "ingest") {
+    await cmdIngest(args.slice(1), graphPath());
+  } else if (cmd === "quarantine") {
     if (sub === "list") {
       await cmdQuarantineList();
     } else if (sub === "accept") {

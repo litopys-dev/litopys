@@ -159,21 +159,39 @@ json
 
 ```
 
+## Source Adapters
+
+Source adapters convert client-specific transcript formats into a uniform `TranscriptChunk` for the LLM extractor. Used by `litopys ingest` — see [`packages/cli/README.md`](../cli/README.md).
+
+| Name | Spec prefix | Description | Example |
+|---|---|---|---|
+| `text` | `text:` | Plain text file, read as-is | `text:/tmp/notes.txt` |
+| `jsonl` | `jsonl:` | Generic JSONL — one `{"role","content"}` object per line (OpenAI chat format) | `jsonl:/tmp/export.jsonl` |
+| `claude-code` | `claude-code:` | Claude Code session JSONL — extracts `sessionId`, filters tool use noise | `claude-code:~/.claude/projects/PROJ/abc.jsonl` |
+
+Add new adapters by implementing `SourceAdapter` from `src/sources/types.ts` and registering in `src/sources/factory.ts`.
+
 ## Architecture
 
 ```
 packages/extractor/
 ├── src/
 │   ├── adapters/
-│   │   ├── types.ts      # ExtractorAdapter interface + Zod schemas
-│   │   ├── anthropic.ts  # Anthropic SDK adapter
-│   │   ├── openai.ts     # OpenAI SDK adapter
-│   │   ├── ollama.ts     # Plain HTTP fetch adapter (no npm dep)
-│   │   └── factory.ts    # createAdapter() factory
-│   ├── prompt.ts         # Shared extraction prompt
-│   ├── quarantine.ts     # Read/write/promote/reject quarantine files
-│   ├── session-end.ts    # Claude Code SessionEnd hook entrypoint
-│   └── digest.ts         # Weekly digest generator
+│   │   ├── types.ts         # ExtractorAdapter interface + Zod schemas
+│   │   ├── anthropic.ts     # Anthropic SDK adapter
+│   │   ├── openai.ts        # OpenAI SDK adapter
+│   │   ├── ollama.ts        # Plain HTTP fetch adapter (no npm dep)
+│   │   └── factory.ts       # createAdapter() factory
+│   ├── sources/
+│   │   ├── types.ts         # SourceAdapter interface + TranscriptChunk
+│   │   ├── text.ts          # Plain text adapter
+│   │   ├── jsonl.ts         # Generic JSONL adapter
+│   │   ├── claude-code.ts   # Claude Code session JSONL adapter
+│   │   └── factory.ts       # selectAdapter() + registeredAdapterNames()
+│   ├── prompt.ts            # Shared extraction prompt
+│   ├── quarantine.ts        # Read/write/promote/reject quarantine files
+│   ├── session-end.ts       # Claude Code SessionEnd hook entrypoint
+│   └── digest.ts            # Weekly digest generator
 ├── examples/
 │   └── claude-settings.json
 └── systemd/

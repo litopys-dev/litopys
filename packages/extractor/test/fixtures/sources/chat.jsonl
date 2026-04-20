@@ -1,0 +1,5 @@
+{"role":"user","content":"Hi, I'm Alice from Acme Corp. Can you help me with TypeScript?"}
+{"role":"assistant","content":"Of course! What would you like to know about TypeScript?"}
+{"role":"user","content":"I want to enable strict mode in acme-api. We use Bun as runtime."}
+{"role":"assistant","content":"Great choice. Strict mode catches many common bugs at compile time."}
+{"role":"user","content":"We learned that typing API responses at the boundary is critical."}

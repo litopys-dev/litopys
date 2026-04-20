@@ -1,0 +1,5 @@
+Alice is a senior engineer at Acme Corp.
+She prefers TypeScript strict mode for all projects.
+Acme Corp uses Bun as their JavaScript runtime.
+Alice has been working on the acme-api project for 6 months.
+The team adopted a lesson: always type API responses at the boundary.

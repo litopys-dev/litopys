@@ -31,3 +31,13 @@ export type { QuarantineMeta, QuarantineFile } from "./quarantine.ts";
 
 export { generateDigest } from "./digest.ts";
 export type { DigestOptions, DigestResult } from "./digest.ts";
+
+// ---------------------------------------------------------------------------
+// Source adapters (agent-agnostic ingestion layer — Part 6.3a)
+// ---------------------------------------------------------------------------
+
+export { selectAdapter, registeredAdapterNames } from "./sources/factory.ts";
+export { TextAdapter } from "./sources/text.ts";
+export { JsonlAdapter } from "./sources/jsonl.ts";
+export { ClaudeCodeAdapter } from "./sources/claude-code.ts";
+export type { SourceAdapter, TranscriptChunk } from "./sources/types.ts";

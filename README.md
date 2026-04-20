@@ -32,11 +32,38 @@ Memory systems for AI agents today force a tradeoff: either heavy vector databas
 
 ## Status
 
-🚧 **Early development.** See [CHANGELOG.md](CHANGELOG.md) and [ROADMAP](#roadmap).
+🚧 **Pre-release, running live.** Parts 1–6 shipped (see [Roadmap](#roadmap)).
+Author's own daily driver since 2026-04-20 — 37 nodes, 79 edges, daemon ticking every 5 min.
+v0.1.0 public release lands with Part 7 (transport, installer, integrations).
 
 ## Quick Start
 
-*Installation guide coming in v0.1.0.*
+Prerequisites: [Bun](https://bun.sh) ≥ 1.1, an MCP-compatible client (Claude Code, Claude Desktop, Cursor, Cline, …), and — for local extraction — [Ollama](https://ollama.com) with `qwen2.5:7b` pulled.
+
+```bash
+git clone https://github.com/litopys-dev/litopys.git
+cd litopys
+bun install
+
+# Point Litopys at a graph directory (defaults to ~/.litopys/graph)
+export LITOPYS_GRAPH_PATH="$HOME/.litopys/graph"
+mkdir -p "$LITOPYS_GRAPH_PATH"/{people,projects,systems,concepts,events,lessons}
+
+# Register the MCP server with your client (stdio mode).
+# Example — Claude Code:
+claude mcp add litopys -- bun run /absolute/path/to/litopys/packages/mcp/src/index.ts
+```
+
+Then restart the client. The `litopys://startup-context` resource auto-loads the owner profile, active projects, recent events, and key lessons on every new session. The agent can read/write through five MCP tools: `litopys_search`, `litopys_get`, `litopys_related`, `litopys_create`, `litopys_link`.
+
+Optional — schedule the daemon for incremental extraction from long-running transcripts:
+
+```bash
+cp packages/daemon/systemd/litopys-daemon.{service,timer} ~/.config/systemd/user/
+systemctl --user enable --now litopys-daemon.timer
+```
+
+A full installer and single-binary build ship with Part 7.
 
 ## Roadmap
 
@@ -45,12 +72,13 @@ Memory systems for AI agents today force a tradeoff: either heavy vector databas
 - [x] **Part 3** — MCP server (5 tools, SSE + stdio)
 - [x] **Part 4** — Model-agnostic extractor + Quarantine + Weekly digest
 - [x] **Part 5** — Migration from flat markdown memory + local Ollama extractor
-- [ ] **Part 6** — Universal auto-context / auto-write
+- [x] **Part 6** — Universal auto-context / auto-write
   - [x] MCP `startup-context` resource — clients auto-load recent events + active projects on connect
   - [x] MCP server-level `instructions` — prompt-imprint for any agent ("search before answering, create on learning")
   - [x] Generic CLI `litopys ingest <file>` — agent-agnostic entry point for transcripts (not tied to any specific client)
   - [x] Periodic timer-daemon — incremental extraction from live transcripts without requiring session end
-  - Web dashboard (Bun + SolidJS) — `/graph`, `/table`, `/node/:id` CRUD, `/quarantine`, `/conflicts`
+  - [x] Baseline command + configurable extractor timeout — avoids long first-tick backfill on existing history
+- [ ] **Part 6.5** — Web dashboard (deferred) — Bun + SolidJS, `/graph`, `/table`, `/node/:id` CRUD, `/quarantine`, `/conflicts`
 - [ ] **Part 7** — Remote transport + installer + integrations
   - MCP SSE/HTTP mode for remote clients (Claude Desktop, ChatGPT connectors, etc.)
   - Single-binary build (`bun build --compile`) + one-line installer

@@ -159,6 +159,49 @@ describe("OllamaAdapter", () => {
     expect(output.usage.outputTokens).toBe(0);
   });
 
+  test("aborts and returns empty when timeout fires", async () => {
+    // Simulate a fetch that never resolves (hangs), but we set a very short timeout
+    global.fetch = mock(async (_url: string, opts: RequestInit) => {
+      // Immediately abort via the signal that was passed in
+      await new Promise<never>((_, reject) => {
+        if (opts.signal) {
+          opts.signal.addEventListener("abort", () => {
+            reject(new DOMException("The operation was aborted.", "AbortError"));
+          });
+        }
+      });
+    }) as unknown as typeof global.fetch;
+
+    const orig = process.env.LITOPYS_OLLAMA_TIMEOUT_MS;
+    process.env.LITOPYS_OLLAMA_TIMEOUT_MS = "1"; // 1 ms — fires almost immediately
+
+    const adapter = new OllamaAdapter({ baseUrl: "http://localhost:11434" });
+    const output = await adapter.extract({ transcript: "test", existingNodeIds: [] });
+
+    process.env.LITOPYS_OLLAMA_TIMEOUT_MS = orig;
+
+    expect(output.candidateNodes).toHaveLength(0);
+    expect(output.candidateRelations).toHaveLength(0);
+  });
+
+  test("uses LITOPYS_OLLAMA_TIMEOUT_MS env to override default", async () => {
+    // Just verify the adapter doesn't throw when the env var is set to a valid number
+    global.fetch = mock(async () => ({
+      ok: true,
+      json: async () => ({ message: { content: JSON.stringify(validResponse) } }),
+    })) as unknown as typeof global.fetch;
+
+    const orig = process.env.LITOPYS_OLLAMA_TIMEOUT_MS;
+    process.env.LITOPYS_OLLAMA_TIMEOUT_MS = "30000";
+
+    const adapter = new OllamaAdapter({ baseUrl: "http://localhost:11434" });
+    const output = await adapter.extract({ transcript: "test", existingNodeIds: [] });
+
+    process.env.LITOPYS_OLLAMA_TIMEOUT_MS = orig;
+
+    expect(output.candidateNodes).toHaveLength(1);
+  });
+
   test("normalizes candidates missing confidence and sourceSessionId", async () => {
     global.fetch = mock(async () => ({
       ok: true,

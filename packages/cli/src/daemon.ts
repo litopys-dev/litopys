@@ -5,11 +5,14 @@
  *   tick           One-shot tick (designed for systemd oneshot + timer)
  *   status         Show daemon state in human-readable form
  *   reset [path]   Reset byte offset for one path, or all paths
+ *   baseline       Set byte offsets to current file sizes (skip history)
  */
 
+import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import {
   defaultStatePath,
+  expandTilde,
   loadSourceConfigs,
   loadState,
   runTick,
@@ -140,6 +143,111 @@ export async function cmdDaemonReset(args: string[]): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// baseline
+// ---------------------------------------------------------------------------
+
+export async function cmdDaemonBaseline(args: string[]): Promise<void> {
+  let dryRun = false;
+  let force = false;
+
+  for (const arg of args) {
+    if (arg === "--dry-run") dryRun = true;
+    else if (arg === "--force") force = true;
+  }
+
+  const statePath = defaultStatePath();
+  const sources = loadSourceConfigs();
+
+  // Expand all globs into (filePath, adapterName) pairs
+  const filePairs: Array<[string, string]> = [];
+  for (const src of sources) {
+    const pattern = expandTilde(src.glob);
+    const paths = await expandGlobPattern(pattern);
+    for (const p of paths) {
+      filePairs.push([p, src.adapter]);
+    }
+  }
+
+  const state = await loadState(statePath);
+
+  let baselined = 0;
+  let skipped = 0;
+  let totalBytes = 0;
+
+  for (const [filePath, adapterName] of filePairs) {
+    const alreadyTracked = filePath in state.sources;
+
+    if (alreadyTracked && !force) {
+      skipped++;
+      continue;
+    }
+
+    let stat: Awaited<ReturnType<typeof fs.stat>>;
+    try {
+      stat = await fs.stat(filePath);
+    } catch {
+      // File disappeared — skip
+      continue;
+    }
+
+    const size = stat.size;
+    const mtime = stat.mtime.toISOString();
+
+    if (dryRun) {
+      process.stdout.write(`[dry-run] would baseline: ${filePath} (${size} bytes)\n`);
+    } else {
+      state.sources[filePath] = { byteOffset: size, mtime, adapter: adapterName };
+    }
+
+    baselined++;
+    totalBytes += size;
+  }
+
+  if (!dryRun) {
+    await saveState(statePath, state);
+  }
+
+  const dryTag = dryRun ? "[dry-run] " : "";
+  process.stdout.write(
+    `${dryTag}baselined ${baselined} files (skipped ${skipped} already tracked), total bytes: ${totalBytes}\n`,
+  );
+}
+
+/** Expand a glob pattern into absolute file paths (same logic as tick.ts). */
+async function expandGlobPattern(pattern: string): Promise<string[]> {
+  const { glob } = await import("node:fs/promises");
+
+  if (/[*?{}\[\]]/.test(pattern)) {
+    try {
+      const matches: string[] = [];
+      const parts = pattern.split("/");
+      let baseDir = "/";
+      let relPattern = pattern;
+
+      const firstGlobIdx = parts.findIndex((p) => /[*?{}\[\]]/.test(p));
+      if (firstGlobIdx > 0) {
+        baseDir = parts.slice(0, firstGlobIdx).join("/") || "/";
+        relPattern = parts.slice(firstGlobIdx).join("/");
+      }
+
+      for await (const match of glob(relPattern, { cwd: baseDir })) {
+        matches.push(path.join(baseDir, match));
+      }
+      return matches.sort();
+    } catch {
+      return [];
+    }
+  }
+
+  try {
+    await fs.access(pattern);
+    return [pattern];
+  } catch {
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main dispatcher
 // ---------------------------------------------------------------------------
 
@@ -153,11 +261,16 @@ export async function cmdDaemon(args: string[], graphPath: string): Promise<void
     await cmdDaemonStatus();
   } else if (sub === "reset") {
     await cmdDaemonReset(args.slice(1));
+  } else if (sub === "baseline") {
+    await cmdDaemonBaseline(args.slice(1));
   } else {
-    process.stderr.write("Usage: litopys daemon <tick|status|reset>\n");
+    process.stderr.write("Usage: litopys daemon <tick|status|reset|baseline>\n");
     process.stderr.write("  tick [--dry-run] [--provider <name>]  Run one incremental tick\n");
     process.stderr.write("  status                                 Show state file\n");
     process.stderr.write("  reset [path]                           Reset offset(s)\n");
+    process.stderr.write(
+      "  baseline [--force] [--dry-run]         Set offsets to current file sizes\n",
+    );
     process.exit(sub ? 1 : 0);
   }
 }

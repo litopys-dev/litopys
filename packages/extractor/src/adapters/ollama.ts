@@ -9,6 +9,7 @@ import {
 
 const DEFAULT_MODEL = "llama3.2";
 const DEFAULT_BASE_URL = "http://localhost:11434";
+const DEFAULT_TIMEOUT_MS = 900_000;
 
 export interface OllamaAdapterOptions {
   baseUrl?: string;
@@ -31,22 +32,34 @@ export class OllamaAdapter implements ExtractorAdapter {
     const systemPrompt = buildSystemPrompt();
     const userPrompt = buildUserPrompt(input, sessionId);
 
+    const timeoutMs =
+      Number(process.env.LITOPYS_OLLAMA_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
+
     let rawText = "";
 
     try {
-      const res = await fetch(`${this.baseUrl}/api/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: this.model,
-          format: "json",
-          stream: false,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-        }),
-      });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      let res: Response;
+      try {
+        res = await fetch(`${this.baseUrl}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            model: this.model,
+            format: "json",
+            stream: false,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+          }),
+        });
+      } finally {
+        clearTimeout(timer);
+      }
 
       if (!res.ok) {
         throw new Error(

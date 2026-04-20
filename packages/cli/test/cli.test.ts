@@ -43,6 +43,8 @@ mock.module("openai", () => ({
 process.env.ANTHROPIC_API_KEY = "sk-mock-cli-test";
 
 const { writeQuarantineTo, listQuarantineFrom } = await import("@litopys/extractor");
+const { cmdDaemonBaseline } = await import("../src/daemon.ts");
+const { loadState: loadDaemonState, saveState: saveDaemonState } = await import("@litopys/daemon");
 
 describe("CLI quarantine commands", () => {
   let tmpDir: string;
@@ -188,5 +190,121 @@ describe("CLI exports", () => {
   test("VERSION is correct", async () => {
     const { VERSION } = await import("../src/index.ts");
     expect(VERSION).toBe("0.1.0");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// daemon baseline
+// ---------------------------------------------------------------------------
+
+describe("cmdDaemonBaseline", () => {
+  let tmpDir: string;
+  let stateFile: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "litopys-baseline-test-"));
+    stateFile = path.join(tmpDir, "state.json");
+    process.env.LITOPYS_DAEMON_STATE = stateFile;
+    // Point sources at a temp glob so we control exactly which files are found
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+    process.env.LITOPYS_DAEMON_STATE = undefined;
+    process.env.LITOPYS_DAEMON_SOURCES = undefined;
+  });
+
+  test("baseline on empty state adds all files with offset=size", async () => {
+    const file1 = path.join(tmpDir, "a.jsonl");
+    const file2 = path.join(tmpDir, "b.jsonl");
+    await fs.writeFile(file1, "hello\nworld\n", "utf-8");
+    await fs.writeFile(file2, "foo\n", "utf-8");
+
+    process.env.LITOPYS_DAEMON_SOURCES = JSON.stringify([
+      { adapter: "claude-code", glob: path.join(tmpDir, "*.jsonl") },
+    ]);
+
+    await cmdDaemonBaseline([]);
+
+    const state = await loadDaemonState(stateFile);
+    expect(state.sources[file1]?.byteOffset).toBe((await fs.stat(file1)).size);
+    expect(state.sources[file2]?.byteOffset).toBe((await fs.stat(file2)).size);
+  });
+
+  test("baseline skips already-tracked files without --force", async () => {
+    const file1 = path.join(tmpDir, "a.jsonl");
+    await fs.writeFile(file1, "hello\n", "utf-8");
+
+    // Pre-populate state with a lower offset
+    await saveDaemonState(stateFile, {
+      version: 1,
+      sources: {
+        [file1]: { byteOffset: 0, mtime: new Date().toISOString(), adapter: "claude-code" },
+      },
+    });
+
+    process.env.LITOPYS_DAEMON_SOURCES = JSON.stringify([
+      { adapter: "claude-code", glob: path.join(tmpDir, "*.jsonl") },
+    ]);
+
+    await cmdDaemonBaseline([]);
+
+    // Should NOT have overwritten the existing 0-offset entry
+    const state = await loadDaemonState(stateFile);
+    expect(state.sources[file1]?.byteOffset).toBe(0);
+  });
+
+  test("--force overwrites already-tracked files", async () => {
+    const file1 = path.join(tmpDir, "a.jsonl");
+    await fs.writeFile(file1, "hello\n", "utf-8");
+    const realSize = (await fs.stat(file1)).size;
+
+    await saveDaemonState(stateFile, {
+      version: 1,
+      sources: {
+        [file1]: { byteOffset: 0, mtime: new Date().toISOString(), adapter: "claude-code" },
+      },
+    });
+
+    process.env.LITOPYS_DAEMON_SOURCES = JSON.stringify([
+      { adapter: "claude-code", glob: path.join(tmpDir, "*.jsonl") },
+    ]);
+
+    await cmdDaemonBaseline(["--force"]);
+
+    const state = await loadDaemonState(stateFile);
+    expect(state.sources[file1]?.byteOffset).toBe(realSize);
+  });
+
+  test("--dry-run does not write state", async () => {
+    const file1 = path.join(tmpDir, "a.jsonl");
+    await fs.writeFile(file1, "hello\n", "utf-8");
+
+    process.env.LITOPYS_DAEMON_SOURCES = JSON.stringify([
+      { adapter: "claude-code", glob: path.join(tmpDir, "*.jsonl") },
+    ]);
+
+    await cmdDaemonBaseline(["--dry-run"]);
+
+    // State file should not exist since this is the first run and dry-run skips write
+    try {
+      await fs.access(stateFile);
+      // If file exists, it must be empty state (no sources)
+      const state = await loadDaemonState(stateFile);
+      expect(Object.keys(state.sources)).toHaveLength(0);
+    } catch {
+      // File not created — correct
+    }
+  });
+
+  test("baseline with no matching files writes empty update", async () => {
+    process.env.LITOPYS_DAEMON_SOURCES = JSON.stringify([
+      { adapter: "text", glob: path.join(tmpDir, "nonexistent", "*.txt") },
+    ]);
+
+    await cmdDaemonBaseline([]);
+
+    const state = await loadDaemonState(stateFile);
+    expect(Object.keys(state.sources)).toHaveLength(0);
   });
 });

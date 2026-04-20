@@ -25,7 +25,11 @@ export interface SourceConfig {
 const DEFAULT_SOURCES: SourceConfig[] = [
   {
     adapter: "claude-code",
-    glob: "~/.claude/projects/*/sessions/*.jsonl",
+    glob: "~/.claude/projects/*/*.jsonl",
+  },
+  {
+    adapter: "claude-code",
+    glob: "~/.claude/projects/*/subagents/*.jsonl",
   },
 ];
 

@@ -65,7 +65,8 @@ Default sources:
 
 ```json
 [
-  { "adapter": "claude-code", "glob": "~/.claude/projects/*/sessions/*.jsonl" }
+  { "adapter": "claude-code", "glob": "~/.claude/projects/*/*.jsonl" },
+  { "adapter": "claude-code", "glob": "~/.claude/projects/*/subagents/*.jsonl" }
 ]
 ```
 

@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { resolveInstructions } from "./instructions.ts";
 import {
   CreateInputSchema,
   GetInputSchema,
@@ -27,7 +28,10 @@ function mcpOk(data: unknown) {
 }
 
 export function createServer(): McpServer {
-  const server = new McpServer({ name: "litopys", version: "0.1.0" }, { capabilities: {} });
+  const server = new McpServer(
+    { name: "litopys", version: "0.1.0" },
+    { capabilities: {}, instructions: resolveInstructions() },
+  );
 
   server.registerTool(
     "litopys_search",

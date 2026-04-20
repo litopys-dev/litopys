@@ -89,6 +89,39 @@ LITOPYS_MCP_INSTRUCTIONS="Your custom prompt text here" bun packages/mcp/src/std
 
 For the HTTP transport add it to your `.env` or systemd unit alongside `LITOPYS_MCP_TOKEN`.
 
+## Resources
+
+| Resource URI | Description |
+|---|---|
+| `litopys://startup-context` | Compressed graph snapshot: owner profile, active projects, recent events, key lessons |
+
+The `startup-context` resource is automatically exposed on every MCP connection.
+MCP-compatible clients (Claude Desktop, Cursor, Cline, …) can subscribe to resources and
+inject the content into the agent's context at startup — giving the agent an immediate
+understanding of who the user is and what is currently active.
+
+The content is plain markdown, capped at ~6 KB, and includes:
+- **Owner** — the person node tagged `owner`
+- **Active Projects** — top project nodes sorted by `updated` desc
+- **Recent Events** — top event nodes sorted by `updated` desc
+- **Key Lessons** — top lesson nodes sorted by `updated` desc
+- **Graph Statistics** — total node/edge counts by type
+
+### ENV options
+
+| Variable | Default | Effect |
+|---|---|---|
+| `LITOPYS_STARTUP_CONTEXT_DISABLED=1` | — | Do not register the resource at all |
+| `LITOPYS_STARTUP_CONTEXT_LIMIT=N` | `10` | Override top-N for every section |
+
+```bash
+# Disable startup context entirely
+LITOPYS_STARTUP_CONTEXT_DISABLED=1 bun packages/mcp/src/stdio.ts
+
+# Show only top 5 entries per section
+LITOPYS_STARTUP_CONTEXT_LIMIT=5 bun packages/mcp/src/stdio.ts
+```
+
 ## Security
 
 - `LITOPYS_MCP_TOKEN` is required for the HTTP transport. The server refuses to start without it.

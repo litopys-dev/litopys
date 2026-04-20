@@ -1,6 +1,15 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { resolveInstructions } from "./instructions.ts";
 import {
+  RESOURCE_DESCRIPTION,
+  RESOURCE_MIME_TYPE,
+  RESOURCE_NAME,
+  RESOURCE_TITLE,
+  RESOURCE_URI,
+  generateStartupContext,
+  isDisabled,
+} from "./resources.ts";
+import {
   CreateInputSchema,
   GetInputSchema,
   LinkInputSchema,
@@ -100,6 +109,28 @@ export function createServer(): McpServer {
       return mcpOk(result.data);
     },
   );
+
+  // ---------------------------------------------------------------------------
+  // Resources
+  // ---------------------------------------------------------------------------
+
+  if (!isDisabled()) {
+    server.registerResource(
+      RESOURCE_NAME,
+      RESOURCE_URI,
+      {
+        title: RESOURCE_TITLE,
+        description: RESOURCE_DESCRIPTION,
+        mimeType: RESOURCE_MIME_TYPE,
+      },
+      async (_uri) => {
+        const text = await generateStartupContext(graphPath());
+        return {
+          contents: [{ uri: RESOURCE_URI, mimeType: RESOURCE_MIME_TYPE, text }],
+        };
+      },
+    );
+  }
 
   return server;
 }

@@ -5,6 +5,7 @@ import {
   promoteCandidate,
   rejectCandidate,
 } from "@litopys/extractor";
+import { generateStartupContext } from "@litopys/mcp";
 import { cmdDaemon } from "./daemon.ts";
 import { cmdIngest } from "./ingest.ts";
 
@@ -37,6 +38,7 @@ Commands:
   quarantine accept <file> <index>          Promote a candidate to the graph
   quarantine reject <file> <index> [reason] Reject a candidate (with audit log)
   digest                                    Generate weekly digest
+  startup-context                           Print MCP startup-context markdown (for hooks)
 
 Source adapters:
   text:<path>         Plain text file
@@ -129,6 +131,11 @@ async function cmdDigest(): Promise<void> {
   process.stdout.write(`Week: ${result.weekLabel}\n`);
 }
 
+async function cmdStartupContext(): Promise<void> {
+  const markdown = await generateStartupContext(graphPath());
+  process.stdout.write(markdown);
+}
+
 // ---------------------------------------------------------------------------
 // Main entry
 // ---------------------------------------------------------------------------
@@ -161,6 +168,8 @@ async function main(): Promise<void> {
     }
   } else if (cmd === "digest") {
     await cmdDigest();
+  } else if (cmd === "startup-context") {
+    await cmdStartupContext();
   } else {
     process.stderr.write(`Unknown command: ${cmd}\n`);
     usage();

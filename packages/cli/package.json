@@ -15,6 +15,7 @@
   "dependencies": {
     "@litopys/core": "workspace:*",
     "@litopys/daemon": "workspace:*",
-    "@litopys/extractor": "workspace:*"
+    "@litopys/extractor": "workspace:*",
+    "@litopys/mcp": "workspace:*"
   }
 }

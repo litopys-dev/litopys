@@ -17,3 +17,4 @@ export {
 } from "./tools.ts";
 export { checkBearer, resolveToken } from "./auth.ts";
 export { DEFAULT_INSTRUCTIONS, resolveInstructions } from "./instructions.ts";
+export { generateStartupContext } from "./resources.ts";

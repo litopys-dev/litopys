@@ -5,6 +5,7 @@ import {
   type ExtractorInput,
   type ExtractorOutput,
   LLMOutputSchema,
+  normalizeLLMOutput,
 } from "./types.ts";
 
 const DEFAULT_MODEL = "gpt-4o-mini";
@@ -65,7 +66,7 @@ export class OpenAIAdapter implements ExtractorAdapter {
       };
     }
 
-    return parseOutput(rawText, this.model, inputTokens, outputTokens);
+    return parseOutput(rawText, this.model, inputTokens, outputTokens, sessionId);
   }
 }
 
@@ -74,6 +75,7 @@ function parseOutput(
   modelUsed: string,
   inputTokens: number,
   outputTokens: number,
+  sessionId: string,
 ): ExtractorOutput {
   // Strip potential markdown fences
   const cleaned = rawText
@@ -96,7 +98,8 @@ function parseOutput(
     };
   }
 
-  const result = LLMOutputSchema.safeParse(parsed);
+  const normalized = normalizeLLMOutput(parsed, sessionId);
+  const result = LLMOutputSchema.safeParse(normalized);
   if (!result.success) {
     process.stderr.write(
       `[litopys/extractor] LLM output failed schema validation: ${JSON.stringify(result.error.issues)}\n`,

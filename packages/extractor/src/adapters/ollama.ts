@@ -4,6 +4,7 @@ import {
   type ExtractorInput,
   type ExtractorOutput,
   LLMOutputSchema,
+  normalizeLLMOutput,
 } from "./types.ts";
 
 const DEFAULT_MODEL = "llama3.2";
@@ -22,7 +23,7 @@ export class OllamaAdapter implements ExtractorAdapter {
 
   constructor(opts: OllamaAdapterOptions = {}) {
     this.baseUrl = opts.baseUrl ?? process.env.OLLAMA_BASE_URL ?? DEFAULT_BASE_URL;
-    this.model = opts.model ?? DEFAULT_MODEL;
+    this.model = opts.model ?? process.env.OLLAMA_MODEL ?? DEFAULT_MODEL;
   }
 
   async extract(input: ExtractorInput): Promise<ExtractorOutput> {
@@ -72,11 +73,11 @@ export class OllamaAdapter implements ExtractorAdapter {
       };
     }
 
-    return parseOutput(rawText, this.model);
+    return parseOutput(rawText, this.model, sessionId);
   }
 }
 
-function parseOutput(rawText: string, modelUsed: string): ExtractorOutput {
+function parseOutput(rawText: string, modelUsed: string, sessionId: string): ExtractorOutput {
   const cleaned = rawText
     .replace(/^```(?:json)?\s*/m, "")
     .replace(/\s*```\s*$/m, "")
@@ -97,7 +98,8 @@ function parseOutput(rawText: string, modelUsed: string): ExtractorOutput {
     };
   }
 
-  const result = LLMOutputSchema.safeParse(parsed);
+  const normalized = normalizeLLMOutput(parsed, sessionId);
+  const result = LLMOutputSchema.safeParse(normalized);
   if (!result.success) {
     process.stderr.write(
       `[litopys/extractor] Ollama output failed schema validation: ${JSON.stringify(result.error.issues)}\n`,

@@ -158,4 +158,40 @@ describe("OllamaAdapter", () => {
     expect(output.usage.inputTokens).toBe(0);
     expect(output.usage.outputTokens).toBe(0);
   });
+
+  test("normalizes candidates missing confidence and sourceSessionId", async () => {
+    global.fetch = mock(async () => ({
+      ok: true,
+      json: async () => ({
+        message: {
+          content: JSON.stringify({
+            candidateNodes: [
+              {
+                id: "llm-memory",
+                type: "concept",
+                summary: "LLM memory",
+                reasoning: "Discussed in session",
+              },
+            ],
+            candidateRelations: [
+              {
+                type: "applies_to",
+                sourceId: "llm-memory",
+                targetId: "pcbot",
+                reasoning: "Memory applies to bot",
+              },
+            ],
+          }),
+        },
+      }),
+    })) as unknown as typeof global.fetch;
+
+    const adapter = new OllamaAdapter({ baseUrl: "http://localhost:11434" });
+    const output = await adapter.extract({ transcript: "test", existingNodeIds: [] });
+    expect(output.candidateNodes).toHaveLength(1);
+    expect(output.candidateNodes[0]?.confidence).toBe(0.5);
+    expect(output.candidateNodes[0]?.sourceSessionId).toMatch(/^session-\d+$/);
+    expect(output.candidateRelations).toHaveLength(1);
+    expect(output.candidateRelations[0]?.confidence).toBe(0.5);
+  });
 });

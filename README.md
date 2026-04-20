@@ -79,6 +79,12 @@ A full installer and single-binary build ship with Part 7.
   - [x] Periodic timer-daemon — incremental extraction from live transcripts without requiring session end
   - [x] Baseline command + configurable extractor timeout — avoids long first-tick backfill on existing history
 - [ ] **Part 6.5** — Web dashboard (deferred) — Bun + SolidJS, `/graph`, `/table`, `/node/:id` CRUD, `/quarantine`, `/conflicts`
+- [ ] **Part 6.6** — Graph-growth guardrails (identity resolution + evolution)
+  - Add `supersedes` relation type (directed evolution: "A replaces B") alongside existing `conflicts_with`.
+  - `litopys similar <id> [--explain]` — deterministic merge candidates by alias / type / tag overlap / name edit-distance. No embeddings.
+  - `litopys propose-merge <a> <b>` — emits a full merge-preview (result id, aliases, merged relations, detected conflicts) into the existing `quarantine/` pipeline.
+  - Reuse `litopys quarantine accept/reject` for merge proposals — no separate review machinery. **Merge is never applied automatically; it requires explicit accept.**
+  - Tests: guardrail that no merge touches the graph without an accept; conflict detection catches incompatible `summary` / relation-set differences.
 - [ ] **Part 7** — Remote transport + installer + integrations
   - MCP SSE/HTTP mode for remote clients (Claude Desktop, ChatGPT connectors, etc.)
   - Single-binary build (`bun build --compile`) + one-line installer

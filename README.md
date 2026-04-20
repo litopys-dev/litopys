@@ -43,10 +43,26 @@ Memory systems for AI agents today force a tradeoff: either heavy vector databas
 - [x] **Part 1** — Monorepo scaffolding
 - [x] **Part 2** — Core graph model (loader, resolver, conflicts)
 - [x] **Part 3** — MCP server (5 tools, SSE + stdio)
-- [x] **Part 4** — Model-agnostic extractor + SessionEnd hook + Quarantine + Weekly digest
-- [ ] **Part 5** — Migration from flat markdown memory
-- [ ] **Part 6** — Web dashboard with full CRUD
-- [ ] **Part 7** — Claude Desktop integration + v0.1.0 release
+- [x] **Part 4** — Model-agnostic extractor + Quarantine + Weekly digest
+- [x] **Part 5** — Migration from flat markdown memory + local Ollama extractor
+- [ ] **Part 6** — Universal auto-context / auto-write
+  - MCP `startup-context` resource — clients auto-load recent events + active projects on connect
+  - MCP server-level `instructions` — prompt-imprint for any agent ("search before answering, create on learning")
+  - Generic CLI `litopys ingest <file>` — agent-agnostic entry point for transcripts (not tied to any specific client)
+  - Periodic timer-daemon — incremental extraction from live transcripts without requiring session end
+  - Web dashboard (Bun + SolidJS) — `/graph`, `/table`, `/node/:id` CRUD, `/quarantine`, `/conflicts`
+- [ ] **Part 7** — Remote transport + installer + integrations
+  - MCP SSE/HTTP mode for remote clients (Claude Desktop, ChatGPT connectors, etc.)
+  - Single-binary build (`bun build --compile`) + one-line installer
+  - `docs/integrations/` — Claude Code, Claude Desktop, Cursor, Cline, ChatGPT, Gemini
+  - Astro landing page, npm publish, v0.1.0 release
+
+## Design principles
+
+- **Agent-agnostic.** No hard dependency on any LLM vendor or client. MCP is the only integration point. Ollama is the default extractor; Anthropic/OpenAI are optional adapters.
+- **Portable data.** The graph is plain markdown + YAML frontmatter on disk. Readable in any editor, versionable in git, greppable from the shell.
+- **Light runtime.** ~50 MB RAM for the MCP server. The extractor is out-of-process and runs on your schedule, not on every request.
+- **Opt-in integrations.** Client-specific helpers (hooks, config snippets) live in `docs/integrations/` — you can use Litopys without any of them.
 
 ## License
 

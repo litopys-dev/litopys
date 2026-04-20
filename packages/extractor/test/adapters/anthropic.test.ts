@@ -16,7 +16,7 @@ const mockCreate = mock(async (_params: unknown) => ({
             type: "concept",
             summary: "TypeScript strict mode",
             confidence: 0.9,
-            reasoning: "Denis explicitly mentioned preferring strict TypeScript",
+            reasoning: "Alice explicitly mentioned preferring strict TypeScript",
             sourceSessionId: "test-session",
           },
         ],
@@ -66,7 +66,7 @@ describe("AnthropicAdapter", () => {
   test("extract returns parsed candidates", async () => {
     const adapter = new AnthropicAdapter({ apiKey: "sk-test" });
     const input: ExtractorInput = {
-      transcript: "Denis prefers TypeScript strict mode",
+      transcript: "Alice prefers TypeScript strict mode",
       existingNodeIds: [],
     };
     const output = await adapter.extract(input);

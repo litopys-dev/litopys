@@ -143,13 +143,13 @@ json
       "type": "concept",
       "summary": "TypeScript strict mode enables noUncheckedIndexedAccess etc.",
       "confidence": 0.92,
-      "reasoning": "Denis explicitly stated he prefers strict TypeScript throughout the session"
+      "reasoning": "Alice explicitly stated she prefers strict TypeScript throughout the session"
     }
   ],
   "relations": [
     {
       "type": "prefers",
-      "sourceId": "denis-blashchytsia",
+      "sourceId": "alice",
       "targetId": "typescript-strict-mode",
       "confidence": 0.9,
       "reasoning": "Person expressed strong preference for strict settings"

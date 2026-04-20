@@ -77,7 +77,7 @@ describe("buildUserPrompt", () => {
   });
 
   test("includes transcript text", () => {
-    const transcript = "Denis prefers strict TypeScript settings";
+    const transcript = "Alice prefers strict TypeScript settings";
     const prompt = buildUserPrompt({ transcript, existingNodeIds: [] }, "s1");
     expect(prompt).toContain(transcript);
   });

@@ -1,12 +1,11 @@
 ---
 id: denis
 type: person
-summary: Engineer and owner of a PC service center in Shostka
-updated: "2026-04-19"
+summary: Generic test person fixture for loader and resolver tests
+updated: "2026-01-01"
 confidence: 1
 aliases:
-  - Denis
-  - Denis Parikk
+  - Test User
 rels:
   owns:
     - pcbot
@@ -20,4 +19,4 @@ tags:
   - engineer
 ---
 
-Denis is the owner and primary developer behind the Litopys project.
+Synthetic test fixture. Do not edit structure — several tests in `packages/core/test/` depend on the id, relations, and tags declared here.

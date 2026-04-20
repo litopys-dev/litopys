@@ -66,4 +66,4 @@ Memory systems for AI agents today force a tradeoff: either heavy vector databas
 
 ## License
 
-MIT © 2026 Denis Blashchytsia ([REDACTED](REDACTED)) and Litopys contributors.
+MIT © 2026 Denis Blashchytsia and Litopys contributors.

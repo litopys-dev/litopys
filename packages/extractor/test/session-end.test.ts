@@ -113,7 +113,7 @@ describe("session-end integration", () => {
   test("transcript→extract→quarantine full pipeline", async () => {
     // Simulate writing a transcript file
     const transcriptPath = path.join(tmpDir, "transcript.txt");
-    await fs.writeFile(transcriptPath, "Denis uses Bun runtime for litopys", "utf-8");
+    await fs.writeFile(transcriptPath, "Alice uses Bun runtime for litopys", "utf-8");
 
     const transcript = await fs.readFile(transcriptPath, "utf-8");
 

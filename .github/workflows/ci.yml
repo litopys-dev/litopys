@@ -16,4 +16,15 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun run lint
-      - run: bun test
+      - name: Test (per-file to avoid mock.module pollution)
+        run: |
+          set -eo pipefail
+          failed=0
+          while IFS= read -r f; do
+            echo "::group::$f"
+            if ! bun test "$f"; then
+              failed=1
+            fi
+            echo "::endgroup::"
+          done < <(find packages -type f -name '*.test.ts')
+          exit $failed

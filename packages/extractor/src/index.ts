@@ -32,6 +32,16 @@ export type { QuarantineMeta, QuarantineFile } from "./quarantine.ts";
 export { generateDigest } from "./digest.ts";
 export type { DigestOptions, DigestResult } from "./digest.ts";
 
+export {
+  proposeMerge,
+  writeMergeProposal,
+  parseMergeProposal,
+  serializeMergeProposal,
+  isMergeProposalContent,
+} from "./merge-proposal.ts";
+export type { MergeProposal, MergeResult, MergeConflict } from "./merge-proposal.ts";
+export { acceptMergeProposal, rejectMergeProposal } from "./merge-apply.ts";
+
 // ---------------------------------------------------------------------------
 // Source adapters (agent-agnostic ingestion layer — Part 6.3a)
 // ---------------------------------------------------------------------------

@@ -59,4 +59,9 @@ export const RELATION_CONSTRAINTS: Record<RelationName, RelationConstraint> = {
     targets: ["event"],
     symmetric: false,
   },
+  supersedes: {
+    sources: ALL_TYPES,
+    targets: ALL_TYPES,
+    symmetric: false,
+  },
 };

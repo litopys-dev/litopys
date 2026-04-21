@@ -14,6 +14,7 @@ export const RelationName = z.enum([
   "depends_on",
   "reinforces",
   "mentioned_in",
+  "supersedes",
 ]);
 export type RelationName = z.infer<typeof RelationName>;
 

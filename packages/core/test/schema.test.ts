@@ -205,9 +205,9 @@ describe("NodeType enum", () => {
 });
 
 describe("RelationName enum", () => {
-  test("contains all 10 relations", () => {
+  test("contains all 11 relations", () => {
     const values = RelationName.options;
-    expect(values).toHaveLength(10);
+    expect(values).toHaveLength(11);
     expect(values).toContain("owns");
     expect(values).toContain("prefers");
     expect(values).toContain("learned_from");
@@ -218,6 +218,7 @@ describe("RelationName enum", () => {
     expect(values).toContain("depends_on");
     expect(values).toContain("reinforces");
     expect(values).toContain("mentioned_in");
+    expect(values).toContain("supersedes");
   });
 });
 
@@ -248,9 +249,18 @@ describe("RELATION_CONSTRAINTS", () => {
     expect(RELATION_CONSTRAINTS.reinforces.targets).toEqual(["concept"]);
   });
 
-  test("all 10 relations are defined", () => {
+  test("all 11 relations are defined", () => {
     const keys = Object.keys(RELATION_CONSTRAINTS);
-    expect(keys).toHaveLength(10);
+    expect(keys).toHaveLength(11);
+  });
+
+  test("supersedes is not symmetric", () => {
+    expect(RELATION_CONSTRAINTS.supersedes.symmetric).toBe(false);
+  });
+
+  test("supersedes allows any → any", () => {
+    expect(RELATION_CONSTRAINTS.supersedes.sources).toHaveLength(6);
+    expect(RELATION_CONSTRAINTS.supersedes.targets).toHaveLength(6);
   });
 });
 

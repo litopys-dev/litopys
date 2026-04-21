@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Part 6.6 — Graph-growth guardrails** (identity resolution + evolution):
+  - New `supersedes` relation type (directed: "A replaces B"). Relation count grows from 10 → 11. Co-exists with the symmetric `conflicts_with`.
+  - Deterministic similarity scorer in `@litopys/core` (`scoreSimilarity`, `findSimilar`) — combines alias overlap, type match, tag Jaccard, and Levenshtein-based id edit-distance. No embeddings, no LLM calls.
+  - `litopys similar <id> [--explain] [--limit N] [--min-score F]` — prints ranked merge candidates with optional per-reason scoring breakdown.
+  - `litopys propose-merge <id-a> <id-b>` — generates a full merge-preview (chosen winner id, merged aliases/tags/rels, surfaced conflicts) as a quarantine file alongside extractor candidates.
+  - `litopys quarantine accept/reject` detects merge-proposal files and routes them to the merge pipeline: accept writes the merged node, tombstones the loser with `until: <today>`, and archives the proposal; reject archives the proposal with no graph mutation.
+  - **Guardrail:** merges never apply automatically. Type conflicts block auto-apply entirely. External refs to the loser stay resolvable — the loser's file is preserved with `until` rather than deleted.
 - Initial monorepo scaffolding (Part 1).
 - MCP server-level `instructions` (Part 6.2): `DEFAULT_INSTRUCTIONS` constant in `packages/mcp/src/instructions.ts`, injected into MCP initialize response via `ServerOptions.instructions`. Overridable via `LITOPYS_MCP_INSTRUCTIONS` env var. Works with any MCP-compatible client (Claude Code, Claude Desktop, Cursor, Cline).
 - MCP `startup-context` resource (Part 6.1): markdown snapshot of owner profile, active projects, recent events, and key lessons, served at `litopys://startup-context` and mirrored by `litopys startup-context` CLI for non-MCP consumers (session-start hooks, shell scripts).

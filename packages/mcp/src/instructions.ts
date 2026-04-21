@@ -11,8 +11,8 @@
 export const DEFAULT_INSTRUCTIONS = `\
 You have access to Litopys — a persistent graph-based knowledge memory. \
 The graph holds typed nodes (person, project, system, concept, event, lesson) \
-connected by 10 relation types (owns, uses, depends_on, knows, applies_to, \
-ran_on, conflicts_with, resolves, precedes, related_to). \
+connected by 11 relation types (owns, prefers, learned_from, uses, applies_to, \
+conflicts_with, runs_on, depends_on, reinforces, mentioned_in, supersedes). \
 All reads/writes go through five tools: litopys_search, litopys_get, \
 litopys_create, litopys_link, litopys_related.
 

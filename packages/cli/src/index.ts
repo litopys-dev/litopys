@@ -1,13 +1,19 @@
+import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import {
+  acceptMergeProposal,
   generateDigest,
+  isMergeProposalContent,
   listQuarantine,
   promoteCandidate,
   rejectCandidate,
+  rejectMergeProposal,
 } from "@litopys/extractor";
 import { generateStartupContext } from "@litopys/mcp";
 import { cmdDaemon } from "./daemon.ts";
 import { cmdIngest } from "./ingest.ts";
+import { cmdProposeMerge } from "./propose-merge.ts";
+import { cmdSimilar } from "./similar.ts";
 
 export const PACKAGE_NAME = "@litopys/cli";
 export const VERSION = "0.1.0";
@@ -35,10 +41,17 @@ Commands:
   daemon reset [path]                      Reset byte offset(s)
 
   quarantine list                           List all pending quarantine items
-  quarantine accept <file> <index>          Promote a candidate to the graph
-  quarantine reject <file> <index> [reason] Reject a candidate (with audit log)
+  quarantine accept <file> [index]          Promote a candidate, or accept a merge proposal
+  quarantine reject <file> [index] [reason] Reject a candidate, or reject a merge proposal
   digest                                    Generate weekly digest
   startup-context                           Print MCP startup-context markdown (for hooks)
+
+  similar <id> [--explain]                  Find deterministic merge candidates for a node
+    --explain                               Show per-reason scoring breakdown
+    --limit N                               Max results (default: 10)
+    --min-score F                           Minimum score 0..1 (default: 0.35)
+
+  propose-merge <id-a> <id-b>               Write a merge proposal to quarantine for review
 
 Source adapters:
   text:<path>         Plain text file
@@ -66,6 +79,19 @@ async function cmdQuarantineList(): Promise<void> {
   }
 
   for (const f of pending) {
+    const content = await fs.readFile(f.filePath, "utf-8").catch(() => "");
+    if (isMergeProposalContent(content)) {
+      process.stdout.write(`\nFile: ${f.filePath}  [merge-proposal]\n`);
+      const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+      if (fmMatch?.[1]) {
+        for (const line of fmMatch[1].split("\n")) {
+          const trimmed = line.trim();
+          if (trimmed) process.stdout.write(`  ${trimmed}\n`);
+        }
+      }
+      continue;
+    }
+
     process.stdout.write(`\nFile: ${f.filePath}\n`);
     process.stdout.write(`  Session: ${f.meta.sessionId}\n`);
     process.stdout.write(`  Timestamp: ${f.meta.timestamp}\n`);
@@ -88,9 +114,28 @@ async function cmdQuarantineList(): Promise<void> {
 
 async function cmdQuarantineAccept(args: string[]): Promise<void> {
   const file = args[0];
+  if (!file) {
+    process.stderr.write("Usage: quarantine accept <file> [index]\n");
+    process.exit(1);
+  }
+
+  const absFile = path.resolve(file);
+
+  // Detect file type — merge proposals have their own accept pipeline
+  const content = await fs.readFile(absFile, "utf-8");
+  if (isMergeProposalContent(content)) {
+    const result = await acceptMergeProposal(absFile, graphPath());
+    const conflictPart =
+      result.conflictsIgnored > 0 ? ` (${result.conflictsIgnored} conflicts noted)` : "";
+    process.stdout.write(
+      `Applied merge proposal ${path.basename(file)}: ${result.loserId} → ${result.winnerId}${conflictPart}\n`,
+    );
+    return;
+  }
+
   const indexStr = args[1];
-  if (!file || indexStr === undefined) {
-    process.stderr.write("Usage: quarantine accept <file> <index>\n");
+  if (indexStr === undefined) {
+    process.stderr.write("Usage: quarantine accept <candidate-file> <index>\n");
     process.exit(1);
   }
   const index = Number.parseInt(indexStr, 10);
@@ -99,17 +144,29 @@ async function cmdQuarantineAccept(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const absFile = path.resolve(file);
   await promoteCandidate(absFile, index, graphPath());
   process.stdout.write(`Promoted candidate [${index}] from ${path.basename(file)}\n`);
 }
 
 async function cmdQuarantineReject(args: string[]): Promise<void> {
   const file = args[0];
+  if (!file) {
+    process.stderr.write("Usage: quarantine reject <file> [index] [reason]\n");
+    process.exit(1);
+  }
+
+  const absFile = path.resolve(file);
+  const content = await fs.readFile(absFile, "utf-8");
+  if (isMergeProposalContent(content)) {
+    await rejectMergeProposal(absFile);
+    process.stdout.write(`Rejected merge proposal ${path.basename(file)}\n`);
+    return;
+  }
+
   const indexStr = args[1];
   const reason = args[2];
-  if (!file || indexStr === undefined) {
-    process.stderr.write("Usage: quarantine reject <file> <index> [reason]\n");
+  if (indexStr === undefined) {
+    process.stderr.write("Usage: quarantine reject <candidate-file> <index> [reason]\n");
     process.exit(1);
   }
   const index = Number.parseInt(indexStr, 10);
@@ -118,7 +175,6 @@ async function cmdQuarantineReject(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const absFile = path.resolve(file);
   await rejectCandidate(absFile, index, graphPath(), reason);
   process.stdout.write(
     `Rejected candidate [${index}] from ${path.basename(file)}${reason ? ` (${reason})` : ""}\n`,
@@ -170,6 +226,10 @@ async function main(): Promise<void> {
     await cmdDigest();
   } else if (cmd === "startup-context") {
     await cmdStartupContext();
+  } else if (cmd === "similar") {
+    await cmdSimilar(args.slice(1), graphPath());
+  } else if (cmd === "propose-merge") {
+    await cmdProposeMerge(args.slice(1), graphPath());
   } else {
     process.stderr.write(`Unknown command: ${cmd}\n`);
     usage();

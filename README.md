@@ -32,8 +32,8 @@ Memory systems for AI agents today force a tradeoff: either heavy vector databas
 
 ## Status
 
-🚧 **Pre-release, running live.** Parts 1–6 shipped (see [Roadmap](#roadmap)).
-Author's own daily driver since 2026-04-20 — 37 nodes, 79 edges, daemon ticking every 5 min.
+🚧 **Pre-release, running live.** Parts 1–6.6 shipped (see [Roadmap](#roadmap)).
+Author's own daily driver since 2026-04-20 — 38+ nodes, 81+ edges, daemon ticking every 5 min.
 v0.1.0 public release lands with Part 7 (transport, installer, integrations).
 
 ## Quick Start
@@ -79,12 +79,11 @@ A full installer and single-binary build ship with Part 7.
   - [x] Periodic timer-daemon — incremental extraction from live transcripts without requiring session end
   - [x] Baseline command + configurable extractor timeout — avoids long first-tick backfill on existing history
 - [ ] **Part 6.5** — Web dashboard (deferred) — Bun + SolidJS, `/graph`, `/table`, `/node/:id` CRUD, `/quarantine`, `/conflicts`
-- [ ] **Part 6.6** — Graph-growth guardrails (identity resolution + evolution)
-  - Add `supersedes` relation type (directed evolution: "A replaces B") alongside existing `conflicts_with`.
-  - `litopys similar <id> [--explain]` — deterministic merge candidates by alias / type / tag overlap / name edit-distance. No embeddings.
-  - `litopys propose-merge <a> <b>` — emits a full merge-preview (result id, aliases, merged relations, detected conflicts) into the existing `quarantine/` pipeline.
-  - Reuse `litopys quarantine accept/reject` for merge proposals — no separate review machinery. **Merge is never applied automatically; it requires explicit accept.**
-  - Tests: guardrail that no merge touches the graph without an accept; conflict detection catches incompatible `summary` / relation-set differences.
+- [x] **Part 6.6** — Graph-growth guardrails (identity resolution + evolution)
+  - [x] `supersedes` relation type (directed evolution: "A replaces B") alongside existing `conflicts_with`. Relation count grows from 10 → 11.
+  - [x] `litopys similar <id> [--explain]` — deterministic merge candidates by alias / type / tag overlap / name edit-distance. No embeddings.
+  - [x] `litopys propose-merge <a> <b>` — emits a full merge-preview (result id, aliases, merged relations, detected conflicts) into the existing `quarantine/` pipeline.
+  - [x] Reuse `litopys quarantine accept/reject` for merge proposals — no separate review machinery. **Merge is never applied automatically; it requires explicit accept.** Accept writes the merged node + tombstones the loser with `until: <today>`; reject archives the proposal.
 - [ ] **Part 7** — Remote transport + installer + integrations
   - MCP SSE/HTTP mode for remote clients (Claude Desktop, ChatGPT connectors, etc.)
   - Single-binary build (`bun build --compile`) + one-line installer

@@ -19,7 +19,7 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("lesson");
   });
 
-  test("contains all 10 relation types", () => {
+  test("contains all 11 relation types", () => {
     const prompt = buildSystemPrompt();
     const relations = [
       "owns",
@@ -32,6 +32,7 @@ describe("buildSystemPrompt", () => {
       "depends_on",
       "reinforces",
       "mentioned_in",
+      "supersedes",
     ];
     for (const rel of relations) {
       expect(prompt).toContain(rel);

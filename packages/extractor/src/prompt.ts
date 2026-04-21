@@ -15,7 +15,7 @@ NODE TYPES (6 types):
 `.trim();
 
 export const RELATION_TYPES_DOC = `
-RELATION TYPES (10 types):
+RELATION TYPES (11 types):
 - owns         — person→project|system  (person is the owner/creator)
 - prefers      — person→concept  (person consistently prefers this approach)
 - learned_from — person→lesson|event  (person learned something from this)
@@ -26,6 +26,7 @@ RELATION TYPES (10 types):
 - depends_on   — project|system → project|system  (hard build/runtime dependency)
 - reinforces   — event|lesson → concept  (this event/lesson reinforces the concept)
 - mentioned_in — any → event  (this node was discussed in this event/session)
+- supersedes   — any → any  (A supersedes B — A replaces B in the graph's evolution; directional)
 `.trim();
 
 export const QUALITY_RULES = `

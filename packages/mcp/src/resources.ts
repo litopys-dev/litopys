@@ -73,13 +73,12 @@ export async function generateStartupContext(dir: string): Promise<string> {
 
   const ownerNodes = nodes.filter((n) => n.type === "person" && n.tags?.includes("owner"));
   let ownerSection = "";
-  if (ownerNodes.length > 0) {
-    const owner = ownerNodes[0];
-    ownerSection =
-      `## Owner\n\n**${shortSummary(owner)}** (\`${owner.id}\`)` +
-      (owner.tags && owner.tags.length > 0 ? ` — tags: ${owner.tags.join(", ")}` : "") +
-      "\n\n" +
-      (owner.body ? owner.body.trim() + "\n" : "");
+  const owner = ownerNodes[0];
+  if (owner) {
+    const tagsSuffix =
+      owner.tags && owner.tags.length > 0 ? ` — tags: ${owner.tags.join(", ")}` : "";
+    const bodySuffix = owner.body ? `${owner.body.trim()}\n` : "";
+    ownerSection = `## Owner\n\n**${shortSummary(owner)}** (\`${owner.id}\`)${tagsSuffix}\n\n${bodySuffix}`;
   }
 
   // ---------------------------------------------------------------------------
@@ -183,5 +182,5 @@ export async function generateStartupContext(dir: string): Promise<string> {
   const encoded = Buffer.from(full, "utf8").slice(0, MAX_BYTES).toString("utf8");
   const lastNewline = encoded.lastIndexOf("\n");
   const trimmed = lastNewline > 0 ? encoded.slice(0, lastNewline) : encoded;
-  return trimmed + "\n\n_… truncated (graph too large for startup context)_\n";
+  return `${trimmed}\n\n_… truncated (graph too large for startup context)_\n`;
 }

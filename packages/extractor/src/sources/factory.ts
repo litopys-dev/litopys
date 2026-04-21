@@ -7,11 +7,7 @@ import type { SourceAdapter } from "./types.ts";
 // Registry
 // ---------------------------------------------------------------------------
 
-const REGISTRY: SourceAdapter[] = [
-  new TextAdapter(),
-  new JsonlAdapter(),
-  new ClaudeCodeAdapter(),
-];
+const REGISTRY: SourceAdapter[] = [new TextAdapter(), new JsonlAdapter(), new ClaudeCodeAdapter()];
 
 /**
  * Find the first registered adapter that can handle the given spec.

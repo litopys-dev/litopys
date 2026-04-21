@@ -56,7 +56,9 @@ export async function loadState(statePath: string): Promise<DaemonState> {
     // ENOENT is expected on first run; other errors we surface as empty state.
     const code = (err as NodeJS.ErrnoException).code;
     if (code !== "ENOENT") {
-      process.stderr.write(`[litopys/daemon] Could not read state file (${String(err)}), starting fresh\n`);
+      process.stderr.write(
+        `[litopys/daemon] Could not read state file (${String(err)}), starting fresh\n`,
+      );
     }
     return emptyState();
   }
@@ -86,5 +88,5 @@ function emptyState(): DaemonState {
 function isValidState(value: unknown): value is DaemonState {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
-  return v["version"] === 1 && typeof v["sources"] === "object" && v["sources"] !== null;
+  return v.version === 1 && typeof v.sources === "object" && v.sources !== null;
 }

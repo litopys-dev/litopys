@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
-import type { SourceAdapter, TranscriptChunk } from "./types.ts";
 import { expandGlob, resolveSpec, stableId } from "./text.ts";
+import type { SourceAdapter, TranscriptChunk } from "./types.ts";
 
 /**
  * ClaudeCodeAdapter — reads Claude Code session JSONL files.

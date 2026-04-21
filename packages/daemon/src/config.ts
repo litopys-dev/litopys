@@ -59,12 +59,12 @@ export function loadSourceConfigs(): SourceConfig[] {
       if (
         typeof item === "object" &&
         item !== null &&
-        typeof (item as Record<string, unknown>)["adapter"] === "string" &&
-        typeof (item as Record<string, unknown>)["glob"] === "string"
+        typeof (item as Record<string, unknown>).adapter === "string" &&
+        typeof (item as Record<string, unknown>).glob === "string"
       ) {
         valid.push({
-          adapter: (item as Record<string, unknown>)["adapter"] as string,
-          glob: (item as Record<string, unknown>)["glob"] as string,
+          adapter: (item as Record<string, unknown>).adapter as string,
+          glob: (item as Record<string, unknown>).glob as string,
         });
       }
     }

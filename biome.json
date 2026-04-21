@@ -13,5 +13,15 @@
   },
   "files": {
     "ignore": ["node_modules", "dist", "*.md"]
-  }
+  },
+  "overrides": [
+    {
+      "include": ["**/test/**", "**/*.test.ts"],
+      "linter": {
+        "rules": {
+          "performance": { "noDelete": "off" }
+        }
+      }
+    }
+  ]
 }

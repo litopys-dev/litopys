@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { join } from "node:path";
 import {
   RESOURCE_DESCRIPTION,
   RESOURCE_MIME_TYPE,
@@ -204,7 +204,7 @@ describe("startup-context resource registration", () => {
       const result = await client.readResource({ uri: RESOURCE_URI });
       expect(result.contents.length).toBeGreaterThan(0);
       const first = result.contents[0];
-      if (!("text" in first)) throw new Error("Expected text content");
+      if (!first || !("text" in first)) throw new Error("Expected text content");
       expect(first.text.length).toBeGreaterThan(50);
       expect(first.mimeType).toBe(RESOURCE_MIME_TYPE);
     } finally {
@@ -217,7 +217,7 @@ describe("startup-context resource registration", () => {
     try {
       const result = await client.readResource({ uri: RESOURCE_URI });
       const first = result.contents[0];
-      if (!("text" in first)) throw new Error("Expected text content");
+      if (!first || !("text" in first)) throw new Error("Expected text content");
       const text = first.text;
       expect(text).toContain("## Owner");
       expect(text).toContain("## Active Projects");

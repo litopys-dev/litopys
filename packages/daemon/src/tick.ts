@@ -7,12 +7,9 @@ import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import { loadGraph } from "@litopys/core";
-import {
-  createAdapter,
-  writeQuarantineTo,
-} from "@litopys/extractor";
+import { createAdapter, writeQuarantineTo } from "@litopys/extractor";
 import type { AdapterName, CandidateNode, CandidateRelation } from "@litopys/extractor";
-import { expandTilde, type SourceConfig } from "./config.ts";
+import { type SourceConfig, expandTilde } from "./config.ts";
 import type { DaemonState, FileState } from "./state.ts";
 
 // ---------------------------------------------------------------------------
@@ -104,9 +101,9 @@ export async function runTick(opts: TickOptions, state: DaemonState): Promise<Ti
   const candidatesTotal = fileResults.reduce((s, r) => s + r.candidatesFound, 0);
   const relationsTotal = fileResults.reduce((s, r) => s + r.relationsFound, 0);
   const quarantineFiles = fileResults.flatMap((r) => (r.quarantineFile ? [r.quarantineFile] : []));
-  const errors = fileResults
-    .filter((r) => r.error !== undefined)
-    .map((r) => ({ filePath: r.filePath, error: r.error! }));
+  const errors = fileResults.flatMap((r) =>
+    r.error !== undefined ? [{ filePath: r.filePath, error: r.error }] : [],
+  );
 
   return {
     tickedAt,
@@ -231,11 +228,16 @@ async function tickFile(
     let quarantineFile: string | undefined;
     if (!ctx.dryRun && (allNodes.length > 0 || allRelations.length > 0)) {
       const timestamp = new Date().toISOString();
-      quarantineFile = await writeQuarantineTo(allNodes, allRelations, {
-        sessionId,
-        timestamp,
-        adapterName: `${ctx.llmAdapter.name} (daemon:${adapterName})`,
-      }, ctx.quarantineDir);
+      quarantineFile = await writeQuarantineTo(
+        allNodes,
+        allRelations,
+        {
+          sessionId,
+          timestamp,
+          adapterName: `${ctx.llmAdapter.name} (daemon:${adapterName})`,
+        },
+        ctx.quarantineDir,
+      );
     }
 
     // Update state
@@ -273,8 +275,8 @@ function parseContent(raw: string, adapterName: string): string {
 
   if (adapterName === "jsonl") {
     return parseJsonlContent(raw, (obj) => {
-      const role = typeof obj["role"] === "string" ? obj["role"].toUpperCase() : null;
-      const content = typeof obj["content"] === "string" ? obj["content"] : null;
+      const role = typeof obj.role === "string" ? obj.role.toUpperCase() : null;
+      const content = typeof obj.content === "string" ? obj.content : null;
       if (role && content !== null) return `${role}: ${content}`;
       return null;
     });
@@ -282,16 +284,16 @@ function parseContent(raw: string, adapterName: string): string {
 
   if (adapterName === "claude-code") {
     return parseJsonlContent(raw, (obj) => {
-      const type = obj["type"];
+      const type = obj.type;
       if (type !== "user" && type !== "assistant") return null;
 
-      const msg = obj["message"] as Record<string, unknown> | undefined;
+      const msg = obj.message as Record<string, unknown> | undefined;
       if (!msg) return null;
 
       const role =
-        typeof msg["role"] === "string" ? msg["role"].toUpperCase() : String(type).toUpperCase();
+        typeof msg.role === "string" ? msg.role.toUpperCase() : String(type).toUpperCase();
       const text = extractClaudeCodeText(
-        msg["content"] as string | Array<Record<string, unknown>> | undefined,
+        msg.content as string | Array<Record<string, unknown>> | undefined,
       );
       if (text) return `${role}: ${text}`;
       return null;
@@ -334,8 +336,8 @@ function extractClaudeCodeText(
 
   const texts: string[] = [];
   for (const block of content) {
-    if (block["type"] === "text" && typeof block["text"] === "string") {
-      texts.push((block["text"] as string).trim());
+    if (block.type === "text" && typeof block.text === "string") {
+      texts.push((block.text as string).trim());
     }
     // Skip thinking, tool_use, tool_result
   }

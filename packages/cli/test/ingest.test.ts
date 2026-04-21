@@ -98,7 +98,10 @@ describe("parseIngestArgs", () => {
     // Capture stderr
     const original = process.stderr.write.bind(process.stderr);
     const lines: string[] = [];
-    process.stderr.write = (s: string) => { lines.push(s); return true; };
+    process.stderr.write = (s: string) => {
+      lines.push(s);
+      return true;
+    };
     try {
       const result = parseIngestArgs([]);
       expect(result).toBeNull();
@@ -139,9 +142,9 @@ describe("runIngest", () => {
   });
 
   test("throws for unknown adapter prefix", async () => {
-    await expect(
-      runIngest("cursor:/tmp/session.jsonl", { graphPath: graphDir }),
-    ).rejects.toThrow("No adapter found");
+    await expect(runIngest("cursor:/tmp/session.jsonl", { graphPath: graphDir })).rejects.toThrow(
+      "No adapter found",
+    );
   });
 
   test("processes a text file and writes quarantine", async () => {
@@ -153,7 +156,9 @@ describe("runIngest", () => {
     expect(result.quarantineFiles).toHaveLength(1);
 
     // Verify quarantine file exists
-    const qFile = result.quarantineFiles[0]!;
+    const qFile = result.quarantineFiles[0];
+    expect(qFile).toBeDefined();
+    if (!qFile) return;
     const stat = await fs.stat(qFile);
     expect(stat.isFile()).toBe(true);
 

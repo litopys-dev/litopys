@@ -36,9 +36,7 @@ export class TextAdapter implements SourceAdapter {
 /** Strip the "<prefix>:" part and expand ~ to HOME. */
 export function resolveSpec(spec: string, prefix: string): string {
   const raw = spec.slice(prefix.length);
-  return raw.startsWith("~")
-    ? path.join(process.env.HOME ?? "~", raw.slice(1))
-    : raw;
+  return raw.startsWith("~") ? path.join(process.env.HOME ?? "~", raw.slice(1)) : raw;
 }
 
 /** Stable deterministic id from a file path. */

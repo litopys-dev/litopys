@@ -100,8 +100,7 @@ export async function runIngest(spec: string, opts: IngestOptions): Promise<Inge
     const allNodes: CandidateNode[] = [];
     const allRelations: CandidateRelation[] = [];
 
-    for (let i = 0; i < chunks.length; i++) {
-      const chunkText = chunks[i]!;
+    for (const chunkText of chunks) {
       const output = await llmAdapter.extract({
         transcript: chunkText,
         existingNodeIds,
@@ -119,11 +118,16 @@ export async function runIngest(spec: string, opts: IngestOptions): Promise<Inge
 
     if (!opts.dryRun) {
       const timestamp = new Date().toISOString();
-      const qPath = await writeQuarantineTo(allNodes, allRelations, {
-        sessionId,
-        timestamp,
-        adapterName: `${llmAdapter.name} (ingest:${adapter.name})`,
-      }, quarantineDir);
+      const qPath = await writeQuarantineTo(
+        allNodes,
+        allRelations,
+        {
+          sessionId,
+          timestamp,
+          adapterName: `${llmAdapter.name} (ingest:${adapter.name})`,
+        },
+        quarantineDir,
+      );
       quarantineFiles.push(qPath);
     }
   }
@@ -151,29 +155,30 @@ export interface IngestArgs {
 }
 
 export function parseIngestArgs(args: string[]): IngestArgs | null {
-  if (args.length === 0) {
+  const spec = args[0];
+  if (!spec) {
     process.stderr.write("Usage: litopys ingest <spec> [options]\n");
     process.stderr.write("  spec:  <adapter>:<path-or-glob>\n");
-    process.stderr.write(
-      `  Adapters: ${registeredAdapterNames().join(", ")}\n`,
-    );
+    process.stderr.write(`  Adapters: ${registeredAdapterNames().join(", ")}\n`);
     return null;
   }
 
-  const spec = args[0]!;
   let provider: string | undefined;
   let dryRun = false;
   let maxChunkBytes: number | undefined;
 
   for (let i = 1; i < args.length; i++) {
-    const arg = args[i]!;
+    const arg = args[i];
     if (arg === "--provider" && args[i + 1]) {
       provider = args[++i];
     } else if (arg === "--dry-run") {
       dryRun = true;
     } else if (arg === "--max-chunk-bytes" && args[i + 1]) {
-      const n = Number.parseInt(args[++i]!, 10);
-      if (!Number.isNaN(n) && n > 0) maxChunkBytes = n;
+      const next = args[++i];
+      if (next) {
+        const n = Number.parseInt(next, 10);
+        if (!Number.isNaN(n) && n > 0) maxChunkBytes = n;
+      }
     }
   }
 

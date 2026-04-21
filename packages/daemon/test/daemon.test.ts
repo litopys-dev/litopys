@@ -66,6 +66,11 @@ const { loadState, saveState, defaultStatePath } = await import("../src/state.ts
 const { loadSourceConfigs, expandTilde } = await import("../src/config.ts");
 const { runTick } = await import("../src/tick.ts");
 const { listQuarantineFrom } = await import("@litopys/extractor");
+import type { DaemonState } from "../src/state.ts";
+
+function freshState(): DaemonState {
+  return { version: 1, sources: {} };
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -96,7 +101,7 @@ function ccLine(role: "user" | "assistant", text: string, sessionId = "test-sess
           sessionId,
           message: { role: "assistant", content: [{ type: "text", text }] },
         };
-  return JSON.stringify(event) + "\n";
+  return `${JSON.stringify(event)}\n`;
 }
 
 // ---------------------------------------------------------------------------
@@ -128,7 +133,11 @@ describe("loadState", () => {
       version: 1 as const,
       lastTick: "2026-01-01T00:00:00.000Z",
       sources: {
-        "/some/file.jsonl": { byteOffset: 1024, mtime: "2026-01-01T00:00:00.000Z", adapter: "claude-code" },
+        "/some/file.jsonl": {
+          byteOffset: 1024,
+          mtime: "2026-01-01T00:00:00.000Z",
+          adapter: "claude-code",
+        },
       },
     };
     await fs.writeFile(statePath, JSON.stringify(written), "utf-8");
@@ -227,9 +236,7 @@ describe("loadSourceConfigs", () => {
   });
 
   test("parses valid JSON from env", () => {
-    process.env.LITOPYS_DAEMON_SOURCES = JSON.stringify([
-      { adapter: "text", glob: "/tmp/*.txt" },
-    ]);
+    process.env.LITOPYS_DAEMON_SOURCES = JSON.stringify([{ adapter: "text", glob: "/tmp/*.txt" }]);
     const sources = loadSourceConfigs();
     expect(sources).toHaveLength(1);
     expect(sources[0]?.adapter).toBe("text");
@@ -302,7 +309,7 @@ describe("runTick", () => {
   }
 
   test("returns zero files when no sources match", async () => {
-    const state = { version: 1 as const, sources: {} };
+    const state = freshState();
     const result = await runTick(makeTickOpts(), state);
     expect(result.filesScanned).toBe(0);
     expect(result.filesUpdated).toBe(0);
@@ -312,11 +319,8 @@ describe("runTick", () => {
     const filePath = path.join(tmpDir, "session.jsonl");
     await fs.writeFile(filePath, ccLine("user", "Hello, I work at Acme Corp"), "utf-8");
 
-    const state = { version: 1 as const, sources: {} };
-    const result = await runTick(
-      makeTickOpts([{ adapter: "claude-code", glob: filePath }]),
-      state,
-    );
+    const state = freshState();
+    const result = await runTick(makeTickOpts([{ adapter: "claude-code", glob: filePath }]), state);
 
     expect(result.filesScanned).toBe(1);
     expect(result.filesUpdated).toBe(1);
@@ -330,7 +334,7 @@ describe("runTick", () => {
     const firstLine = ccLine("user", "Hello, I work at Acme Corp");
     await fs.writeFile(filePath, firstLine, "utf-8");
 
-    const state = { version: 1 as const, sources: {} };
+    const state = freshState();
 
     // First tick — reads entire file
     const result1 = await runTick(
@@ -366,7 +370,7 @@ describe("runTick", () => {
     const filePath = path.join(tmpDir, "session.jsonl");
     await fs.writeFile(filePath, ccLine("user", "Long content here at Acme Corp"), "utf-8");
 
-    const state = { version: 1 as const, sources: {} };
+    const state = freshState();
     await runTick(makeTickOpts([{ adapter: "claude-code", glob: filePath }]), state);
     const bigOffset = state.sources[filePath]?.byteOffset ?? 0;
     expect(bigOffset).toBeGreaterThan(0);
@@ -377,10 +381,7 @@ describe("runTick", () => {
     expect(newStat.size).toBeLessThan(bigOffset);
 
     // Tick should detect truncation and reset
-    const result = await runTick(
-      makeTickOpts([{ adapter: "claude-code", glob: filePath }]),
-      state,
-    );
+    const result = await runTick(makeTickOpts([{ adapter: "claude-code", glob: filePath }]), state);
     expect(result.filesUpdated).toBe(1);
     // New offset should be small (just the new short content)
     expect(state.sources[filePath]?.byteOffset).toBeLessThanOrEqual(newStat.size);
@@ -390,19 +391,17 @@ describe("runTick", () => {
     const filePath = path.join(tmpDir, "session.jsonl");
     await fs.writeFile(filePath, ccLine("user", "Content from future"), "utf-8");
 
-    const state = { version: 1 as const, sources: {} };
+    const state = freshState();
     await runTick(makeTickOpts([{ adapter: "claude-code", glob: filePath }]), state);
 
     // Manually set a future mtime in state to simulate backward mtime
-    const existingState = state.sources[filePath]!;
+    const existingState = state.sources[filePath];
+    if (!existingState) throw new Error("expected state.sources[filePath] to be set after tick");
     const farFuture = new Date(Date.now() + 1_000_000_000).toISOString();
     state.sources[filePath] = { ...existingState, mtime: farFuture };
 
     // Tick should detect rotation (mtime went backward) and reset offset
-    const result = await runTick(
-      makeTickOpts([{ adapter: "claude-code", glob: filePath }]),
-      state,
-    );
+    const result = await runTick(makeTickOpts([{ adapter: "claude-code", glob: filePath }]), state);
     expect(result.filesUpdated).toBe(1);
   });
 
@@ -414,7 +413,7 @@ describe("runTick", () => {
 
     // We explicitly inject a bad path via a glob that matches a temp file we'll stat-fail
     // Instead, inject both paths directly as separate source configs with same adapter
-    const state = { version: 1 as const, sources: {} };
+    const state = freshState();
 
     // Inject a bad offset for a path that exists — make offset larger than file
     // This simulates a file that was removed mid-tick
@@ -444,15 +443,12 @@ describe("runTick", () => {
     await fs.writeFile(filePath, ccLine("user", "Will be deleted"), "utf-8");
 
     // Create a tick that references the file directly via sources
-    const state = { version: 1 as const, sources: {} };
+    const state = freshState();
 
     // Inject the file into sources but delete it first
     await fs.unlink(filePath);
 
-    const result = await runTick(
-      makeTickOpts([{ adapter: "claude-code", glob: filePath }]),
-      state,
-    );
+    const result = await runTick(makeTickOpts([{ adapter: "claude-code", glob: filePath }]), state);
 
     // Glob returns nothing (file doesn't exist), so 0 scanned
     expect(result.filesScanned).toBe(0);
@@ -463,7 +459,7 @@ describe("runTick", () => {
     const filePath = path.join(tmpDir, "session.jsonl");
     await fs.writeFile(filePath, ccLine("user", "Dry run test content"), "utf-8");
 
-    const state = { version: 1 as const, sources: {} };
+    const state = freshState();
     const result = await runTick(
       {
         sources: [{ adapter: "claude-code", glob: filePath }],
@@ -485,11 +481,8 @@ describe("runTick", () => {
     const filePath = path.join(tmpDir, "chat.txt");
     await fs.writeFile(filePath, "Alice is an engineer at Acme Corp.\n", "utf-8");
 
-    const state = { version: 1 as const, sources: {} };
-    const result = await runTick(
-      makeTickOpts([{ adapter: "text", glob: filePath }]),
-      state,
-    );
+    const state = freshState();
+    const result = await runTick(makeTickOpts([{ adapter: "text", glob: filePath }]), state);
 
     expect(result.filesScanned).toBe(1);
     expect(result.filesUpdated).toBe(1);
@@ -497,14 +490,11 @@ describe("runTick", () => {
 
   test("jsonl adapter processes content", async () => {
     const filePath = path.join(tmpDir, "chat.jsonl");
-    const line = JSON.stringify({ role: "user", content: "I work at Acme Corp" }) + "\n";
+    const line = `${JSON.stringify({ role: "user", content: "I work at Acme Corp" })}\n`;
     await fs.writeFile(filePath, line, "utf-8");
 
-    const state = { version: 1 as const, sources: {} };
-    const result = await runTick(
-      makeTickOpts([{ adapter: "jsonl", glob: filePath }]),
-      state,
-    );
+    const state = freshState();
+    const result = await runTick(makeTickOpts([{ adapter: "jsonl", glob: filePath }]), state);
 
     expect(result.filesScanned).toBe(1);
     expect(result.filesUpdated).toBe(1);
@@ -515,14 +505,10 @@ describe("runTick", () => {
     await fs.mkdir(dir, { recursive: true });
 
     for (const name of ["a.jsonl", "b.jsonl", "c.jsonl"]) {
-      await fs.writeFile(
-        path.join(dir, name),
-        ccLine("user", `Content in ${name}`),
-        "utf-8",
-      );
+      await fs.writeFile(path.join(dir, name), ccLine("user", `Content in ${name}`), "utf-8");
     }
 
-    const state = { version: 1 as const, sources: {} };
+    const state = freshState();
     const result = await runTick(
       makeTickOpts([{ adapter: "claude-code", glob: path.join(dir, "*.jsonl") }]),
       state,
@@ -532,13 +518,14 @@ describe("runTick", () => {
   });
 
   test("lastTick is updated in state after tick", async () => {
-    const state = { version: 1 as const, sources: {} };
+    const state = freshState();
     const before = Date.now();
     await runTick(makeTickOpts(), state);
     const after = Date.now();
 
     expect(state.lastTick).toBeDefined();
-    const tickTime = new Date(state.lastTick!).getTime();
+    if (!state.lastTick) throw new Error("lastTick not set");
+    const tickTime = new Date(state.lastTick).getTime();
     expect(tickTime).toBeGreaterThanOrEqual(before);
     expect(tickTime).toBeLessThanOrEqual(after);
   });
@@ -547,11 +534,8 @@ describe("runTick", () => {
     const filePath = path.join(tmpDir, "session.jsonl");
     await fs.writeFile(filePath, ccLine("user", "I am Alice from Acme Corp"), "utf-8");
 
-    const state = { version: 1 as const, sources: {} };
-    const result = await runTick(
-      makeTickOpts([{ adapter: "claude-code", glob: filePath }]),
-      state,
-    );
+    const state = freshState();
+    const result = await runTick(makeTickOpts([{ adapter: "claude-code", glob: filePath }]), state);
 
     expect(result.quarantineFiles.length).toBeGreaterThan(0);
     const qItems = await listQuarantineFrom(quarantineDir);
@@ -562,7 +546,7 @@ describe("runTick", () => {
     const filePath = path.join(tmpDir, "session.txt");
     await fs.writeFile(filePath, "Some content here from Acme Corp.", "utf-8");
 
-    const state = { version: 1 as const, sources: {} };
+    const state = freshState();
     // "future-adapter" is unknown — should fall through to plain text handling
     const result = await runTick(
       makeTickOpts([{ adapter: "future-adapter", glob: filePath }]),
@@ -607,7 +591,7 @@ describe("glob expansion via runTick", () => {
     const sessFile = path.join(sessDir, "s.jsonl");
     await fs.writeFile(sessFile, ccLine("user", "Hello from project A"), "utf-8");
 
-    const state = { version: 1 as const, sources: {} };
+    const state = freshState();
     const result = await runTick(
       {
         sources: [{ adapter: "claude-code", glob: path.join(tmpDir, "*/sessions/*.jsonl") }],
@@ -621,7 +605,7 @@ describe("glob expansion via runTick", () => {
   });
 
   test("glob matching no files returns zero scanned", async () => {
-    const state = { version: 1 as const, sources: {} };
+    const state = freshState();
     const result = await runTick(
       {
         sources: [{ adapter: "text", glob: path.join(tmpDir, "nonexistent/*.txt") }],

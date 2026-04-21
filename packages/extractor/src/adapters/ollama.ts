@@ -32,8 +32,7 @@ export class OllamaAdapter implements ExtractorAdapter {
     const systemPrompt = buildSystemPrompt();
     const userPrompt = buildUserPrompt(input, sessionId);
 
-    const timeoutMs =
-      Number(process.env.LITOPYS_OLLAMA_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
+    const timeoutMs = Number(process.env.LITOPYS_OLLAMA_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
 
     let rawText = "";
 

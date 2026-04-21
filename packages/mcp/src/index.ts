@@ -16,5 +16,7 @@ export {
   RelatedInputSchema,
 } from "./tools.ts";
 export { checkBearer, resolveToken } from "./auth.ts";
+export { createHttpServer } from "./http.ts";
+export type { HttpServerOptions, HttpServerHandle } from "./http.ts";
 export { DEFAULT_INSTRUCTIONS, resolveInstructions } from "./instructions.ts";
 export { generateStartupContext } from "./resources.ts";

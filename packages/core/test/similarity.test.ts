@@ -3,6 +3,7 @@ import {
   aliasOverlap,
   findSimilar,
   idEditSimilarity,
+  idSubstringContainment,
   levenshtein,
   scoreSimilarity,
   tagJaccard,
@@ -95,6 +96,39 @@ describe("idEditSimilarity", () => {
 });
 
 // ---------------------------------------------------------------------------
+// idSubstringContainment
+// ---------------------------------------------------------------------------
+
+describe("idSubstringContainment", () => {
+  test("identical → 1", () => {
+    expect(idSubstringContainment("abc", "abc")).toBe(1);
+  });
+
+  test("one contains the other → shorter/longer ratio", () => {
+    // "chromadb" (8) ⊂ "chromadb-failure" (16) → 0.5
+    expect(idSubstringContainment("chromadb", "chromadb-failure")).toBeCloseTo(0.5, 3);
+  });
+
+  test("case-insensitive", () => {
+    expect(idSubstringContainment("LITOPYS", "my-litopys-plugin")).toBeGreaterThan(0);
+  });
+
+  test("shorter below MIN_SUBSTRING_LEN → 0 (avoid noise from tiny tokens)", () => {
+    expect(idSubstringContainment("io", "socket-io")).toBe(0);
+  });
+
+  test("no containment → 0", () => {
+    expect(idSubstringContainment("foo", "barbaz")).toBe(0);
+  });
+
+  test("non-adjacent common prefix does not count (substring is literal)", () => {
+    // "auto-save-state" is NOT a substring of "auto-save-project-state" —
+    // the common characters are scattered across the middle.
+    expect(idSubstringContainment("auto-save-state", "auto-save-project-state")).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // aliasOverlap
 // ---------------------------------------------------------------------------
 
@@ -156,7 +190,7 @@ describe("scoreSimilarity", () => {
     const a = mkNode({ id: "apple", type: "system" });
     const b = mkNode({ id: "orange", type: "concept" });
     const result = scoreSimilarity(a, b);
-    expect(result.score).toBeLessThan(0.35);
+    expect(result.score).toBeLessThan(0.25);
   });
 
   test("similar ids + same type → mid score", () => {
@@ -174,6 +208,34 @@ describe("scoreSimilarity", () => {
     for (const r of result.reasons) {
       expect(r.detail.length).toBeGreaterThan(0);
     }
+  });
+
+  test("type_match now contributes positive weight (not just suppresses mismatch penalty)", () => {
+    const a = mkNode({ id: "aaaaaa", type: "concept" });
+    const b = mkNode({ id: "bbbbbb", type: "concept" });
+    const result = scoreSimilarity(a, b);
+    const typeMatch = result.reasons.find((r) => r.kind === "type_match");
+    expect(typeMatch).toBeDefined();
+    expect(typeMatch?.weight).toBeGreaterThan(0);
+    expect(result.score).toBeGreaterThan(0);
+  });
+
+  test("regression: auto-save-state ↔ auto-save-project-state clears default threshold", () => {
+    // Real observed duplicate from the production graph (2026-04-21).
+    // Before the scoring fix this pair landed at 0.330, below the 0.35 threshold.
+    const a = mkNode({
+      id: "auto-save-state",
+      type: "concept",
+      tags: ["workflow", "memory"],
+    });
+    const b = mkNode({
+      id: "auto-save-project-state",
+      type: "concept",
+      tags: ["workflow", "memory", "session-management"],
+    });
+    const result = scoreSimilarity(a, b);
+    expect(result.score).toBeGreaterThan(0.3);
+    expect(findSimilar(a, [b])).toHaveLength(1);
   });
 });
 

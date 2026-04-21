@@ -11,6 +11,7 @@ export {
   tagJaccard,
   aliasOverlap,
   idEditSimilarity,
+  idSubstringContainment,
   type SimilarityResult,
   type SimilarityReason,
   type FindSimilarOptions,

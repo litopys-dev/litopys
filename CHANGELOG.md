@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Similarity scoring now surfaces duplicates that previously slipped past the merge check. Root cause: `type_match` contributed zero weight (only penalized mismatch), and Levenshtein alone didn't distinguish "one id contains the other" from scattered character differences. Fix: (a) same-type pairs get `+0.10`, (b) new `idSubstringContainment` signal adds up to `+0.15` when one id is a literal substring of the other (≥5 chars), (c) default `minScore` lowered `0.35 → 0.25`. Regression case `auto-save-state ↔ auto-save-project-state` now scores 0.430 (was 0.330).
 - Default graph path no longer depends on the current working directory. `process.env.LITOPYS_GRAPH_PATH ?? "./.litopys/graph"` — the old pattern — silently returned an empty graph when the CLI ran anywhere except `$HOME`. Introduces `defaultGraphPath()` in `@litopys/core` which falls back to `~/.litopys/graph` (matching `install.sh`). Five callsites updated: CLI, MCP tools, extractor digest, session-end hook, quarantine writer.
 
 ### Added

@@ -10,7 +10,13 @@
 import type { AnyNode } from "../schema/index.ts";
 
 export interface SimilarityReason {
-  kind: "alias_match" | "type_match" | "type_mismatch" | "tag_jaccard" | "id_edit_distance";
+  kind:
+    | "alias_match"
+    | "type_match"
+    | "type_mismatch"
+    | "tag_jaccard"
+    | "id_edit_distance"
+    | "id_substring";
   weight: number;
   detail: string;
 }
@@ -24,6 +30,9 @@ export interface SimilarityResult {
 const ALIAS_WEIGHT = 0.5;
 const ID_EDIT_WEIGHT = 0.25;
 const TAG_WEIGHT = 0.25;
+const TYPE_MATCH_BONUS = 0.1;
+const SUBSTRING_WEIGHT = 0.15;
+const MIN_SUBSTRING_LEN = 5;
 const TYPE_MISMATCH_MULTIPLIER = 0.4;
 
 // ---------------------------------------------------------------------------
@@ -67,6 +76,17 @@ export function scoreSimilarity(a: AnyNode, b: AnyNode): SimilarityResult {
     });
   }
 
+  const containment = idSubstringContainment(a.id, b.id);
+  if (containment > 0) {
+    const contribution = containment * SUBSTRING_WEIGHT;
+    weightedSum += contribution;
+    reasons.push({
+      kind: "id_substring",
+      weight: contribution,
+      detail: `id-substring ${containment.toFixed(2)} (${a.id} ↔ ${b.id})`,
+    });
+  }
+
   const jaccard = tagJaccard(a.tags, b.tags);
   if (jaccard > 0) {
     const contribution = jaccard * TAG_WEIGHT;
@@ -78,11 +98,18 @@ export function scoreSimilarity(a: AnyNode, b: AnyNode): SimilarityResult {
     });
   }
 
+  if (a.type === b.type) {
+    weightedSum += TYPE_MATCH_BONUS;
+    reasons.push({
+      kind: "type_match",
+      weight: TYPE_MATCH_BONUS,
+      detail: `both ${a.type}`,
+    });
+  }
+
   let score = Math.min(weightedSum, 1);
 
-  if (a.type === b.type) {
-    reasons.push({ kind: "type_match", weight: 0, detail: `both ${a.type}` });
-  } else {
+  if (a.type !== b.type) {
     score *= TYPE_MISMATCH_MULTIPLIER;
     reasons.push({
       kind: "type_mismatch",
@@ -95,7 +122,7 @@ export function scoreSimilarity(a: AnyNode, b: AnyNode): SimilarityResult {
 }
 
 export interface FindSimilarOptions {
-  /** Minimum score to include. Default 0.35. */
+  /** Minimum score to include. Default 0.25. */
   minScore?: number;
   /** Max results. Default 10. */
   limit?: number;
@@ -110,7 +137,7 @@ export function findSimilar(
   all: Iterable<AnyNode>,
   opts: FindSimilarOptions = {},
 ): SimilarityResult[] {
-  const minScore = opts.minScore ?? 0.35;
+  const minScore = opts.minScore ?? 0.25;
   const limit = opts.limit ?? 10;
 
   const results: SimilarityResult[] = [];
@@ -156,6 +183,25 @@ export function idEditSimilarity(a: string, b: string): number {
   if (maxLen === 0) return 1;
   const dist = levenshtein(a, b);
   return 1 - dist / maxLen;
+}
+
+/**
+ * Substring-containment signal: returns `shorter.length / longer.length` if one
+ * id is a substring of the other (both ≥ MIN_SUBSTRING_LEN), else 0.
+ *
+ * Levenshtein alone doesn't distinguish "one id extends the other" from
+ * "ids differ in the same number of positions scattered across both strings."
+ * The former is a much stronger duplicate signal (e.g. `chromadb` ⊂
+ * `chromadb-failure`), so we surface it as its own reason.
+ */
+export function idSubstringContainment(a: string, b: string): number {
+  const aLower = a.toLowerCase();
+  const bLower = b.toLowerCase();
+  if (aLower === bLower) return 1;
+  const [shorter, longer] = aLower.length <= bLower.length ? [aLower, bLower] : [bLower, aLower];
+  if (shorter.length < MIN_SUBSTRING_LEN) return 0;
+  if (!longer.includes(shorter)) return 0;
+  return shorter.length / longer.length;
 }
 
 // ---------------------------------------------------------------------------

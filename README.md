@@ -67,6 +67,8 @@ claude mcp add litopys -- ~/.local/bin/litopys mcp stdio
 
 Restart the client. The `litopys://startup-context` resource auto-loads the owner profile, active projects, recent events, and key lessons on every new session. The agent reads/writes through five MCP tools: `litopys_search`, `litopys_get`, `litopys_related`, `litopys_create`, `litopys_link`.
 
+Full client-specific recipes live in [`docs/integrations/`](./docs/integrations/) — Claude Code, Claude Desktop, Cursor, Cline, ChatGPT Connectors, Gemini.
+
 ### Remote (HTTP/SSE) mode
 
 For remote clients (Claude Desktop connectors, browser-based MCP hosts):

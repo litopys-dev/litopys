@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to build and attach binaries to (must already exist as a release)'
+        description: 'Tag to build and attach binaries to (release will be created if missing)'
         required: true
 
 permissions:
@@ -77,7 +77,24 @@ jobs:
             echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Attach to release
+      - name: Ensure release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ steps.tag.outputs.tag }}"
+          if ! gh release view "$tag" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            prerelease_flag=""
+            case "$tag" in
+              *-alpha*|*-beta*|*-rc*) prerelease_flag="--prerelease" ;;
+            esac
+            gh release create "$tag" \
+              --repo "${{ github.repository }}" \
+              --title "$tag" \
+              --generate-notes \
+              $prerelease_flag
+          fi
+
+      - name: Attach binaries to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

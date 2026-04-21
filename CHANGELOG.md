@@ -8,8 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Part 7.4 — Client integration docs** (`docs/integrations/`): per-client setup recipes for Claude Code, Claude Desktop, Cursor, Cline, ChatGPT Connectors (enterprise), and Gemini. Index README explains stdio-vs-HTTP tradeoff. README.md Quick Start now links here.
 - **Part 7.3 — One-line installer** (`install.sh`): detects OS/arch (linux/darwin/windows × x64/arm64), fetches the right binary from GitHub releases, installs to `~/.local/bin/litopys`, initializes the graph skeleton, prints MCP registration hints. Pin a version with `LITOPYS_VERSION`. Idempotent re-run.
-- **Release automation** (`.github/workflows/release.yml`): on every `v*` tag push, builds all five platform binaries via `bun build --compile` and attaches them to the release. Also runs on manual dispatch against existing tags.
+- **Release automation** (`.github/workflows/release.yml`): on every `v*` tag push, builds all five platform binaries via `bun build --compile` and attaches them to the release. Also runs on manual dispatch against existing tags. Auto-creates the release with `--generate-notes` if it doesn't exist (pre-release flag inferred from `-alpha`/`-beta`/`-rc` suffix).
 - **Part 7.2 — Single-binary build**: `litopys mcp <stdio|http>` dispatcher in the CLI — one compiled binary serves as both management surface and MCP host for clients. `bun run build:binary` (Linux x64) and `bun scripts/build-all.ts` (all 5 targets) wrap the `bun build --compile` invocation.
 - **Part 7.1 — HTTP/SSE transport hardening**: exported `createHttpServer()` factory so tests boot against ephemeral ports without subprocess, default bind tightened to `127.0.0.1` (remote exposure now requires explicit `LITOPYS_MCP_BIND_ADDR`), opt-in CORS via `LITOPYS_MCP_CORS_ORIGIN` (preflight + error-response allow-headers), SIGTERM handler alongside SIGINT. 12 new tests covering /health, 401 paths, 400/404, CORS.
 - **Part 6.6 — Graph-growth guardrails** (identity resolution + evolution):

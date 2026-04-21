@@ -1,0 +1,20 @@
+[Unit]
+Description=Litopys web dashboard (read-only graph viewer)
+Documentation=https://github.com/litopys-dev/litopys
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/litopys viewer --no-open
+Restart=on-failure
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=litopys-viewer
+
+# Override these if needed:
+# Environment=VIEWER_PORT=3999
+# Environment=LITOPYS_GRAPH_PATH=%h/.litopys/graph
+
+[Install]
+WantedBy=default.target

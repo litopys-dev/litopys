@@ -96,6 +96,24 @@ cp packages/daemon/systemd/litopys-daemon.{service,timer} ~/.config/systemd/user
 systemctl --user enable --now litopys-daemon.timer
 ```
 
+### Optional — web dashboard autostart
+
+The dashboard (`litopys viewer`) can run as a systemd user service so it comes
+back after every reboot. Listens on `127.0.0.1:3999` by default — no public
+exposure, reach it over LAN / WireGuard.
+
+```bash
+litopys viewer install          # writes unit, daemon-reload, enable --now
+systemctl --user status litopys-viewer
+
+# Remove:
+litopys viewer uninstall
+```
+
+Or set `LITOPYS_ENABLE_VIEWER=1` when running `install.sh` to enable it as
+part of the one-line install. Requires `loginctl enable-linger $USER` if you
+want the dashboard to stay up across logouts.
+
 ## Roadmap
 
 - [x] **Part 1** — Monorepo scaffolding

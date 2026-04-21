@@ -8,6 +8,9 @@
 #   LITOPYS_VERSION       Release tag to install (default: latest)
 #   LITOPYS_INSTALL_DIR   Directory for the binary (default: ~/.local/bin)
 #   LITOPYS_GRAPH_PATH    Graph root (default: ~/.litopys/graph)
+#   LITOPYS_ENABLE_VIEWER Set to "1" to install+enable the systemd user unit
+#                         for the web dashboard (requires systemd + lingering
+#                         user session; Linux only)
 #
 # Exits 0 on success; non-zero on any failure. Idempotent — re-running
 # updates the binary without touching an existing graph.
@@ -137,6 +140,24 @@ case ":${PATH:-}:" in
     printf '    export PATH="%s:$PATH"\n' "$install_dir"
     ;;
 esac
+
+# ---------------------------------------------------------------------------
+# Optional — auto-start web dashboard via systemd user unit
+# ---------------------------------------------------------------------------
+
+if [ "${LITOPYS_ENABLE_VIEWER:-0}" = "1" ]; then
+  if [ "$os_tag" = "linux" ] && command -v systemctl >/dev/null 2>&1; then
+    log "Installing litopys-viewer systemd user unit..."
+    if "$target" viewer install >/dev/null 2>&1; then
+      ok "Dashboard running at http://localhost:3999/"
+      ok "Check:   systemctl --user status litopys-viewer"
+    else
+      warn "Viewer install failed. Run manually: $target viewer install"
+    fi
+  else
+    warn "LITOPYS_ENABLE_VIEWER=1 ignored — requires Linux with systemd."
+  fi
+fi
 
 # ---------------------------------------------------------------------------
 # MCP client registration hints

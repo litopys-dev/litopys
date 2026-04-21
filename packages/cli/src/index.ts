@@ -60,6 +60,8 @@ Commands:
   mcp http [--port N]                       Run MCP server over HTTP/SSE (remote clients)
 
   viewer [--port N] [--no-open]             Run the local web dashboard (default port 3999)
+  viewer install [--port N]                 Install + enable systemd user unit for autostart
+  viewer uninstall                          Stop and remove the systemd user unit
 
 Source adapters:
   text:<path>         Plain text file

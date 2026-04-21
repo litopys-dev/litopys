@@ -32,9 +32,9 @@ Memory systems for AI agents today force a tradeoff: either heavy vector databas
 
 ## Status
 
-🚧 **Pre-release, running live.** Parts 1–6.6 shipped (see [Roadmap](#roadmap)).
-Author's own daily driver since 2026-04-20 — 38+ nodes, 81+ edges, daemon ticking every 5 min.
-v0.1.0 public release lands with Part 7 (transport, installer, integrations).
+🚧 **Pre-release, running live.** Parts 1–7.4 shipped; Part 6.5 Phase 1 (read-only dashboard) landed 2026-04-21. See [Roadmap](#roadmap).
+Author's own daily driver since 2026-04-20 — 39 nodes, 81 edges, daemon ticking every 5 min.
+v0.1.0 public release lands once the dashboard write path (Phases 2–4) closes.
 
 ## Quick Start
 
@@ -109,17 +109,22 @@ systemctl --user enable --now litopys-daemon.timer
   - [x] Generic CLI `litopys ingest <file>` — agent-agnostic entry point for transcripts (not tied to any specific client)
   - [x] Periodic timer-daemon — incremental extraction from live transcripts without requiring session end
   - [x] Baseline command + configurable extractor timeout — avoids long first-tick backfill on existing history
-- [ ] **Part 6.5** — Web dashboard (deferred) — Bun + SolidJS, `/graph`, `/table`, `/node/:id` CRUD, `/quarantine`, `/conflicts`
+- [~] **Part 6.5** — Web dashboard — Bun + SolidJS, runs locally at `http://localhost:3999` via `litopys viewer`
+  - [x] **Phase 1** — Read-only UI: Dashboard, Nodes table (search + type filters), Node detail (metadata + relations), Quarantine list
+  - [ ] **Phase 2** — Write path: node create/edit/tombstone, alias/tag editor
+  - [ ] **Phase 3** — Graph visualization (force layout, filtering by type/relation)
+  - [ ] **Phase 4** — Quarantine accept/reject actions, conflict resolution UI, merge proposals
 - [x] **Part 6.6** — Graph-growth guardrails (identity resolution + evolution)
   - [x] `supersedes` relation type (directed evolution: "A replaces B") alongside existing `conflicts_with`. Relation count grows from 10 → 11.
   - [x] `litopys similar <id> [--explain]` — deterministic merge candidates by alias / type / tag overlap / name edit-distance. No embeddings.
   - [x] `litopys propose-merge <a> <b>` — emits a full merge-preview (result id, aliases, merged relations, detected conflicts) into the existing `quarantine/` pipeline.
   - [x] Reuse `litopys quarantine accept/reject` for merge proposals — no separate review machinery. **Merge is never applied automatically; it requires explicit accept.** Accept writes the merged node + tombstones the loser with `until: <today>`; reject archives the proposal.
-- [ ] **Part 7** — Remote transport + installer + integrations
-  - MCP SSE/HTTP mode for remote clients (Claude Desktop, ChatGPT connectors, etc.)
-  - Single-binary build (`bun build --compile`) + one-line installer
-  - `docs/integrations/` — Claude Code, Claude Desktop, Cursor, Cline, ChatGPT, Gemini
-  - Astro landing page, npm publish, v0.1.0 release
+- [~] **Part 7** — Remote transport + installer + integrations
+  - [x] **Part 7.1** — MCP HTTP/SSE transport hardening (factory, 127.0.0.1 bind default, opt-in CORS, SIGTERM)
+  - [x] **Part 7.2** — Single-binary build via `bun build --compile` (5 platforms)
+  - [x] **Part 7.3** — One-line installer (`install.sh`) + GitHub Actions release workflow
+  - [x] **Part 7.4** — Per-client integration docs (`docs/integrations/`): Claude Code, Claude Desktop, Cursor, Cline, ChatGPT, Gemini
+  - [ ] Astro landing page, npm publish, v0.1.0 release tag
 
 ## Design principles
 

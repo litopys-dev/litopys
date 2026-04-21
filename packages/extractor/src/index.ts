@@ -29,6 +29,9 @@ export {
 } from "./quarantine.ts";
 export type { QuarantineMeta, QuarantineFile } from "./quarantine.ts";
 
+export { dedupCandidatesAgainstGraph } from "./dedup.ts";
+export type { DedupResult } from "./dedup.ts";
+
 export { generateDigest } from "./digest.ts";
 export type { DigestOptions, DigestResult } from "./digest.ts";
 

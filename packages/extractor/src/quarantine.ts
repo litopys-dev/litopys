@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { defaultGraphPath, loadGraph, writeNode } from "@litopys/core";
 import type { AnyNode } from "@litopys/core";
 import type { CandidateNode, CandidateRelation } from "./adapters/types.ts";
+import { dedupCandidatesAgainstGraph } from "./dedup.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -139,11 +140,18 @@ export async function writeQuarantine(
   const dir = quarantineDir(graphPath);
   await fs.mkdir(dir, { recursive: true });
 
+  const { kept, dropped } = await dedupCandidatesAgainstGraph(candidates, relations, graphPath);
+  if (dropped.length > 0) {
+    process.stderr.write(
+      `[litopys/quarantine] Dropped ${dropped.length} duplicate candidate(s) already in graph: ${dropped.map((d) => d.id).join(", ")}\n`,
+    );
+  }
+
   const safeName = meta.sessionId.replace(/[^a-z0-9-]/gi, "-").slice(0, 64);
   const fileName = `${meta.timestamp.replace(/:/g, "-")}-${safeName}.md`;
   const filePath = path.join(dir, fileName);
 
-  await fs.writeFile(filePath, serialize(candidates, relations, meta), "utf-8");
+  await fs.writeFile(filePath, serialize(kept, relations, meta), "utf-8");
   return filePath;
 }
 

@@ -16,6 +16,7 @@ import { cmdIngest } from "./ingest.ts";
 import { cmdMcp } from "./mcp.ts";
 import { cmdProposeMerge } from "./propose-merge.ts";
 import { cmdSimilar } from "./similar.ts";
+import { cmdViewer } from "./viewer.ts";
 
 export const PACKAGE_NAME = "@litopys/cli";
 export const VERSION = "0.1.0";
@@ -57,6 +58,8 @@ Commands:
 
   mcp stdio                                 Run MCP server over stdio (Claude Code, etc.)
   mcp http [--port N]                       Run MCP server over HTTP/SSE (remote clients)
+
+  viewer [--port N] [--no-open]             Run the local web dashboard (default port 3999)
 
 Source adapters:
   text:<path>         Plain text file
@@ -237,6 +240,8 @@ async function main(): Promise<void> {
     await cmdProposeMerge(args.slice(1), graphPath());
   } else if (cmd === "mcp") {
     await cmdMcp(args.slice(1));
+  } else if (cmd === "viewer") {
+    await cmdViewer(args.slice(1));
   } else {
     process.stderr.write(`Unknown command: ${cmd}\n`);
     usage();

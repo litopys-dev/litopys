@@ -10,6 +10,22 @@
   },
   "scripts": {
     "test": "bun test",
-    "typecheck": "bunx tsc --noEmit"
+    "typecheck": "bunx tsc --noEmit",
+    "build": "bun run build.ts",
+    "dev": "bun run dev.ts"
+  },
+  "dependencies": {
+    "solid-js": "^1.9.0",
+    "@solidjs/router": "^0.15.0",
+    "@litopys/core": "workspace:*",
+    "@litopys/extractor": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "tailwindcss": "^3.4.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "lucide-solid": "^0.511.0",
+    "bun-plugin-solid": "^1.0.0"
   }
 }

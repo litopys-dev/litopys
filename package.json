@@ -15,7 +15,9 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "typecheck": "bun run --filter='*' typecheck"
+    "typecheck": "bun run --filter='*' typecheck",
+    "build:binary": "bun build --compile --minify --target=bun-linux-x64 --outfile=dist/litopys packages/cli/src/index.ts",
+    "build:all": "bun scripts/build-all.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",

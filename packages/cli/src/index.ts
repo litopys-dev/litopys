@@ -12,6 +12,7 @@ import {
 import { generateStartupContext } from "@litopys/mcp";
 import { cmdDaemon } from "./daemon.ts";
 import { cmdIngest } from "./ingest.ts";
+import { cmdMcp } from "./mcp.ts";
 import { cmdProposeMerge } from "./propose-merge.ts";
 import { cmdSimilar } from "./similar.ts";
 
@@ -52,6 +53,9 @@ Commands:
     --min-score F                           Minimum score 0..1 (default: 0.35)
 
   propose-merge <id-a> <id-b>               Write a merge proposal to quarantine for review
+
+  mcp stdio                                 Run MCP server over stdio (Claude Code, etc.)
+  mcp http [--port N]                       Run MCP server over HTTP/SSE (remote clients)
 
 Source adapters:
   text:<path>         Plain text file
@@ -230,6 +234,8 @@ async function main(): Promise<void> {
     await cmdSimilar(args.slice(1), graphPath());
   } else if (cmd === "propose-merge") {
     await cmdProposeMerge(args.slice(1), graphPath());
+  } else if (cmd === "mcp") {
+    await cmdMcp(args.slice(1));
   } else {
     process.stderr.write(`Unknown command: ${cmd}\n`);
     usage();

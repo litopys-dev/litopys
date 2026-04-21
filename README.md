@@ -38,32 +38,61 @@ v0.1.0 public release lands with Part 7 (transport, installer, integrations).
 
 ## Quick Start
 
-Prerequisites: [Bun](https://bun.sh) ≥ 1.1, an MCP-compatible client (Claude Code, Claude Desktop, Cursor, Cline, …), and — for local extraction — [Ollama](https://ollama.com) with `qwen2.5:7b` pulled.
+One-line install (Linux / macOS):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/litopys-dev/litopys/main/install.sh | sh
+```
+
+This downloads a single ~100 MB binary to `~/.local/bin/litopys`, initializes `~/.litopys/graph/` with the required subdirectories, and prints MCP registration hints. Pin a specific version with `LITOPYS_VERSION=v0.1.0-alpha.1`.
+
+Then register the MCP server with your client:
+
+```bash
+# Claude Code
+claude mcp add litopys -- ~/.local/bin/litopys mcp stdio
+```
+
+```json
+// Claude Desktop — ~/Library/Application Support/Claude/claude_desktop_config.json
+{
+  "mcpServers": {
+    "litopys": {
+      "command": "/home/you/.local/bin/litopys",
+      "args": ["mcp", "stdio"]
+    }
+  }
+}
+```
+
+Restart the client. The `litopys://startup-context` resource auto-loads the owner profile, active projects, recent events, and key lessons on every new session. The agent reads/writes through five MCP tools: `litopys_search`, `litopys_get`, `litopys_related`, `litopys_create`, `litopys_link`.
+
+### Remote (HTTP/SSE) mode
+
+For remote clients (Claude Desktop connectors, browser-based MCP hosts):
+
+```bash
+LITOPYS_MCP_TOKEN=your-secret litopys mcp http
+# listens on 127.0.0.1:7777 by default
+# set LITOPYS_MCP_BIND_ADDR=0.0.0.0 + TLS proxy for remote exposure
+# set LITOPYS_MCP_CORS_ORIGIN=https://your-client to enable CORS
+```
+
+### Dev install (from source)
 
 ```bash
 git clone https://github.com/litopys-dev/litopys.git
 cd litopys
 bun install
-
-# Point Litopys at a graph directory (defaults to ~/.litopys/graph)
-export LITOPYS_GRAPH_PATH="$HOME/.litopys/graph"
-mkdir -p "$LITOPYS_GRAPH_PATH"/{people,projects,systems,concepts,events,lessons}
-
-# Register the MCP server with your client (stdio mode).
-# Example — Claude Code:
-claude mcp add litopys -- bun run /absolute/path/to/litopys/packages/mcp/src/index.ts
+bun run build:binary       # produces dist/litopys
 ```
 
-Then restart the client. The `litopys://startup-context` resource auto-loads the owner profile, active projects, recent events, and key lessons on every new session. The agent can read/write through five MCP tools: `litopys_search`, `litopys_get`, `litopys_related`, `litopys_create`, `litopys_link`.
-
-Optional — schedule the daemon for incremental extraction from long-running transcripts:
+### Optional — daemon for long-running transcripts
 
 ```bash
 cp packages/daemon/systemd/litopys-daemon.{service,timer} ~/.config/systemd/user/
 systemctl --user enable --now litopys-daemon.timer
 ```
-
-A full installer and single-binary build ship with Part 7.
 
 ## Roadmap
 

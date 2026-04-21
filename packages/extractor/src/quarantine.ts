@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
-import { loadGraph, writeNode } from "@litopys/core";
+import { defaultGraphPath, loadGraph, writeNode } from "@litopys/core";
 import type { AnyNode } from "@litopys/core";
 import type { CandidateNode, CandidateRelation } from "./adapters/types.ts";
 
@@ -135,7 +135,7 @@ export async function writeQuarantine(
   relations: CandidateRelation[],
   meta: QuarantineMeta,
 ): Promise<string> {
-  const graphPath = process.env.LITOPYS_GRAPH_PATH ?? "./.litopys/graph";
+  const graphPath = defaultGraphPath();
   const dir = quarantineDir(graphPath);
   await fs.mkdir(dir, { recursive: true });
 

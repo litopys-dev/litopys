@@ -5,6 +5,7 @@ import {
   NodeType as NodeTypeEnum,
   type RelationName,
   RelationName as RelationNameEnum,
+  defaultGraphPath,
   loadGraph,
   resolveGraph,
   writeNode,
@@ -16,7 +17,7 @@ import { z } from "zod";
 // ---------------------------------------------------------------------------
 
 export function graphPath(): string {
-  return process.env.LITOPYS_GRAPH_PATH ?? "./.litopys/graph";
+  return defaultGraphPath();
 }
 
 // ---------------------------------------------------------------------------

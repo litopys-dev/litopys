@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Default graph path no longer depends on the current working directory. `process.env.LITOPYS_GRAPH_PATH ?? "./.litopys/graph"` — the old pattern — silently returned an empty graph when the CLI ran anywhere except `$HOME`. Introduces `defaultGraphPath()` in `@litopys/core` which falls back to `~/.litopys/graph` (matching `install.sh`). Five callsites updated: CLI, MCP tools, extractor digest, session-end hook, quarantine writer.
+
 ### Added
 - **Part 7.4 — Client integration docs** (`docs/integrations/`): per-client setup recipes for Claude Code, Claude Desktop, Cursor, Cline, ChatGPT Connectors (enterprise), and Gemini. Index README explains stdio-vs-HTTP tradeoff. README.md Quick Start now links here.
 - **Part 7.3 — One-line installer** (`install.sh`): detects OS/arch (linux/darwin/windows × x64/arm64), fetches the right binary from GitHub releases, installs to `~/.local/bin/litopys`, initializes the graph skeleton, prints MCP registration hints. Pin a version with `LITOPYS_VERSION`. Idempotent re-run.

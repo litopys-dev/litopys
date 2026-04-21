@@ -13,7 +13,7 @@
  *   LITOPYS_MCP_PORT          Port to listen on (default: 7777)
  *   LITOPYS_MCP_BIND_ADDR     Interface to bind (default: 127.0.0.1 — localhost only)
  *   LITOPYS_MCP_CORS_ORIGIN   Allow-list origin for browser clients (default: disabled)
- *   LITOPYS_GRAPH_PATH        Path to graph directory (default: ./.litopys/graph)
+ *   LITOPYS_GRAPH_PATH        Path to graph directory (default: ~/.litopys/graph)
  *
  * Security note: default bind is localhost. To expose to a remote network,
  * explicitly set LITOPYS_MCP_BIND_ADDR=0.0.0.0 (and put it behind nginx/TLS).

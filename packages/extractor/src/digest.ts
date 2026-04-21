@@ -10,7 +10,7 @@
 
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
-import { loadGraph } from "@litopys/core";
+import { defaultGraphPath, loadGraph } from "@litopys/core";
 import type { AnyNode } from "@litopys/core";
 import { createAdapter } from "./adapters/factory.ts";
 import { listQuarantine } from "./quarantine.ts";
@@ -109,7 +109,7 @@ async function getRejectedLog(graphPath: string): Promise<string[]> {
 // ---------------------------------------------------------------------------
 
 export async function generateDigest(options: DigestOptions = {}): Promise<DigestResult> {
-  const graphPath = options.graphPath ?? process.env.LITOPYS_GRAPH_PATH ?? "./.litopys/graph";
+  const graphPath = options.graphPath ?? defaultGraphPath();
   const days = options.weekDays ?? 7;
   const weekLabel = isoWeek(new Date());
 

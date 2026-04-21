@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
+import { defaultGraphPath } from "@litopys/core";
 import {
   acceptMergeProposal,
   generateDigest,
@@ -24,7 +25,7 @@ export const VERSION = "0.1.0";
 // ---------------------------------------------------------------------------
 
 function graphPath(): string {
-  return process.env.LITOPYS_GRAPH_PATH ?? "./.litopys/graph";
+  return defaultGraphPath();
 }
 
 function usage(): void {
@@ -63,7 +64,7 @@ Source adapters:
   claude-code:<path>  Claude Code session JSONL (auto-extracts sessionId)
 
 Environment:
-  LITOPYS_GRAPH_PATH             Path to the graph directory (default: .litopys/graph)
+  LITOPYS_GRAPH_PATH             Path to the graph directory (default: ~/.litopys/graph)
   LITOPYS_EXTRACTOR_PROVIDER     LLM provider: anthropic | openai | ollama (default: anthropic)
   LITOPYS_DAEMON_STATE           Override daemon state file path
   LITOPYS_DAEMON_SOURCES         JSON array of {adapter,glob} source configs

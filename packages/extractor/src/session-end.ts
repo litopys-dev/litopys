@@ -9,7 +9,7 @@
 
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
-import { loadGraph } from "@litopys/core";
+import { defaultGraphPath, loadGraph } from "@litopys/core";
 import { createAdapter } from "./adapters/factory.ts";
 import { writeQuarantine } from "./quarantine.ts";
 
@@ -49,7 +49,7 @@ async function run(): Promise<void> {
 
   const sessionId = payload.session_id ?? `session-${Date.now()}`;
   const transcriptPath = payload.transcript_path;
-  const graphPath = process.env.LITOPYS_GRAPH_PATH ?? "./.litopys/graph";
+  const graphPath = defaultGraphPath();
 
   // Wrapped in a timeout so we don't block session close
   const timeoutController = new AbortController();

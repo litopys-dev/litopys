@@ -7,7 +7,7 @@
  *   bun packages/mcp/src/stdio.ts
  *
  * Environment:
- *   LITOPYS_GRAPH_PATH  path to the graph directory (default: ./.litopys/graph)
+ *   LITOPYS_GRAPH_PATH  path to the graph directory (default: ~/.litopys/graph)
  */
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createServer } from "./server.ts";

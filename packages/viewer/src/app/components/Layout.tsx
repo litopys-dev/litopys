@@ -1,6 +1,7 @@
 import { A, useLocation } from "@solidjs/router";
-import { GitGraph, GitMerge, LayoutDashboard, ShieldAlert, Table2 } from "lucide-solid";
-import { For, type ParentProps, Suspense } from "solid-js";
+import { GitGraph, GitMerge, LayoutDashboard, Plus, ShieldAlert, Table2 } from "lucide-solid";
+import { For, type ParentProps, Show, Suspense, createSignal } from "solid-js";
+import { NewNodeModal } from "./NewNodeModal.tsx";
 
 interface NavItem {
   href: string;
@@ -39,6 +40,8 @@ function NavLink(props: NavItem) {
 }
 
 export function Layout(props: ParentProps) {
+  const [modalOpen, setModalOpen] = createSignal(false);
+
   return (
     <div class="flex min-h-dvh">
       {/* Sidebar */}
@@ -59,6 +62,17 @@ export function Layout(props: ParentProps) {
           <For each={NAV_ITEMS}>{(item) => <NavLink {...item} />}</For>
         </div>
 
+        {/* New node button */}
+        <div class="px-3 pb-3">
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-card text-sm font-medium bg-accent/15 text-accent border border-accent/40 hover:bg-accent/25 transition-colors"
+          >
+            <Plus size={14} /> New node
+          </button>
+        </div>
+
         {/* Footer */}
         <div class="px-4 py-3 border-t border-divider">
           <span class="font-mono text-xs text-text-tertiary">localhost:3999</span>
@@ -71,6 +85,10 @@ export function Layout(props: ParentProps) {
           {props.children}
         </Suspense>
       </main>
+
+      <Show when={modalOpen()}>
+        <NewNodeModal onClose={() => setModalOpen(false)} />
+      </Show>
     </div>
   );
 }

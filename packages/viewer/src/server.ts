@@ -1,6 +1,15 @@
 import * as path from "node:path";
-import { defaultGraphPath, loadGraph, resolveGraph } from "@litopys/core";
-import type { AnyNode, NodeType } from "@litopys/core";
+import {
+  AnyNodeSchema,
+  NodeType,
+  RELATION_CONSTRAINTS,
+  RelationName,
+  defaultGraphPath,
+  loadGraph,
+  resolveGraph,
+  writeNode,
+} from "@litopys/core";
+import type { AnyNode } from "@litopys/core";
 import type { Edge, ResolvedGraph } from "@litopys/core";
 import { listQuarantine } from "@litopys/extractor";
 
@@ -26,6 +35,24 @@ async function getGraph(): Promise<ResolvedGraph> {
   const graph = resolveGraph(loaded);
   _cache = { graph, timestamp: now };
   return graph;
+}
+
+function invalidateCache() {
+  _cache = null;
+}
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function readRawNode(id: string): Promise<AnyNode | null> {
+  const gp = defaultGraphPath();
+  const loaded = await loadGraph(gp);
+  return loaded.nodes.get(id) ?? null;
+}
+
+async function persistNode(node: AnyNode): Promise<void> {
+  await writeNode(defaultGraphPath(), node);
 }
 
 // ---------------------------------------------------------------------------
@@ -77,6 +104,40 @@ async function apiNode(id: string): Promise<Response> {
   return json({ node, incoming, outgoing });
 }
 
+async function apiGraph(): Promise<Response> {
+  const graph = await getGraph();
+  const nodes = [];
+  for (const node of graph.nodes.values()) {
+    nodes.push({
+      data: {
+        id: node.id,
+        label: node.id,
+        type: node.type,
+        summary: node.summary ?? "",
+      },
+    });
+  }
+  const seen = new Set<string>();
+  const edges = [];
+  for (const e of graph.edges) {
+    const key = e.symmetric
+      ? `${[e.from, e.to].sort().join("|")}|${e.relation}`
+      : `${e.from}|${e.to}|${e.relation}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    edges.push({
+      data: {
+        id: `${e.from}->${e.to}:${e.relation}`,
+        source: e.from,
+        target: e.to,
+        relation: e.relation,
+        symmetric: e.symmetric,
+      },
+    });
+  }
+  return json({ nodes, edges });
+}
+
 async function apiQuarantine(): Promise<Response> {
   const gp = defaultGraphPath();
   const files = await listQuarantine(gp);
@@ -93,6 +154,218 @@ async function apiQuarantine(): Promise<Response> {
     })),
   }));
   return json(result);
+}
+
+// ---------------------------------------------------------------------------
+// Write handlers
+// ---------------------------------------------------------------------------
+
+async function readJson(req: Request): Promise<unknown> {
+  try {
+    return await req.json();
+  } catch {
+    return null;
+  }
+}
+
+function validationError(message: string, status = 400): Response {
+  return json({ error: message }, status);
+}
+
+async function apiCreateNode(req: Request): Promise<Response> {
+  const body = (await readJson(req)) as Record<string, unknown> | null;
+  if (!body || typeof body !== "object") return validationError("Invalid JSON body");
+
+  const typeParsed = NodeType.safeParse(body.type);
+  if (!typeParsed.success) return validationError("Invalid or missing 'type'");
+
+  const idRaw = typeof body.id === "string" ? body.id : "";
+  const candidate: AnyNode = {
+    id: idRaw,
+    type: typeParsed.data,
+    summary: typeof body.summary === "string" ? body.summary : undefined,
+    tags: Array.isArray(body.tags)
+      ? (body.tags.filter((t) => typeof t === "string") as string[])
+      : undefined,
+    aliases: Array.isArray(body.aliases)
+      ? (body.aliases.filter((t) => typeof t === "string") as string[])
+      : undefined,
+    body: typeof body.body === "string" ? body.body : undefined,
+    confidence: typeof body.confidence === "number" ? body.confidence : 1,
+    updated: today(),
+    rels: undefined,
+  } as AnyNode;
+
+  const parsed = AnyNodeSchema.safeParse(candidate);
+  if (!parsed.success) {
+    return validationError(
+      parsed.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join("; "),
+    );
+  }
+
+  const existing = await readRawNode(parsed.data.id);
+  if (existing) return validationError(`Node '${parsed.data.id}' already exists`, 409);
+
+  await persistNode(parsed.data);
+  invalidateCache();
+  return json({ node: parsed.data }, 201);
+}
+
+async function apiUpdateNode(id: string, req: Request): Promise<Response> {
+  const existing = await readRawNode(id);
+  if (!existing) return json({ error: "Not found" }, 404);
+
+  const body = (await readJson(req)) as Record<string, unknown> | null;
+  if (!body || typeof body !== "object") return validationError("Invalid JSON body");
+
+  const merged: AnyNode = {
+    ...existing,
+    summary:
+      body.summary === null
+        ? undefined
+        : typeof body.summary === "string"
+          ? body.summary
+          : existing.summary,
+    body:
+      body.body === null ? undefined : typeof body.body === "string" ? body.body : existing.body,
+    tags: Array.isArray(body.tags)
+      ? (body.tags.filter((t) => typeof t === "string") as string[])
+      : existing.tags,
+    aliases: Array.isArray(body.aliases)
+      ? (body.aliases.filter((t) => typeof t === "string") as string[])
+      : existing.aliases,
+    confidence: typeof body.confidence === "number" ? body.confidence : existing.confidence,
+    updated: today(),
+  };
+
+  const parsed = AnyNodeSchema.safeParse(merged);
+  if (!parsed.success) {
+    return validationError(
+      parsed.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join("; "),
+    );
+  }
+
+  await persistNode(parsed.data);
+  invalidateCache();
+  return json({ node: parsed.data });
+}
+
+async function apiDeleteNode(id: string): Promise<Response> {
+  const existing = await readRawNode(id);
+  if (!existing) return json({ error: "Not found" }, 404);
+
+  const tombstoned: AnyNode = {
+    ...existing,
+    until: today(),
+    updated: today(),
+  };
+
+  const parsed = AnyNodeSchema.safeParse(tombstoned);
+  if (!parsed.success) {
+    return validationError(
+      parsed.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join("; "),
+    );
+  }
+
+  await persistNode(parsed.data);
+  invalidateCache();
+  return new Response(null, { status: 204 });
+}
+
+async function apiAddRelation(id: string, req: Request): Promise<Response> {
+  const source = await readRawNode(id);
+  if (!source) return json({ error: "Source node not found" }, 404);
+
+  const body = (await readJson(req)) as Record<string, unknown> | null;
+  if (!body) return validationError("Invalid JSON body");
+
+  const relParsed = RelationName.safeParse(body.relation);
+  if (!relParsed.success) return validationError("Invalid 'relation'");
+  const targetId = typeof body.target === "string" ? body.target : "";
+  if (!targetId) return validationError("Missing 'target'");
+
+  const target = await readRawNode(targetId);
+  if (!target) return json({ error: `Target node '${targetId}' not found` }, 404);
+
+  const rel = relParsed.data;
+  const constraint = RELATION_CONSTRAINTS[rel];
+  if (!constraint.sources.includes(source.type)) {
+    return validationError(
+      `Relation '${rel}' cannot originate from type '${source.type}' (allowed: ${constraint.sources.join(", ")})`,
+    );
+  }
+  if (!constraint.targets.includes(target.type)) {
+    return validationError(
+      `Relation '${rel}' cannot target type '${target.type}' (allowed: ${constraint.targets.join(", ")})`,
+    );
+  }
+
+  const rels = { ...(source.rels ?? {}) } as Record<RelationName, string[]>;
+  const current = rels[rel] ?? [];
+  if (current.includes(targetId)) {
+    return json({ node: source, noop: true });
+  }
+  rels[rel] = [...current, targetId];
+
+  const updated: AnyNode = {
+    ...source,
+    rels,
+    updated: today(),
+  };
+
+  const parsed = AnyNodeSchema.safeParse(updated);
+  if (!parsed.success) {
+    return validationError(
+      parsed.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join("; "),
+    );
+  }
+
+  await persistNode(parsed.data);
+  invalidateCache();
+  return json({ node: parsed.data });
+}
+
+async function apiRemoveRelation(id: string, req: Request): Promise<Response> {
+  const source = await readRawNode(id);
+  if (!source) return json({ error: "Source node not found" }, 404);
+
+  const body = (await readJson(req)) as Record<string, unknown> | null;
+  if (!body) return validationError("Invalid JSON body");
+
+  const relParsed = RelationName.safeParse(body.relation);
+  if (!relParsed.success) return validationError("Invalid 'relation'");
+  const targetId = typeof body.target === "string" ? body.target : "";
+  if (!targetId) return validationError("Missing 'target'");
+
+  const rel = relParsed.data;
+  const rels = { ...(source.rels ?? {}) } as Record<RelationName, string[]>;
+  const current = rels[rel] ?? [];
+  const next = current.filter((t) => t !== targetId);
+  if (next.length === current.length) {
+    return json({ node: source, noop: true });
+  }
+  if (next.length === 0) {
+    delete rels[rel];
+  } else {
+    rels[rel] = next;
+  }
+
+  const updated: AnyNode = {
+    ...source,
+    rels: Object.keys(rels).length === 0 ? undefined : rels,
+    updated: today(),
+  };
+
+  const parsed = AnyNodeSchema.safeParse(updated);
+  if (!parsed.success) {
+    return validationError(
+      parsed.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join("; "),
+    );
+  }
+
+  await persistNode(parsed.data);
+  invalidateCache();
+  return json({ node: parsed.data });
 }
 
 // ---------------------------------------------------------------------------
@@ -180,11 +453,27 @@ export function createServer(port = 3999) {
       // API routes
       if (p === "/api/stats") return apiStats();
       if (p === "/api/nodes") return apiNodes();
+      if (p === "/api/graph") return apiGraph();
       if (p === "/api/quarantine") return apiQuarantine();
+
+      if (p === "/api/node" && req.method === "POST") {
+        return apiCreateNode(req);
+      }
+
+      const relMatch = p.match(/^\/api\/node\/([^/]+)\/relation$/);
+      if (relMatch?.[1]) {
+        const nodeId = decodeURIComponent(relMatch[1]);
+        if (req.method === "POST") return apiAddRelation(nodeId, req);
+        if (req.method === "DELETE") return apiRemoveRelation(nodeId, req);
+        return json({ error: "Method not allowed" }, 405);
+      }
 
       const nodeMatch = p.match(/^\/api\/node\/(.+)$/);
       if (nodeMatch?.[1]) {
-        return apiNode(decodeURIComponent(nodeMatch[1]));
+        const nodeId = decodeURIComponent(nodeMatch[1]);
+        if (req.method === "PUT") return apiUpdateNode(nodeId, req);
+        if (req.method === "DELETE") return apiDeleteNode(nodeId);
+        return apiNode(nodeId);
       }
 
       // Static assets

@@ -4,7 +4,7 @@ import { build } from "./build.ts";
 import { createServer } from "./src/server.ts";
 
 const root = import.meta.dir;
-const port = Number(process.env["VIEWER_PORT"] ?? 3999);
+const port = Number(process.env.VIEWER_PORT ?? 3999);
 
 console.log("[viewer] initial build…");
 const t0 = performance.now();

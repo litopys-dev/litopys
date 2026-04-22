@@ -57,6 +57,25 @@ export interface NodeDetailResponse {
   outgoing: EdgeData[];
 }
 
+export interface GraphNodeElement {
+  data: { id: string; label: string; type: NodeType; summary: string };
+}
+
+export interface GraphEdgeElement {
+  data: {
+    id: string;
+    source: string;
+    target: string;
+    relation: RelationName;
+    symmetric: boolean;
+  };
+}
+
+export interface GraphResponse {
+  nodes: GraphNodeElement[];
+  edges: GraphEdgeElement[];
+}
+
 export interface QuarantineCandidate {
   id: string;
   type: NodeType;
@@ -78,9 +97,61 @@ async function get<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function send<T>(url: string, method: string, body?: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method,
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const payload = (await res.json()) as { error?: string };
+      if (payload?.error) msg = payload.error;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
+export interface CreateNodeInput {
+  id: string;
+  type: NodeType;
+  summary?: string;
+  body?: string;
+  tags?: string[];
+  aliases?: string[];
+  confidence?: number;
+}
+
+export interface UpdateNodeInput {
+  summary?: string | null;
+  body?: string | null;
+  tags?: string[];
+  aliases?: string[];
+  confidence?: number;
+}
+
+export interface RelationInput {
+  relation: RelationName;
+  target: string;
+}
+
 export const api = {
   stats: () => get<StatsResponse>("/api/stats"),
   nodes: () => get<NodeRow[]>("/api/nodes"),
   node: (id: string) => get<NodeDetailResponse>(`/api/node/${encodeURIComponent(id)}`),
+  graph: () => get<GraphResponse>("/api/graph"),
   quarantine: () => get<QuarantineFile[]>("/api/quarantine"),
+  createNode: (input: CreateNodeInput) => send<{ node: AnyNodeRaw }>("/api/node", "POST", input),
+  updateNode: (id: string, input: UpdateNodeInput) =>
+    send<{ node: AnyNodeRaw }>(`/api/node/${encodeURIComponent(id)}`, "PUT", input),
+  deleteNode: (id: string) => send<void>(`/api/node/${encodeURIComponent(id)}`, "DELETE"),
+  addRelation: (id: string, input: RelationInput) =>
+    send<{ node: AnyNodeRaw }>(`/api/node/${encodeURIComponent(id)}/relation`, "POST", input),
+  removeRelation: (id: string, input: RelationInput) =>
+    send<{ node: AnyNodeRaw }>(`/api/node/${encodeURIComponent(id)}/relation`, "DELETE", input),
 };

@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
+import { promises as fs } from "node:fs";
 import { loadGraph } from "../src/graph/loader.ts";
 import { writeNode } from "../src/graph/writer.ts";
 import type { AnyNode } from "../src/schema/index.ts";
@@ -133,6 +134,74 @@ describe("writeNode", () => {
 
     const file = Bun.file(`${dir}/lessons/test-lesson.md`);
     expect(await file.exists()).toBe(true);
+  });
+
+  test("atomic write leaves no tmp files after success", async () => {
+    const node: AnyNode = {
+      id: "atomic-node",
+      type: "concept",
+      updated: "2026-04-22",
+      confidence: 0.9,
+      body: "atomic body",
+    };
+
+    const dir = `${TMP_BASE}/atomic`;
+    await writeNode(dir, node);
+    await writeNode(dir, node); // overwrite
+    await writeNode(dir, node); // overwrite again
+
+    const entries = await fs.readdir(`${dir}/concepts`);
+    const tmpFiles = entries.filter((e) => e.includes(".tmp."));
+    expect(tmpFiles).toEqual([]);
+    expect(entries).toContain("atomic-node.md");
+  });
+
+  test("concurrent writes to the same id do not corrupt the file", async () => {
+    const dir = `${TMP_BASE}/concurrent`;
+    const mkNode = (version: number): AnyNode => ({
+      id: "race-node",
+      type: "concept",
+      updated: "2026-04-22",
+      confidence: 0.9,
+      body: `version ${version}`,
+    });
+
+    await Promise.all([
+      writeNode(dir, mkNode(1)),
+      writeNode(dir, mkNode(2)),
+      writeNode(dir, mkNode(3)),
+      writeNode(dir, mkNode(4)),
+      writeNode(dir, mkNode(5)),
+    ]);
+
+    const reloaded = await loadGraph(dir);
+    const node = reloaded.nodes.get("race-node");
+    expect(node).toBeDefined();
+    expect(reloaded.errors).toEqual([]);
+    // Body must match one of the versions — no torn writes
+    expect(String(node?.body)).toMatch(/^version [1-5]$/);
+
+    const entries = await fs.readdir(`${dir}/concepts`);
+    const tmpFiles = entries.filter((e) => e.includes(".tmp."));
+    expect(tmpFiles).toEqual([]);
+  });
+
+  test("undefined frontmatter fields are stripped (no YAML dump crash)", async () => {
+    const node: AnyNode = {
+      id: "sparse-node",
+      type: "project",
+      updated: "2026-04-22",
+      confidence: 1,
+      // summary, tags, aliases, rels, body all undefined
+    } as AnyNode;
+
+    const dir = `${TMP_BASE}/sparse`;
+    await writeNode(dir, node);
+
+    const file = Bun.file(`${dir}/projects/sparse-node.md`);
+    const text = await file.text();
+    expect(text).not.toContain("undefined");
+    expect(text).toContain("id: sparse-node");
   });
 
   test("round-trip: write and reload lesson preserves rels", async () => {

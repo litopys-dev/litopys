@@ -11,6 +11,7 @@ import {
   rejectMergeProposal,
 } from "@litopys/extractor";
 import { generateStartupContext } from "@litopys/mcp";
+import { cmdCheck } from "./check.ts";
 import { cmdDaemon } from "./daemon.ts";
 import { cmdIngest } from "./ingest.ts";
 import { cmdMcp } from "./mcp.ts";
@@ -62,6 +63,9 @@ Commands:
   viewer [--port N] [--no-open]             Run the local web dashboard (default port 3999)
   viewer install [--port N]                 Install + enable systemd user unit for autostart
   viewer uninstall                          Stop and remove the systemd user unit
+
+  check [--json]                            Validate graph integrity (broken refs, duplicate
+                                            ids, wrong relation types). Exits 1 if issues.
 
 Source adapters:
   text:<path>         Plain text file
@@ -244,6 +248,8 @@ async function main(): Promise<void> {
     await cmdMcp(args.slice(1));
   } else if (cmd === "viewer") {
     await cmdViewer(args.slice(1));
+  } else if (cmd === "check") {
+    await cmdCheck(args.slice(1), graphPath());
   } else {
     process.stderr.write(`Unknown command: ${cmd}\n`);
     usage();

@@ -32,9 +32,9 @@ Memory systems for AI agents today force a tradeoff: either heavy vector databas
 
 ## Status
 
-🚧 **Pre-release, running live.** Parts 1–7.4 shipped; Part 6.5 Phase 1 (read-only dashboard) landed 2026-04-21. See [Roadmap](#roadmap).
-Author's own daily driver since 2026-04-20 — 39 nodes, 81 edges, daemon ticking every 5 min.
-v0.1.0 public release lands once the dashboard write path (Phases 2–4) closes.
+🚧 **Pre-release, running live.** Parts 1–7.4 shipped; the dashboard now covers read, write, and graph visualization (Phases 1–3, 2026-04-22). See [Roadmap](#roadmap).
+Author's own daily driver since 2026-04-20 — 44 nodes, ~90 edges, daemon ticking every 5 min.
+v0.1.0 public release lands once quarantine review (Phase 4) closes.
 
 ## Quick Start
 
@@ -114,6 +114,18 @@ Or set `LITOPYS_ENABLE_VIEWER=1` when running `install.sh` to enable it as
 part of the one-line install. Requires `loginctl enable-linger $USER` if you
 want the dashboard to stay up across logouts.
 
+### Integrity check
+
+```bash
+litopys check           # human-readable report, grouped by error kind
+litopys check --json    # { nodeCount, edgeCount, errorCount, errors[] } for CI
+```
+
+Loads and resolves the entire graph, then flags broken refs, duplicate ids,
+wrong-typed relations, and parse/validation failures. Exits non-zero when
+issues are found — drop it into a git pre-push hook or CI step so drift never
+lands silently.
+
 ## Roadmap
 
 - [x] **Part 1** — Monorepo scaffolding
@@ -129,8 +141,8 @@ want the dashboard to stay up across logouts.
   - [x] Baseline command + configurable extractor timeout — avoids long first-tick backfill on existing history
 - [~] **Part 6.5** — Web dashboard — Bun + SolidJS, runs locally at `http://localhost:3999` via `litopys viewer`
   - [x] **Phase 1** — Read-only UI: Dashboard, Nodes table (search + type filters), Node detail (metadata + relations), Quarantine list
-  - [ ] **Phase 2** — Write path: node create/edit/tombstone, alias/tag editor
-  - [ ] **Phase 3** — Graph visualization (force layout, filtering by type/relation)
+  - [x] **Phase 2** — Write path: node create via `+ New node` modal (type chips, auto-slugified ids), edit summary/body/tags/aliases/confidence, delete tombstones via `until: <today>`, per-relation add/remove with source+target type validation
+  - [x] **Phase 3** — Graph visualization via Cytoscape + `cytoscape-fcose`: type-coloured nodes, directed arrows for asymmetric edges, dashed edges for `conflicts_with`, click-to-navigate, hover-to-highlight-neighborhood, Fit button
   - [ ] **Phase 4** — Quarantine accept/reject actions, conflict resolution UI, merge proposals
 - [x] **Part 6.6** — Graph-growth guardrails (identity resolution + evolution)
   - [x] `supersedes` relation type (directed evolution: "A replaces B") alongside existing `conflicts_with`. Relation count grows from 10 → 11.

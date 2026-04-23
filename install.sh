@@ -4,8 +4,13 @@
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/litopys-dev/litopys/main/install.sh | sh
 #
+# With environment overrides (place the assignment AFTER the pipe — variables
+# set before `curl` only scope to curl, not to the piped shell):
+#   curl -fsSL https://raw.githubusercontent.com/litopys-dev/litopys/main/install.sh | LITOPYS_VERSION=v0.1.0-alpha sh
+#
 # Environment:
-#   LITOPYS_VERSION       Release tag to install (default: latest)
+#   LITOPYS_VERSION       Release tag to install (default: newest release,
+#                         including prereleases)
 #   LITOPYS_INSTALL_DIR   Directory for the binary (default: ~/.local/bin)
 #   LITOPYS_GRAPH_PATH    Graph root (default: ~/.litopys/graph)
 #   LITOPYS_ENABLE_VIEWER Set to "1" to install+enable the systemd user unit
@@ -71,9 +76,17 @@ fi
 
 if [ -z "${LITOPYS_VERSION:-}" ]; then
   log "Resolving latest release..."
-  LITOPYS_VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+  # /releases/latest excludes prereleases and returns 404 when the only
+  # tagged releases are alpha/beta/rc. Fall back to /releases (array of
+  # all releases, newest first) and pick the first tag_name.
+  LITOPYS_VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null \
     | grep -m 1 '"tag_name"' \
     | cut -d'"' -f 4 || true)
+  if [ -z "$LITOPYS_VERSION" ]; then
+    LITOPYS_VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases" 2>/dev/null \
+      | grep -m 1 '"tag_name"' \
+      | cut -d'"' -f 4 || true)
+  fi
   if [ -z "$LITOPYS_VERSION" ]; then
     die "could not resolve latest release (rate-limited or no releases yet). Set LITOPYS_VERSION explicitly."
   fi

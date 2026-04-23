@@ -44,7 +44,13 @@ One-line install (Linux / macOS):
 curl -fsSL https://raw.githubusercontent.com/litopys-dev/litopys/main/install.sh | sh
 ```
 
-This downloads a single ~100 MB binary to `~/.local/bin/litopys`, initializes `~/.litopys/graph/` with the required subdirectories, and prints MCP registration hints. Pin a specific version with `LITOPYS_VERSION=v0.1.0-alpha.1`.
+This downloads a single ~100 MB binary to `~/.local/bin/litopys`, initializes `~/.litopys/graph/` with the required subdirectories, and prints MCP registration hints.
+
+Pin a specific version by placing the assignment **after the pipe** — env vars set before `curl` only scope to `curl` itself, not the piped shell:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/litopys-dev/litopys/main/install.sh | LITOPYS_VERSION=v0.1.0-alpha sh
+```
 
 Then register the MCP server with your client:
 

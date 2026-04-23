@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`litopys export [--pretty] [--no-body]`** — dump the entire graph (nodes + resolved edges) as a JSON snapshot to stdout. `meta` block carries `exportedAt`, `nodeCount`, `edgeCount`, and `schemaVersion: 1`. Nodes are sorted by id ascending, edges by `(from, relation, to)` — deterministic across runs for diffing and version-controlled backups. `--pretty` indents with 2 spaces; `--no-body` strips markdown bodies for a compact metadata snapshot. Intended for backup (`litopys export > graph.json`), migration, and external tooling. Import/restore is out of scope for 0.1.0 — reconstructing the graph from the dump is a short Bun script using existing `@litopys/core` writers.
+
+### Fixed
+- `install.sh` now falls back to `/releases` (newest-first array) when `/releases/latest` returns 404. The `/latest` endpoint excludes prereleases, so `curl | sh` failed on repos whose only tagged releases are alpha/beta/rc. Caught during the v0.1.0-alpha smoke-test. Docstring and README also clarify that env vars must be placed **after** the pipe (`curl ... | LITOPYS_VERSION=... sh`) — before the pipe they only scope to `curl` itself.
+
 ## [0.1.0-alpha] - 2026-04-23
 
 First tagged release. Covers monorepo scaffolding (Part 1), core graph model (Part 2), MCP server with 5 tools and stdio/SSE transports (Part 3), model-agnostic extractor + quarantine + weekly digest (Part 4), flat-memory → graph migration (Part 5), universal auto-context and timer-daemon (Part 6), graph-growth guardrails with `supersedes` and similarity scorer (Part 6.6), local web dashboard with read/write/graph-viz/quarantine-review (Part 6.5 Phases 1–4), and remote transport + single-binary + one-line installer + per-client integration docs (Part 7.1–7.4).

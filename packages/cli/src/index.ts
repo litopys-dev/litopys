@@ -13,6 +13,7 @@ import {
 import { generateStartupContext } from "@litopys/mcp";
 import { cmdCheck } from "./check.ts";
 import { cmdDaemon } from "./daemon.ts";
+import { cmdExport } from "./export.ts";
 import { cmdIngest } from "./ingest.ts";
 import { cmdMcp } from "./mcp.ts";
 import { cmdProposeMerge } from "./propose-merge.ts";
@@ -66,6 +67,12 @@ Commands:
 
   check [--json]                            Validate graph integrity (broken refs, duplicate
                                             ids, wrong relation types). Exits 1 if issues.
+
+  export [--pretty] [--no-body]             Dump the entire graph (nodes + resolved edges) as
+                                            JSON to stdout. Pipe to a file for backup or feed
+                                            to external tools.
+    --pretty                                Indent output with 2 spaces (default: compact)
+    --no-body                               Omit markdown bodies (metadata-only snapshot)
 
 Source adapters:
   text:<path>         Plain text file
@@ -250,6 +257,8 @@ async function main(): Promise<void> {
     await cmdViewer(args.slice(1));
   } else if (cmd === "check") {
     await cmdCheck(args.slice(1), graphPath());
+  } else if (cmd === "export") {
+    await cmdExport(args.slice(1), graphPath());
   } else {
     process.stderr.write(`Unknown command: ${cmd}\n`);
     usage();

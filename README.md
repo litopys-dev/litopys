@@ -132,6 +132,40 @@ wrong-typed relations, and parse/validation failures. Exits non-zero when
 issues are found — drop it into a git pre-push hook or CI step so drift never
 lands silently.
 
+### Backing up your graph
+
+Litopys stores everything as plain markdown in `~/.litopys/graph/`, so any tool
+that versions files works. Two common approaches:
+
+**Git + private remote** (incremental history, offsite, free):
+
+```bash
+cd ~/.litopys
+git init
+git add graph/ .gitignore README.md
+git commit -m "baseline"
+gh repo create my-litopys-graph --private --source=. --push
+```
+
+From then on, every session-end hook or manual accept leaves your working tree
+dirty — periodically `git add -A && git commit -m "sync" && git push` to keep
+the backup current. Your graph contains personal facts, so keep the remote
+**private**.
+
+**JSON snapshot** (portable, diffable, tool-friendly):
+
+```bash
+litopys export > graph.json              # compact
+litopys export --pretty > graph.json     # indented, VCS-friendly
+litopys export --no-body > meta.json     # metadata only, strip markdown bodies
+```
+
+The dump carries `meta` (exportedAt, counts, schemaVersion) plus all nodes
+sorted by id and edges sorted by `(from, relation, to)` — deterministic across
+runs, so `diff graph-yesterday.json graph-today.json` tells you exactly what
+the LLM/daemon added. Feed it to analysis tools, migrate between hosts, or
+commit alongside code.
+
 ## Roadmap
 
 - [x] **Part 1** — Monorepo scaffolding

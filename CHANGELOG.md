@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha] - 2026-04-23
+
+First tagged release. Covers monorepo scaffolding (Part 1), core graph model (Part 2), MCP server with 5 tools and stdio/SSE transports (Part 3), model-agnostic extractor + quarantine + weekly digest (Part 4), flat-memory → graph migration (Part 5), universal auto-context and timer-daemon (Part 6), graph-growth guardrails with `supersedes` and similarity scorer (Part 6.6), local web dashboard with read/write/graph-viz/quarantine-review (Part 6.5 Phases 1–4), and remote transport + single-binary + one-line installer + per-client integration docs (Part 7.1–7.4).
+
 ### Fixed
 - `writeNode` is now atomic via tmp+rename (`packages/core/src/graph/writer.ts`). Stages the serialized node to `<target>.tmp.<pid>.<random>`, then `fs.rename(2)` onto the target — atomic within one filesystem, so concurrent readers never observe a half-written `.md` file, and a crash mid-write can't leave the target truncated. Also moved the `stripUndefined` guard into core so any caller (not just the viewer) gets protection from `js-yaml` choking on Zod's surviving `undefined` values in optional fields. New tests cover no-tmp-left-after-success, concurrent 5-way overwrite produces a valid reload with no torn body, and sparse-frontmatter round-trip.
 - Extractor now dedupes candidates against the existing graph before writing to quarantine. Root cause: Ollama (`qwen2.5:7b`) ignores the `existingNodeIds` list in the prompt and re-emits nodes that already exist — the 2026-04-21 audit caught 4 such duplicates (`auto-save-project-state`, `token-economy`, `security-policy`, `skills-injection-bug`) sitting in a pending quarantine file. New `dedupCandidatesAgainstGraph()` in `@litopys/extractor` runs inside `writeQuarantine`, drops ids/aliases matching any existing node (case-insensitive), logs drops to stderr, and leaves relations untouched so a new edge onto an existing node is still valid. Missing graph dir → every candidate kept (first-install safety).

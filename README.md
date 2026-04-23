@@ -32,9 +32,9 @@ Memory systems for AI agents today force a tradeoff: either heavy vector databas
 
 ## Status
 
-🚧 **Pre-release, running live.** Parts 1–7.4 shipped; the dashboard now covers read, write, and graph visualization (Phases 1–3, 2026-04-22). See [Roadmap](#roadmap).
+🚧 **Pre-release, running live.** Parts 1–7.4 shipped; the dashboard now covers read, write, graph visualization, and quarantine review (Phases 1–4, 2026-04-23). See [Roadmap](#roadmap).
 Author's own daily driver since 2026-04-20 — 44 nodes, ~90 edges, daemon ticking every 5 min.
-v0.1.0 public release lands once quarantine review (Phase 4) closes.
+v0.1.0 public release tag is the remaining blocker.
 
 ## Quick Start
 
@@ -139,11 +139,11 @@ lands silently.
   - [x] Generic CLI `litopys ingest <file>` — agent-agnostic entry point for transcripts (not tied to any specific client)
   - [x] Periodic timer-daemon — incremental extraction from live transcripts without requiring session end
   - [x] Baseline command + configurable extractor timeout — avoids long first-tick backfill on existing history
-- [~] **Part 6.5** — Web dashboard — Bun + SolidJS, runs locally at `http://localhost:3999` via `litopys viewer`
+- [x] **Part 6.5** — Web dashboard — Bun + SolidJS, runs locally at `http://localhost:3999` via `litopys viewer`
   - [x] **Phase 1** — Read-only UI: Dashboard, Nodes table (search + type filters), Node detail (metadata + relations), Quarantine list
   - [x] **Phase 2** — Write path: node create via `+ New node` modal (type chips, auto-slugified ids), edit summary/body/tags/aliases/confidence, delete tombstones via `until: <today>`, per-relation add/remove with source+target type validation
   - [x] **Phase 3** — Graph visualization via Cytoscape + `cytoscape-fcose`: type-coloured nodes, directed arrows for asymmetric edges, dashed edges for `conflicts_with`, click-to-navigate, hover-to-highlight-neighborhood, Fit button
-  - [ ] **Phase 4** — Quarantine accept/reject actions, conflict resolution UI, merge proposals
+  - [x] **Phase 4** — Quarantine review UI: per-candidate accept/reject with expandable `reasoning`, optional reject reason, merge-proposal cards with winner/loser/conflicts/merged-state preview and accept-with-confirm
 - [x] **Part 6.6** — Graph-growth guardrails (identity resolution + evolution)
   - [x] `supersedes` relation type (directed evolution: "A replaces B") alongside existing `conflicts_with`. Relation count grows from 10 → 11.
   - [x] `litopys similar <id> [--explain]` — deterministic merge candidates by alias / type / tag overlap / name edit-distance. No embeddings.

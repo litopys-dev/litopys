@@ -1,3 +1,4 @@
+import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import {
   AnyNodeSchema,
@@ -11,7 +12,15 @@ import {
 } from "@litopys/core";
 import type { AnyNode } from "@litopys/core";
 import type { Edge, ResolvedGraph } from "@litopys/core";
-import { listQuarantine } from "@litopys/extractor";
+import {
+  acceptMergeProposal,
+  isMergeProposalContent,
+  listQuarantine,
+  parseMergeProposal,
+  promoteCandidate,
+  rejectCandidate,
+  rejectMergeProposal,
+} from "@litopys/extractor";
 
 // ---------------------------------------------------------------------------
 // Cache
@@ -141,19 +150,148 @@ async function apiGraph(): Promise<Response> {
 async function apiQuarantine(): Promise<Response> {
   const gp = defaultGraphPath();
   const files = await listQuarantine(gp);
-  const result = files.map((f) => ({
-    filePath: path.basename(f.filePath),
-    meta: f.meta,
-    candidateCount: f.candidates.length,
-    relationCount: f.relations.length,
-    candidates: f.candidates.map((c) => ({
-      id: c.id,
-      type: c.type,
-      summary: c.summary,
-      confidence: c.confidence,
-    })),
-  }));
-  return json(result);
+
+  const result = await Promise.all(
+    files.map(async (f) => {
+      const basename = path.basename(f.filePath);
+      let content: string;
+      try {
+        content = await fs.readFile(f.filePath, "utf-8");
+      } catch {
+        // File disappeared between list and read — skip
+        return null;
+      }
+
+      if (isMergeProposalContent(content)) {
+        try {
+          const proposal = parseMergeProposal(content);
+          return { kind: "merge" as const, filePath: basename, proposal };
+        } catch {
+          return null;
+        }
+      }
+
+      return {
+        kind: "regular" as const,
+        filePath: basename,
+        meta: f.meta,
+        candidateCount: f.candidates.length,
+        relationCount: f.relations.length,
+        candidates: f.candidates.map((c) => ({
+          id: c.id,
+          type: c.type,
+          summary: c.summary,
+          confidence: c.confidence,
+          reasoning: c.reasoning,
+        })),
+        relations: f.relations.map((r) => ({
+          sourceId: r.sourceId,
+          type: r.type,
+          targetId: r.targetId,
+        })),
+      };
+    }),
+  );
+
+  return json(result.filter(Boolean));
+}
+
+function resolveQuarantinePath(basename: string, graphPath: string): string {
+  // Quarantine dir mirrors the extractor's quarantineDir helper:
+  // path.join(graphPath, "..", "quarantine")
+  const quarantineDir = path.join(graphPath, "..", "quarantine");
+  // Strip any path components from client input — basename only.
+  const safe = path.basename(basename);
+  return path.join(quarantineDir, safe);
+}
+
+async function apiQuarantineAccept(req: Request): Promise<Response> {
+  const body = (await readJson(req)) as Record<string, unknown> | null;
+  if (!body) return validationError("Invalid JSON body");
+
+  const fileBasename = typeof body.filePath === "string" ? body.filePath : "";
+  if (!fileBasename) return validationError("Missing 'filePath'");
+
+  const gp = defaultGraphPath();
+  const absPath = resolveQuarantinePath(fileBasename, gp);
+
+  let content: string;
+  try {
+    content = await fs.readFile(absPath, "utf-8");
+  } catch {
+    return json({ error: "File not found" }, 404);
+  }
+
+  if (isMergeProposalContent(content)) {
+    try {
+      const result = await acceptMergeProposal(absPath, gp);
+      invalidateCache();
+      return json({ ok: true, result });
+    } catch (e) {
+      return json({ error: String((e as Error).message ?? e) }, 400);
+    }
+  }
+
+  // Regular candidate — index required
+  const indexRaw = body.index;
+  if (indexRaw === undefined || indexRaw === null) {
+    return validationError("Missing 'index' for regular quarantine file");
+  }
+  const index = Number(indexRaw);
+  if (!Number.isFinite(index)) return validationError("'index' must be a number");
+
+  try {
+    await promoteCandidate(absPath, index, gp);
+    invalidateCache();
+    return json({ ok: true });
+  } catch (e) {
+    return json({ error: String((e as Error).message ?? e) }, 400);
+  }
+}
+
+async function apiQuarantineReject(req: Request): Promise<Response> {
+  const body = (await readJson(req)) as Record<string, unknown> | null;
+  if (!body) return validationError("Invalid JSON body");
+
+  const fileBasename = typeof body.filePath === "string" ? body.filePath : "";
+  if (!fileBasename) return validationError("Missing 'filePath'");
+
+  const gp = defaultGraphPath();
+  const absPath = resolveQuarantinePath(fileBasename, gp);
+
+  let content: string;
+  try {
+    content = await fs.readFile(absPath, "utf-8");
+  } catch {
+    return json({ error: "File not found" }, 404);
+  }
+
+  if (isMergeProposalContent(content)) {
+    try {
+      await rejectMergeProposal(absPath);
+      invalidateCache();
+      return json({ ok: true });
+    } catch (e) {
+      return json({ error: String((e as Error).message ?? e) }, 400);
+    }
+  }
+
+  const indexRaw = body.index;
+  if (indexRaw === undefined || indexRaw === null) {
+    return validationError("Missing 'index' for regular quarantine file");
+  }
+  const index = Number(indexRaw);
+  if (!Number.isFinite(index)) return validationError("'index' must be a number");
+
+  const reason = typeof body.reason === "string" ? body.reason : undefined;
+
+  try {
+    await rejectCandidate(absPath, index, gp, reason);
+    invalidateCache();
+    return json({ ok: true });
+  } catch (e) {
+    return json({ error: String((e as Error).message ?? e) }, 400);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -454,7 +592,11 @@ export function createServer(port = 3999) {
       if (p === "/api/stats") return apiStats();
       if (p === "/api/nodes") return apiNodes();
       if (p === "/api/graph") return apiGraph();
-      if (p === "/api/quarantine") return apiQuarantine();
+      if (p === "/api/quarantine" && req.method === "GET") return apiQuarantine();
+      if (p === "/api/quarantine/accept" && req.method === "POST")
+        return apiQuarantineAccept(req);
+      if (p === "/api/quarantine/reject" && req.method === "POST")
+        return apiQuarantineReject(req);
 
       if (p === "/api/node" && req.method === "POST") {
         return apiCreateNode(req);

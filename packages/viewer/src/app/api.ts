@@ -81,15 +81,59 @@ export interface QuarantineCandidate {
   type: NodeType;
   summary: string;
   confidence: number;
+  reasoning: string;
 }
 
-export interface QuarantineFile {
+export interface QuarantineRelation {
+  sourceId: string;
+  type: RelationName;
+  targetId: string;
+}
+
+export interface QuarantineRegularFile {
+  kind: "regular";
   filePath: string;
   meta: { sessionId: string; timestamp: string; adapterName: string };
   candidateCount: number;
   relationCount: number;
   candidates: QuarantineCandidate[];
+  relations: QuarantineRelation[];
 }
+
+export interface MergeResultPayload {
+  id: string;
+  type: NodeType;
+  aliases: string[];
+  summary?: string;
+  tags: string[];
+  rels: Partial<Record<RelationName, string[]>>;
+  body?: string;
+  confidence: number;
+  winnerId: string;
+  loserId: string;
+}
+
+export interface MergeConflictPayload {
+  field: "summary" | "body" | "type" | "rels";
+  detail: string;
+}
+
+export interface MergeProposalPayload {
+  kind: "merge-proposal";
+  sourceA: string;
+  sourceB: string;
+  result: MergeResultPayload;
+  conflicts: MergeConflictPayload[];
+  detectedBy: string;
+}
+
+export interface QuarantineMergeFile {
+  kind: "merge";
+  filePath: string;
+  proposal: MergeProposalPayload;
+}
+
+export type QuarantineFile = QuarantineRegularFile | QuarantineMergeFile;
 
 async function get<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -146,6 +190,17 @@ export const api = {
   node: (id: string) => get<NodeDetailResponse>(`/api/node/${encodeURIComponent(id)}`),
   graph: () => get<GraphResponse>("/api/graph"),
   quarantine: () => get<QuarantineFile[]>("/api/quarantine"),
+  acceptQuarantine: (filePath: string, index?: number) =>
+    send<{ ok: boolean; result?: unknown }>("/api/quarantine/accept", "POST", {
+      filePath,
+      ...(index !== undefined ? { index } : {}),
+    }),
+  rejectQuarantine: (filePath: string, index?: number, reason?: string) =>
+    send<{ ok: boolean }>("/api/quarantine/reject", "POST", {
+      filePath,
+      ...(index !== undefined ? { index } : {}),
+      ...(reason ? { reason } : {}),
+    }),
   createNode: (input: CreateNodeInput) => send<{ node: AnyNodeRaw }>("/api/node", "POST", input),
   updateNode: (id: string, input: UpdateNodeInput) =>
     send<{ node: AnyNodeRaw }>(`/api/node/${encodeURIComponent(id)}`, "PUT", input),

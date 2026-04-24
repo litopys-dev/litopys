@@ -593,10 +593,8 @@ export function createServer(port = 3999) {
       if (p === "/api/nodes") return apiNodes();
       if (p === "/api/graph") return apiGraph();
       if (p === "/api/quarantine" && req.method === "GET") return apiQuarantine();
-      if (p === "/api/quarantine/accept" && req.method === "POST")
-        return apiQuarantineAccept(req);
-      if (p === "/api/quarantine/reject" && req.method === "POST")
-        return apiQuarantineReject(req);
+      if (p === "/api/quarantine/accept" && req.method === "POST") return apiQuarantineAccept(req);
+      if (p === "/api/quarantine/reject" && req.method === "POST") return apiQuarantineReject(req);
 
       if (p === "/api/node" && req.method === "POST") {
         return apiCreateNode(req);

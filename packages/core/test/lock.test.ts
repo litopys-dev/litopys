@@ -76,11 +76,9 @@ describe("withGraphLock", () => {
     const gp = await mkGraphDir("concurrent-timeout");
 
     // First lock holds for 1000ms
-    const p1 = withGraphLock(
-      gp,
-      () => new Promise<void>((r) => setTimeout(r, 1_000)),
-      { timeoutMs: 5_000 },
-    );
+    const p1 = withGraphLock(gp, () => new Promise<void>((r) => setTimeout(r, 1_000)), {
+      timeoutMs: 5_000,
+    });
 
     // Give p1 a moment to acquire the lock
     await new Promise<void>((r) => setTimeout(r, 20));
@@ -107,11 +105,10 @@ describe("withGraphLock", () => {
     await fs.utimes(lockPath, twoMinutesAgo, twoMinutesAgo);
 
     // withGraphLock should detect stale lock (>60s) and proceed
-    const result = await withGraphLock(
-      gp,
-      async () => "stale-override",
-      { staleAgeMs: 60_000, timeoutMs: 1_000 },
-    );
+    const result = await withGraphLock(gp, async () => "stale-override", {
+      staleAgeMs: 60_000,
+      timeoutMs: 1_000,
+    });
 
     expect(result).toBe("stale-override");
     // Lockfile removed after fn completes

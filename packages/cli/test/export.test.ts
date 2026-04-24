@@ -79,10 +79,7 @@ describe("cmdExport", () => {
     expect(parsed.meta.nodeCount).toBe(2);
     expect(parsed.meta.edgeCount).toBe(1);
     // sorted by id ascending
-    expect(parsed.nodes.map((n: { id: string }) => n.id)).toEqual([
-      "alpha-project",
-      "zeta-system",
-    ]);
+    expect(parsed.nodes.map((n: { id: string }) => n.id)).toEqual(["alpha-project", "zeta-system"]);
     expect(parsed.edges).toHaveLength(1);
     expect(parsed.edges[0]).toMatchObject({
       from: "alpha-project",

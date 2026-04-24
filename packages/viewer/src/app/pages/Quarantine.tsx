@@ -1,11 +1,5 @@
 import { CheckCircle, ChevronDown, ChevronRight, GitMerge, X } from "lucide-solid";
-import {
-  For,
-  Show,
-  createResource,
-  createSignal,
-  type Setter,
-} from "solid-js";
+import { For, type Setter, Show, createResource, createSignal } from "solid-js";
 import {
   type MergeConflictPayload,
   type MergeProposalPayload,
@@ -76,17 +70,9 @@ export default function Quarantine() {
             <For each={files()}>
               {(f) =>
                 f.kind === "merge" ? (
-                  <MergeCard
-                    file={f}
-                    onAction={onAction}
-                    setError={setGlobalError}
-                  />
+                  <MergeCard file={f} onAction={onAction} setError={setGlobalError} />
                 ) : (
-                  <RegularCard
-                    file={f}
-                    onAction={onAction}
-                    setError={setGlobalError}
-                  />
+                  <RegularCard file={f} onAction={onAction} setError={setGlobalError} />
                 )
               }
             </For>
@@ -327,9 +313,7 @@ function MergeCard(props: {
         <div class="flex items-center gap-2 min-w-0">
           <GitMerge size={15} class="text-accent shrink-0" />
           <div class="min-w-0">
-            <div class="font-mono text-xs text-text-tertiary truncate">
-              {props.file.filePath}
-            </div>
+            <div class="font-mono text-xs text-text-tertiary truncate">{props.file.filePath}</div>
             <div class="mt-0.5 text-text-secondary text-xs">
               Merge proposal · detected by {p.detectedBy}
             </div>
@@ -378,9 +362,7 @@ function MergeCard(props: {
               Conflicts ({p.conflicts.length})
             </div>
             <ul class="space-y-1">
-              <For each={p.conflicts}>
-                {(conflict) => <ConflictRow conflict={conflict} />}
-              </For>
+              <For each={p.conflicts}>{(conflict) => <ConflictRow conflict={conflict} />}</For>
             </ul>
           </div>
         </Show>
@@ -405,7 +387,9 @@ function ConflictRow(props: { conflict: MergeConflictPayload }) {
 
 function MergedPreview(props: { proposal: MergeProposalPayload }) {
   const r = props.proposal.result;
-  const relEntries = Object.entries(r.rels ?? {}).filter(([, targets]) => targets && targets.length > 0);
+  const relEntries = Object.entries(r.rels ?? {}).filter(
+    ([, targets]) => targets && targets.length > 0,
+  );
 
   return (
     <div class="border border-border rounded-card p-3 bg-ink/20">

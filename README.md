@@ -30,6 +30,19 @@ Memory systems for AI agents today force a tradeoff: either heavy vector databas
 - 🌐 **Web dashboard** — browse, search, edit, visualize the graph, and review quarantine at `http://localhost:3999`
 - 🔐 **Stays local** — graph lives in `~/.litopys/graph/` as files; the server binds to `127.0.0.1` by default; no telemetry
 
+## Dashboard
+
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" width="49%" alt="Dashboard — counts by type, live from ~/.litopys/graph">
+  <img src="docs/screenshots/graph.png"     width="49%" alt="Graph — typed nodes, directed relations, force-directed layout">
+</p>
+<p align="center">
+  <img src="docs/screenshots/nodes.png"      width="49%" alt="Nodes — searchable table with type filter">
+  <img src="docs/screenshots/quarantine.png" width="49%" alt="Quarantine — pending extractor candidates + merge proposals">
+</p>
+
+Screenshots taken against a synthetic demo graph bundled in `docs/screenshots/` — not the author's personal notes.
+
 ## Status
 
 **[v0.1.0-alpha](https://github.com/litopys-dev/litopys/releases/tag/v0.1.0-alpha) is out** — prebuilt binaries for Linux / macOS / Windows (x64 + arm64) in the release. Author's own daily driver since 2026-04-20: 46 nodes, 84 edges, daemon ticking every 5 min.

@@ -180,6 +180,18 @@ runs, so `diff graph-yesterday.json graph-today.json` tells you exactly what
 the LLM/daemon added. Feed it to analysis tools, migrate between hosts, or
 commit alongside code.
 
+Restore from a snapshot on a fresh host (or after a reinstall):
+
+```bash
+litopys import graph.json --dry-run   # preview the plan
+litopys import graph.json             # create new nodes, skip existing ones
+litopys import graph.json --force     # also overwrite existing ids
+```
+
+Default is conservative — existing nodes are never touched unless you pass
+`--force`. Every node is validated against the schema up-front, so a corrupt
+snapshot aborts before anything lands on disk.
+
 ## Roadmap
 
 - [x] **Part 1** — Monorepo scaffolding

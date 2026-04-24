@@ -14,6 +14,7 @@ import { generateStartupContext } from "@litopys/mcp";
 import { cmdCheck } from "./check.ts";
 import { cmdDaemon } from "./daemon.ts";
 import { cmdExport } from "./export.ts";
+import { cmdImport } from "./import.ts";
 import { cmdIngest } from "./ingest.ts";
 import { cmdMcp } from "./mcp.ts";
 import { cmdProposeMerge } from "./propose-merge.ts";
@@ -73,6 +74,12 @@ Commands:
                                             to external tools.
     --pretty                                Indent output with 2 spaces (default: compact)
     --no-body                               Omit markdown bodies (metadata-only snapshot)
+
+  import <file.json> [--force] [--dry-run]  Restore nodes from a JSON snapshot produced by
+                                            'litopys export'. By default new nodes are created
+                                            and existing ids are skipped — pass --force to
+                                            overwrite them. Use --dry-run to preview the plan
+                                            without touching the graph.
 
 Source adapters:
   text:<path>         Plain text file
@@ -259,6 +266,8 @@ async function main(): Promise<void> {
     await cmdCheck(args.slice(1), graphPath());
   } else if (cmd === "export") {
     await cmdExport(args.slice(1), graphPath());
+  } else if (cmd === "import") {
+    await cmdImport(args.slice(1), graphPath());
   } else {
     process.stderr.write(`Unknown command: ${cmd}\n`);
     usage();

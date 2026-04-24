@@ -7,8 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-04-25
+
+First stable release. Drops the `-alpha` marker after two weeks of daily-driver use and open-source maturation. Public surfaces that are now frozen: the 5-tool MCP API (`litopys_search`/`get`/`create`/`link`/`related`) plus resources, the CLI command set, JSON export `schemaVersion: 1`, and the on-disk markdown/frontmatter layout under `~/.litopys/graph/`. Future breaking changes will bump to `0.2.x`.
+
+### Added
+- **`litopys import <file.json> [--force] [--dry-run]`** (`packages/cli/src/import.ts`): mirror of `litopys export`. Reads a JSON snapshot, validates every node against `AnyNodeSchema` up-front (fail-fast), then writes through `withGraphLock` + `writeNode`. Safe-by-default — existing ids are skipped unless `--force` is passed; `--dry-run` prints the plan (`create N / overwrite N / skip N` with per-node `+ / ~ / -` lines) without touching disk. Rejects unsupported `schemaVersion`. Closes the export/import round-trip — verified on the author's own 54-node graph: `check --json` reports the same error count on the original and the restored copy.
+- **Dockerfile** (`Dockerfile` + `.dockerignore`): single-stage on `oven/bun:1-slim`, default `CMD` runs `litopys mcp stdio`. `/data/graph` exposed as a volume so a mounted host graph survives container restarts. Unlocks Glama listing and containerised deploys.
+- **README dashboard screenshots** (`docs/screenshots/`): four views of the web dashboard (Dashboard, Nodes, Graph, Quarantine) taken against a synthetic demo graph — no personal data. Surfaced near the top of the README so a first-time reader sees the product before the feature bullets.
+
 ### Changed
 - **README honesty pass**: MCP server footprint bumped from the aspirational `~50 MB` to the measured `~75 MB` (both in the pitch paragraph and the Design Principles). Added a new **Resource footprint** section before Quick Start with a per-component RAM table — MCP server, viewer, and each extractor adapter (Anthropic/OpenAI at 0 local RAM but billed per token; Ollama 3B at ~2–3 GB and Ollama 7B at ~5 GB, both only resident during a tick thanks to `keep_alive`). Motivation: Litopys sells itself in contrast to "heavy vector DBs with ~500 MB footprint"; understating local cost while the extractor quietly needs a 7B model on disk is the kind of claim that gets caught at first real use. Also reworded the Features bullet for the extractor so it points users at the footprint table up front.
+- **README: Roadmap → What's next.** Thirty-plus lines of ticked-off Part 1 → 7.4 checkboxes were noise for a first-time reader — the delivered work already lives in this CHANGELOG. Kept two forward-looking bullets (Astro landing, `npm` publish of `@litopys/cli` as a thin launcher) and linked here for history.
+- **Adapter refactor to dependency injection.** `AnthropicAdapter` and `OpenAIAdapter` now accept an optional `client` in their constructor options — tests construct a fake client directly instead of touching `mock.module`. The bun `mock.module` registry is process-global, so three separate adapter test files each mocking `@anthropic-ai/sdk` and `openai` silently overwrote each other and flaked 7 tests depending on file load order. Root-cause fix lets the CI step drop its per-file workaround, and `bun test` is now ~3× faster.
+- **CI gets `typecheck` and `litopys check` steps**, per-file test loop removed. A single `bun test` now gates the whole suite (468/468 pass), `bun run typecheck` catches type drift that was previously uncaught by the pipeline, and `litopys check --json` runs against an empty graph as a smoke test for the loader/resolver.
+- **Viewer cleanup: `/conflicts` page dropped.** Phase 4 shipped the merge/conflict review inside `Quarantine.tsx`, but the standalone `/conflicts` route stayed as a stale `ComingSoon` placeholder and the sidebar kept pointing at it. Removed the route, the sidebar entry, `Conflicts.tsx`, and the now-orphaned `ComingSoon.tsx` component.
+
+### Fixed
+- **Privacy scrub of the public repo**: removed remaining `/home/denis/` paths from `.env.example` and `packages/mcp/systemd/litopys-mcp.service`. The MCP systemd unit was rewritten to the `--user` service pattern (`%h` placeholders, no hardcoded `User=`), matching the existing daemon/viewer units.
 
 ## [0.1.1-alpha] - 2026-04-24
 

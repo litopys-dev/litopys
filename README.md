@@ -45,9 +45,9 @@ Screenshots taken against a synthetic demo graph bundled in `docs/screenshots/` 
 
 ## Status
 
-**[v0.1.0-alpha](https://github.com/litopys-dev/litopys/releases/tag/v0.1.0-alpha) is out** — prebuilt binaries for Linux / macOS / Windows (x64 + arm64) in the release. Author's own daily driver since 2026-04-20: 46 nodes, 84 edges, daemon ticking every 5 min.
+**[v0.1.1](https://github.com/litopys-dev/litopys/releases/tag/v0.1.1) is out** — prebuilt binaries for Linux / macOS / Windows (x64 + arm64) in the release. First stable tag after two weeks of daily-driver use by the author. Public surfaces (MCP tools, CLI, JSON export `schemaVersion: 1`, on-disk markdown layout) are frozen; breaking changes will ship as `0.2.x`.
 
-Parts 1–7.4 shipped: core graph, MCP server (5 tools, stdio + HTTP/SSE), extractor + quarantine + weekly digest, timer-daemon, dashboard (read + write + graph viz + quarantine review), identity-resolution guardrails, single-binary build, one-line installer, per-client integration docs. See [Roadmap](#roadmap) for what's next — the API shape is not frozen yet, so `alpha`.
+Core graph, MCP server (5 tools, stdio + HTTP/SSE), extractor + quarantine + weekly digest, timer-daemon, dashboard (read + write + graph viz + quarantine review), identity-resolution guardrails, single-binary build, one-line installer, per-client integration docs — all shipped. See [What's next](#whats-next) for the planned follow-ups.
 
 ## Resource footprint
 
@@ -76,7 +76,7 @@ This downloads a single ~100 MB binary to `~/.local/bin/litopys`, initializes `~
 Pin a specific version by placing the assignment **after the pipe** — env vars set before `curl` only scope to `curl` itself, not the piped shell:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/litopys-dev/litopys/main/install.sh | LITOPYS_VERSION=v0.1.0-alpha sh
+curl -fsSL https://raw.githubusercontent.com/litopys-dev/litopys/main/install.sh | LITOPYS_VERSION=v0.1.1 sh
 ```
 
 Then register the MCP server with your client:
@@ -209,7 +209,6 @@ snapshot aborts before anything lands on disk.
 
 - Astro landing page
 - `npm` publish of `@litopys/cli` as a thin launcher around the single-binary
-- `v0.1.0` stable tag once the API shape settles
 
 Full release history lives in [CHANGELOG.md](./CHANGELOG.md).
 

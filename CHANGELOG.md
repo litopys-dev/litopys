@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **README honesty pass**: MCP server footprint bumped from the aspirational `~50 MB` to the measured `~75 MB` (both in the pitch paragraph and the Design Principles). Added a new **Resource footprint** section before Quick Start with a per-component RAM table — MCP server, viewer, and each extractor adapter (Anthropic/OpenAI at 0 local RAM but billed per token; Ollama 3B at ~2–3 GB and Ollama 7B at ~5 GB, both only resident during a tick thanks to `keep_alive`). Motivation: Litopys sells itself in contrast to "heavy vector DBs with ~500 MB footprint"; understating local cost while the extractor quietly needs a 7B model on disk is the kind of claim that gets caught at first real use. Also reworded the Features bullet for the extractor so it points users at the footprint table up front.
+
 ## [0.1.1-alpha] - 2026-04-24
 
 ### Added

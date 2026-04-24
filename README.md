@@ -19,14 +19,14 @@ Built for Claude Code, Claude Desktop, and any MCP-compatible agent.
 
 Memory systems for AI agents today force a tradeoff: either heavy vector databases with subprocess leaks and ~500 MB RAM footprint, or flat markdown files that don't scale past a few dozen notes.
 
-**Litopys takes a third path:** a typed graph of knowledge stored in plain markdown, served through a thin MCP layer (~50 MB RAM), editable by hand, queryable by both keyword and structure. Litopys means "chronicle" in Ukrainian — because that's exactly what your AI's memory should be: a living record of what it learned about you, when, and why.
+**Litopys takes a third path:** a typed graph of knowledge stored in plain markdown, served through a thin MCP layer (~75 MB RAM), editable by hand, queryable by both keyword and structure. Litopys means "chronicle" in Ukrainian — because that's exactly what your AI's memory should be: a living record of what it learned about you, when, and why.
 
 ## Features
 
 - 🧠 **Typed graph** — 6 node types (person, project, system, concept, event, lesson) with 11 first-class relations
 - 🔌 **MCP-native** — works with Claude Code, Claude Desktop, Cursor, Cline, or any MCP client (see [docs/integrations](docs/integrations))
 - 📝 **Markdown-first** — every node is a plain `.md` file with YAML frontmatter. Hand-editable, grep-able, git-versioned
-- 🤖 **Model-agnostic extractor** — Anthropic, OpenAI, or local Ollama. Facts flow through a quarantine so nothing lands unreviewed
+- 🤖 **Model-agnostic extractor** — Anthropic, OpenAI, or local Ollama. Pick by your resource/cost budget (see [Resource footprint](#resource-footprint) below). Facts flow through a quarantine so nothing lands unreviewed
 - 🌐 **Web dashboard** — browse, search, edit, visualize the graph, and review quarantine at `http://localhost:3999`
 - 🔐 **Stays local** — graph lives in `~/.litopys/graph/` as files; the server binds to `127.0.0.1` by default; no telemetry
 
@@ -35,6 +35,20 @@ Memory systems for AI agents today force a tradeoff: either heavy vector databas
 **[v0.1.0-alpha](https://github.com/litopys-dev/litopys/releases/tag/v0.1.0-alpha) is out** — prebuilt binaries for Linux / macOS / Windows (x64 + arm64) in the release. Author's own daily driver since 2026-04-20: 46 nodes, 84 edges, daemon ticking every 5 min.
 
 Parts 1–7.4 shipped: core graph, MCP server (5 tools, stdio + HTTP/SSE), extractor + quarantine + weekly digest, timer-daemon, dashboard (read + write + graph viz + quarantine review), identity-resolution guardrails, single-binary build, one-line installer, per-client integration docs. See [Roadmap](#roadmap) for what's next — the API shape is not frozen yet, so `alpha`.
+
+## Resource footprint
+
+Honest numbers from the author's own install (Ubuntu, Bun 1.x). The MCP server is cheap; the extractor is where the bill shows up, and it depends on which adapter you pick.
+
+| Component                    | RAM        | When it costs                         |
+|------------------------------|------------|---------------------------------------|
+| MCP server (stdio or HTTP)   | ~75 MB     | always, while a client is connected   |
+| Viewer / web dashboard       | ~50 MB     | optional, only while running          |
+| Extractor — Anthropic / OpenAI | 0 locally | per API call (tokens), no local RAM   |
+| Extractor — Ollama + 3B model  | ~2–3 GB   | only during a tick, unloaded after    |
+| Extractor — Ollama + 7B model  | ~5 GB     | only during a tick, unloaded after    |
+
+So the minimum resident cost is ~75 MB for the MCP server. Extraction is optional — you can run Litopys read/write-only from your agent and never start the daemon. If you do enable extraction, the local-Ollama route trades cash for RAM; the Anthropic/OpenAI route trades RAM for cents per session. Ollama's `keep_alive` means the 3B/7B figures are transient — the model drops out of RAM a few minutes after the tick finishes.
 
 ## Quick Start
 
@@ -200,7 +214,7 @@ commit alongside code.
 
 - **Agent-agnostic.** No hard dependency on any LLM vendor or client. MCP is the only integration point. Ollama is the default extractor; Anthropic/OpenAI are optional adapters.
 - **Portable data.** The graph is plain markdown + YAML frontmatter on disk. Readable in any editor, versionable in git, greppable from the shell.
-- **Light runtime.** ~50 MB RAM for the MCP server. The extractor is out-of-process and runs on your schedule, not on every request.
+- **Light runtime.** ~75 MB RAM for the MCP server. The extractor is out-of-process and runs on your schedule, not on every request — see [Resource footprint](#resource-footprint) for the full cost breakdown across adapters.
 - **Opt-in integrations.** Client-specific helpers (hooks, config snippets) live in `docs/integrations/` — you can use Litopys without any of them.
 
 ## License

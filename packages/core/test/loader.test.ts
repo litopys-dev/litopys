@@ -9,10 +9,10 @@ describe("loadGraph", () => {
     const result = await loadGraph(FIXTURES_DIR);
 
     expect(result.nodes.size).toBe(7);
-    expect(result.nodes.has("denis")).toBe(true);
-    expect(result.nodes.has("pcbot")).toBe(true);
+    expect(result.nodes.has("alice")).toBe(true);
+    expect(result.nodes.has("acme-bot")).toBe(true);
     expect(result.nodes.has("server")).toBe(true);
-    expect(result.nodes.has("sqlite-botdata")).toBe(true);
+    expect(result.nodes.has("ops-db")).toBe(true);
     expect(result.nodes.has("token-economy")).toBe(true);
     expect(result.nodes.has("chromadb-failure")).toBe(true);
     expect(result.nodes.has("2026-03-01-chroma-removed")).toBe(true);
@@ -30,8 +30,8 @@ describe("loadGraph", () => {
   test("nodes have correct types", async () => {
     const result = await loadGraph(FIXTURES_DIR);
 
-    expect(result.nodes.get("denis")?.type).toBe("person");
-    expect(result.nodes.get("pcbot")?.type).toBe("project");
+    expect(result.nodes.get("alice")?.type).toBe("person");
+    expect(result.nodes.get("acme-bot")?.type).toBe("project");
     expect(result.nodes.get("server")?.type).toBe("system");
     expect(result.nodes.get("token-economy")?.type).toBe("concept");
     expect(result.nodes.get("chromadb-failure")?.type).toBe("lesson");
@@ -40,18 +40,18 @@ describe("loadGraph", () => {
 
   test("nodes have body (markdown content)", async () => {
     const result = await loadGraph(FIXTURES_DIR);
-    const denis = result.nodes.get("denis");
-    expect(denis?.body).toBeTruthy();
-    expect(typeof denis?.body).toBe("string");
+    const alice = result.nodes.get("alice");
+    expect(alice?.body).toBeTruthy();
+    expect(typeof alice?.body).toBe("string");
   });
 
   test("node rels are parsed correctly", async () => {
     const result = await loadGraph(FIXTURES_DIR);
-    const denis = result.nodes.get("denis");
-    expect(denis?.rels?.owns).toContain("pcbot");
-    expect(denis?.rels?.owns).toContain("server");
-    expect(denis?.rels?.prefers).toContain("token-economy");
-    expect(denis?.rels?.learned_from).toContain("chromadb-failure");
+    const alice = result.nodes.get("alice");
+    expect(alice?.rels?.owns).toContain("acme-bot");
+    expect(alice?.rels?.owns).toContain("server");
+    expect(alice?.rels?.prefers).toContain("token-economy");
+    expect(alice?.rels?.learned_from).toContain("chromadb-failure");
   });
 
   test("returns validation error for invalid frontmatter", async () => {

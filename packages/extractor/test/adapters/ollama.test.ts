@@ -220,7 +220,7 @@ describe("OllamaAdapter", () => {
               {
                 type: "applies_to",
                 sourceId: "llm-memory",
-                targetId: "pcbot",
+                targetId: "acme-bot",
                 reasoning: "Memory applies to bot",
               },
             ],

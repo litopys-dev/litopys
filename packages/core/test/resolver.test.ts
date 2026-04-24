@@ -19,15 +19,15 @@ describe("resolveGraph", () => {
     const load = await loadGraph(FIXTURES_DIR);
     const graph = resolveGraph(load);
 
-    // denis owns pcbot
+    // alice owns acme-bot
     const ownsEdge = graph.edges.find(
-      (e) => e.from === "denis" && e.to === "pcbot" && e.relation === "owns",
+      (e) => e.from === "alice" && e.to === "acme-bot" && e.relation === "owns",
     );
     expect(ownsEdge).toBeDefined();
 
-    // pcbot runs_on server
+    // acme-bot runs_on server
     const runsOnEdge = graph.edges.find(
-      (e) => e.from === "pcbot" && e.to === "server" && e.relation === "runs_on",
+      (e) => e.from === "acme-bot" && e.to === "server" && e.relation === "runs_on",
     );
     expect(runsOnEdge).toBeDefined();
 

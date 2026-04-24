@@ -2,9 +2,9 @@
   "mcpServers": {
     "litopys": {
       "command": "bun",
-      "args": ["/home/denis/litopys/packages/mcp/src/stdio.ts"],
+      "args": ["/path/to/litopys/packages/mcp/src/stdio.ts"],
       "env": {
-        "LITOPYS_GRAPH_PATH": "/home/denis/.litopys/graph"
+        "LITOPYS_GRAPH_PATH": "~/.litopys/graph"
       }
     }
   }

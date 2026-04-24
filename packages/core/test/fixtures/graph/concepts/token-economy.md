@@ -6,7 +6,7 @@ updated: "2026-04-19"
 confidence: 1
 rels:
   applies_to:
-    - pcbot
+    - acme-bot
 tags:
   - cost
   - efficiency

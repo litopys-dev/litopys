@@ -1,5 +1,5 @@
 ---
-id: denis
+id: alice
 type: person
 summary: Generic test person fixture for loader and resolver tests
 updated: "2026-01-01"
@@ -8,7 +8,7 @@ aliases:
   - Test User
 rels:
   owns:
-    - pcbot
+    - acme-bot
     - server
   prefers:
     - token-economy

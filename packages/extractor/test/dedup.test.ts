@@ -109,15 +109,15 @@ describe("dedupCandidatesAgainstGraph", () => {
 
   test("relations pass through unchanged even when endpoints reference existing nodes", async () => {
     await writeNode(tmpGraph, {
-      id: "denis",
+      id: "alice",
       type: "person",
       summary: "owner",
       updated: "2026-04-21",
       confidence: 1,
     });
-    const relations = [rel({ sourceId: "denis", targetId: "new-concept", type: "prefers" })];
+    const relations = [rel({ sourceId: "alice", targetId: "new-concept", type: "prefers" })];
     const result = await dedupCandidatesAgainstGraph([cand()], relations, tmpGraph);
     expect(result.relations).toHaveLength(1);
-    expect(result.relations[0]?.sourceId).toBe("denis");
+    expect(result.relations[0]?.sourceId).toBe("alice");
   });
 });

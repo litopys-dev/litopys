@@ -37,7 +37,7 @@ EXTRACTION RULES:
 4. DO NOT create duplicate nodes for ids already in existingNodeIds — reference those ids directly in candidateRelations.
 5. Assign confidence 0.0–1.0 based on explicitness: explicit statement = 0.9+, implied = 0.5–0.8, speculation = <0.5.
 6. Write reasoning as a single concise sentence explaining the evidence from the transcript.
-7. All ids must be lowercase-kebab-case (e.g. "typescript-strict-mode", "denis-blashchytsia").
+7. All ids must be lowercase-kebab-case (e.g. "typescript-strict-mode", "alice-johnson").
 8. Aim for quality over quantity — 3 high-confidence candidates beat 15 guesses.
 `.trim();
 

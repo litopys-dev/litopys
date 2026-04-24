@@ -25,9 +25,9 @@ Add to `.mcp.json` in your project:
   "mcpServers": {
     "litopys": {
       "command": "bun",
-      "args": ["/home/denis/litopys/packages/mcp/src/stdio.ts"],
+      "args": ["/path/to/litopys/packages/mcp/src/stdio.ts"],
       "env": {
-        "LITOPYS_GRAPH_PATH": "/home/denis/.litopys/graph"
+        "LITOPYS_GRAPH_PATH": "~/.litopys/graph"
       }
     }
   }
@@ -61,7 +61,7 @@ Claude Desktop config (replace `<HOST>` and `<BEARER_TOKEN>`):
 
 ## Systemd
 
-A service unit is provided at `systemd/litopys-mcp.service`. The token goes in `/home/denis/.litopys/mcp.env`:
+A service unit is provided at `systemd/litopys-mcp.service`. The token goes in `~/.litopys/mcp.env`:
 
 ```
 LITOPYS_MCP_TOKEN=your-secret-here

@@ -16,15 +16,10 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun run lint
-      - name: Test (per-file to avoid mock.module pollution)
+      - run: bun run typecheck
+      - run: bun test
+      - name: Graph integrity (litopys check)
         run: |
-          set -eo pipefail
-          failed=0
-          while IFS= read -r f; do
-            echo "::group::$f"
-            if ! bun test "$f"; then
-              failed=1
-            fi
-            echo "::endgroup::"
-          done < <(find packages -type f -name '*.test.ts')
-          exit $failed
+          mkdir -p /tmp/litopys-ci-graph
+          LITOPYS_GRAPH_PATH=/tmp/litopys-ci-graph \
+            bun packages/cli/src/index.ts check --json

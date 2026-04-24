@@ -1,10 +1,14 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { promises as fs } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { AnthropicAdapter, type AnthropicClientLike } from "../src/adapters/anthropic.ts";
+import { listQuarantineFrom, writeQuarantineTo } from "../src/quarantine.ts";
 
 // ---------------------------------------------------------------------------
-// Mock adapters BEFORE any imports that load them
+// Integration-style tests for session-end logic. The adapter is built with
+// an injected fake client — no SDK module mocking, safe alongside the
+// per-adapter test files.
 // ---------------------------------------------------------------------------
 
 const MOCK_CANDIDATE = {
@@ -16,10 +20,10 @@ const MOCK_CANDIDATE = {
   sourceSessionId: "test-session",
 };
 
-mock.module("@anthropic-ai/sdk", () => ({
-  default: class MockAnthropic {
-    messages = {
-      create: mock(async () => ({
+function makeClient(): AnthropicClientLike {
+  return {
+    messages: {
+      create: async () => ({
         content: [
           {
             type: "text",
@@ -30,37 +34,10 @@ mock.module("@anthropic-ai/sdk", () => ({
           },
         ],
         usage: { input_tokens: 100, output_tokens: 50 },
-      })),
-    };
-  },
-}));
-
-mock.module("openai", () => ({
-  default: class MockOpenAI {
-    chat = {
-      completions: {
-        create: mock(async () => ({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({ candidateNodes: [], candidateRelations: [] }),
-              },
-            },
-          ],
-          usage: { prompt_tokens: 0, completion_tokens: 0 },
-        })),
-      },
-    };
-  },
-}));
-
-// Import AFTER mocking
-const { createAdapter } = await import("../src/adapters/factory.ts");
-const { writeQuarantineTo, listQuarantineFrom } = await import("../src/quarantine.ts");
-
-// ---------------------------------------------------------------------------
-// Integration-style tests for session-end logic
-// ---------------------------------------------------------------------------
+      }),
+    },
+  };
+}
 
 describe("session-end integration", () => {
   let tmpDir: string;
@@ -80,7 +57,7 @@ describe("session-end integration", () => {
   });
 
   test("adapter extracts candidates from transcript", async () => {
-    const adapter = createAdapter("anthropic", { apiKey: "sk-test" });
+    const adapter = new AnthropicAdapter({ client: makeClient() });
     const output = await adapter.extract({
       transcript: "We use Bun as our JavaScript runtime for all packages",
       existingNodeIds: [],
@@ -90,7 +67,7 @@ describe("session-end integration", () => {
   });
 
   test("extracted candidates can be written to quarantine", async () => {
-    const adapter = createAdapter("anthropic", { apiKey: "sk-test" });
+    const adapter = new AnthropicAdapter({ client: makeClient() });
     const output = await adapter.extract({
       transcript: "test transcript",
       existingNodeIds: [],
@@ -111,13 +88,12 @@ describe("session-end integration", () => {
   });
 
   test("transcript→extract→quarantine full pipeline", async () => {
-    // Simulate writing a transcript file
     const transcriptPath = path.join(tmpDir, "transcript.txt");
     await fs.writeFile(transcriptPath, "Alice uses Bun runtime for litopys", "utf-8");
 
     const transcript = await fs.readFile(transcriptPath, "utf-8");
 
-    const adapter = createAdapter("anthropic", { apiKey: "sk-test" });
+    const adapter = new AnthropicAdapter({ client: makeClient() });
     const output = await adapter.extract({
       transcript,
       existingNodeIds: [],
@@ -144,13 +120,11 @@ describe("session-end integration", () => {
   });
 
   test("handles empty transcript gracefully", async () => {
-    const adapter = createAdapter("anthropic", { apiKey: "sk-test" });
-    // Empty transcript should still work (returns whatever mock returns)
+    const adapter = new AnthropicAdapter({ client: makeClient() });
     const output = await adapter.extract({
       transcript: "",
       existingNodeIds: [],
     });
-    // Mock returns valid output
     expect(output.candidateNodes).toBeDefined();
     expect(Array.isArray(output.candidateNodes)).toBe(true);
   });
@@ -185,15 +159,13 @@ describe("session-end integration", () => {
     const outputCost = (outputTokens / 1_000_000) * 1.25;
     const totalCost = inputCost + outputCost;
 
-    // Should be fractions of a cent
     expect(totalCost).toBeLessThan(0.01);
     expect(totalCost).toBeGreaterThan(0);
-    // $0.00025 + $0.000625 = $0.000875
     expect(totalCost).toBeCloseTo(0.000875, 6);
   });
 
   test("full session flow with existing node ids", async () => {
-    const adapter = createAdapter("anthropic", { apiKey: "sk-test" });
+    const adapter = new AnthropicAdapter({ client: makeClient() });
     const output = await adapter.extract({
       transcript: "Existing system is referenced again",
       existingNodeIds: ["bun-runtime", "litopys-project"],
@@ -212,7 +184,7 @@ describe("session-end integration", () => {
   });
 
   test("output has correct usage fields", async () => {
-    const adapter = createAdapter("anthropic", { apiKey: "sk-test" });
+    const adapter = new AnthropicAdapter({ client: makeClient() });
     const output = await adapter.extract({ transcript: "test", existingNodeIds: [] });
     expect(output.usage).toHaveProperty("inputTokens");
     expect(output.usage).toHaveProperty("outputTokens");

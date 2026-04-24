@@ -10,23 +10,39 @@ import {
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 
+export interface OpenAIClientLike {
+  chat: {
+    completions: {
+      create: (params: unknown) => Promise<{
+        choices: Array<{ message?: { content?: string | null } }>;
+        usage?: { prompt_tokens?: number; completion_tokens?: number };
+      }>;
+    };
+  };
+}
+
 export interface OpenAIAdapterOptions {
   apiKey?: string;
   model?: string;
+  client?: OpenAIClientLike;
 }
 
 export class OpenAIAdapter implements ExtractorAdapter {
   readonly name = "openai";
   readonly model: string;
-  private readonly client: OpenAI;
+  private readonly client: OpenAIClientLike;
 
   constructor(opts: OpenAIAdapterOptions = {}) {
+    this.model = opts.model ?? DEFAULT_MODEL;
+    if (opts.client) {
+      this.client = opts.client;
+      return;
+    }
     const apiKey = opts.apiKey ?? process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error("OPENAI_API_KEY is not set");
     }
-    this.model = opts.model ?? DEFAULT_MODEL;
-    this.client = new OpenAI({ apiKey });
+    this.client = new OpenAI({ apiKey }) as unknown as OpenAIClientLike;
   }
 
   async extract(input: ExtractorInput): Promise<ExtractorOutput> {

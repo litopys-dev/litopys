@@ -1,49 +1,30 @@
-import { describe, expect, mock, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
+import { OpenAIAdapter, type OpenAIClientLike } from "../../src/adapters/openai.ts";
 import type { ExtractorInput } from "../../src/adapters/types.ts";
 
 // ---------------------------------------------------------------------------
-// Mock the OpenAI SDK before importing OpenAIAdapter
+// Tests use constructor-level dependency injection (client option) so they
+// don't touch the module registry — safe to mix with other adapter tests.
 // ---------------------------------------------------------------------------
 
-const mockCompletionsCreate = mock(async (_params: unknown) => ({
-  choices: [
-    {
-      message: {
-        content: JSON.stringify({
-          candidateNodes: [
-            {
-              id: "bun-runtime",
-              type: "system",
-              summary: "Bun JavaScript runtime",
-              confidence: 0.85,
-              reasoning: "Session repeatedly references Bun as the primary runtime",
-              sourceSessionId: "test-session",
-            },
-          ],
-          candidateRelations: [
-            {
-              type: "uses",
-              sourceId: "litopys-project",
-              targetId: "bun-runtime",
-              confidence: 0.9,
-              reasoning: "Package.json and scripts all use bun commands",
-              sourceSessionId: "test-session",
-            },
-          ],
-        }),
+function fakeClient(
+  response: {
+    choices: Array<{ message?: { content?: string | null } }>;
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
+  },
+  throwError?: Error,
+): OpenAIClientLike {
+  return {
+    chat: {
+      completions: {
+        create: async () => {
+          if (throwError) throw throwError;
+          return response;
+        },
       },
     },
-  ],
-  usage: { prompt_tokens: 200, completion_tokens: 80 },
-}));
-
-mock.module("openai", () => ({
-  default: class MockOpenAI {
-    chat = { completions: { create: mockCompletionsCreate } };
-  },
-}));
-
-const { OpenAIAdapter } = await import("../../src/adapters/openai.ts");
+  };
+}
 
 describe("OpenAIAdapter", () => {
   test("throws if OPENAI_API_KEY not set", () => {
@@ -72,8 +53,47 @@ describe("OpenAIAdapter", () => {
     expect(adapter.name).toBe("openai");
   });
 
+  test("accepts injected client without apiKey", () => {
+    const client = fakeClient({
+      choices: [{ message: { content: "{}" } }],
+      usage: { prompt_tokens: 0, completion_tokens: 0 },
+    });
+    expect(() => new OpenAIAdapter({ client })).not.toThrow();
+  });
+
   test("extract returns parsed candidates and relations", async () => {
-    const adapter = new OpenAIAdapter({ apiKey: "sk-test" });
+    const client = fakeClient({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              candidateNodes: [
+                {
+                  id: "bun-runtime",
+                  type: "system",
+                  summary: "Bun JavaScript runtime",
+                  confidence: 0.85,
+                  reasoning: "Session repeatedly references Bun as the primary runtime",
+                  sourceSessionId: "test-session",
+                },
+              ],
+              candidateRelations: [
+                {
+                  type: "uses",
+                  sourceId: "litopys-project",
+                  targetId: "bun-runtime",
+                  confidence: 0.9,
+                  reasoning: "Package.json and scripts all use bun commands",
+                  sourceSessionId: "test-session",
+                },
+              ],
+            }),
+          },
+        },
+      ],
+      usage: { prompt_tokens: 200, completion_tokens: 80 },
+    });
+    const adapter = new OpenAIAdapter({ client });
     const input: ExtractorInput = {
       transcript: "We use Bun for everything in the litopys project",
       existingNodeIds: ["litopys-project"],
@@ -89,37 +109,22 @@ describe("OpenAIAdapter", () => {
   });
 
   test("extract handles invalid JSON gracefully", async () => {
-    const badCreate = mock(async () => ({
+    const client = fakeClient({
       choices: [{ message: { content: "{ this is not json" } }],
       usage: { prompt_tokens: 10, completion_tokens: 5 },
-    }));
-
-    mock.module("openai", () => ({
-      default: class MockOpenAI {
-        chat = { completions: { create: badCreate } };
-      },
-    }));
-
-    const { OpenAIAdapter: FreshAdapter } = await import("../../src/adapters/openai.ts");
-    const adapter = new FreshAdapter({ apiKey: "sk-test" });
+    });
+    const adapter = new OpenAIAdapter({ client });
     const output = await adapter.extract({ transcript: "test", existingNodeIds: [] });
     expect(output.candidateNodes).toHaveLength(0);
     expect(output.candidateRelations).toHaveLength(0);
   });
 
   test("extract handles API error gracefully", async () => {
-    const failCreate = mock(async () => {
-      throw new Error("OpenAI API error: 429 Too Many Requests");
-    });
-
-    mock.module("openai", () => ({
-      default: class MockOpenAI {
-        chat = { completions: { create: failCreate } };
-      },
-    }));
-
-    const { OpenAIAdapter: FreshAdapter } = await import("../../src/adapters/openai.ts");
-    const adapter = new FreshAdapter({ apiKey: "sk-test" });
+    const client = fakeClient(
+      { choices: [] },
+      new Error("OpenAI API error: 429 Too Many Requests"),
+    );
+    const adapter = new OpenAIAdapter({ client });
     const output = await adapter.extract({ transcript: "test", existingNodeIds: [] });
     expect(output.candidateNodes).toHaveLength(0);
     expect(output.usage.inputTokens).toBe(0);
@@ -127,21 +132,13 @@ describe("OpenAIAdapter", () => {
   });
 
   test("handles missing usage gracefully", async () => {
-    const noUsageCreate = mock(async () => ({
+    const client = fakeClient({
       choices: [
         { message: { content: JSON.stringify({ candidateNodes: [], candidateRelations: [] }) } },
       ],
       usage: undefined,
-    }));
-
-    mock.module("openai", () => ({
-      default: class MockOpenAI {
-        chat = { completions: { create: noUsageCreate } };
-      },
-    }));
-
-    const { OpenAIAdapter: FreshAdapter } = await import("../../src/adapters/openai.ts");
-    const adapter = new FreshAdapter({ apiKey: "sk-test" });
+    });
+    const adapter = new OpenAIAdapter({ client });
     const output = await adapter.extract({ transcript: "test", existingNodeIds: [] });
     expect(output.usage.inputTokens).toBe(0);
     expect(output.usage.outputTokens).toBe(0);

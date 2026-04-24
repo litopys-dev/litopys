@@ -1,38 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { createAdapter } from "../../src/adapters/factory.ts";
 
-// Mock both SDKs before import
-mock.module("@anthropic-ai/sdk", () => ({
-  default: class MockAnthropic {
-    messages = {
-      create: async () => ({
-        content: [
-          { type: "text", text: JSON.stringify({ candidateNodes: [], candidateRelations: [] }) },
-        ],
-        usage: { input_tokens: 0, output_tokens: 0 },
-      }),
-    };
-  },
-}));
-
-mock.module("openai", () => ({
-  default: class MockOpenAI {
-    chat = {
-      completions: {
-        create: async () => ({
-          choices: [
-            {
-              message: { content: JSON.stringify({ candidateNodes: [], candidateRelations: [] }) },
-            },
-          ],
-          usage: { prompt_tokens: 0, completion_tokens: 0 },
-        }),
-      },
-    };
-  },
-}));
-
-import { mock } from "bun:test";
-const { createAdapter } = await import("../../src/adapters/factory.ts");
+// Adapter constructors instantiate SDK clients with a dummy API key — that's
+// safe because no network calls happen until extract(). No module mocking.
 
 describe("createAdapter", () => {
   let originalProvider: string | undefined;

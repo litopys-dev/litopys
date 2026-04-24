@@ -10,23 +10,37 @@ import {
 
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 
+export interface AnthropicClientLike {
+  messages: {
+    create: (params: unknown) => Promise<{
+      content: Array<{ type: string; text?: string }>;
+      usage: { input_tokens: number; output_tokens: number };
+    }>;
+  };
+}
+
 export interface AnthropicAdapterOptions {
   apiKey?: string;
   model?: string;
+  client?: AnthropicClientLike;
 }
 
 export class AnthropicAdapter implements ExtractorAdapter {
   readonly name = "anthropic";
   readonly model: string;
-  private readonly client: Anthropic;
+  private readonly client: AnthropicClientLike;
 
   constructor(opts: AnthropicAdapterOptions = {}) {
+    this.model = opts.model ?? DEFAULT_MODEL;
+    if (opts.client) {
+      this.client = opts.client;
+      return;
+    }
     const apiKey = opts.apiKey ?? process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       throw new Error("ANTHROPIC_API_KEY is not set");
     }
-    this.model = opts.model ?? DEFAULT_MODEL;
-    this.client = new Anthropic({ apiKey });
+    this.client = new Anthropic({ apiKey }) as unknown as AnthropicClientLike;
   }
 
   async extract(input: ExtractorInput): Promise<ExtractorOutput> {
@@ -50,7 +64,7 @@ export class AnthropicAdapter implements ExtractorAdapter {
       outputTokens = response.usage.output_tokens;
 
       const first = response.content[0];
-      if (first?.type === "text") {
+      if (first?.type === "text" && typeof first.text === "string") {
         rawText = first.text;
       }
     } catch (err) {

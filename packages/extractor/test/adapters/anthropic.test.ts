@@ -1,40 +1,29 @@
-import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
+import { AnthropicAdapter, type AnthropicClientLike } from "../../src/adapters/anthropic.ts";
 import type { ExtractorInput } from "../../src/adapters/types.ts";
 
 // ---------------------------------------------------------------------------
-// We mock the Anthropic SDK before importing AnthropicAdapter
+// Tests use constructor-level dependency injection (client option) so they
+// don't touch the module registry — safe to mix with other adapter tests
+// that would otherwise collide through mock.module("@anthropic-ai/sdk").
 // ---------------------------------------------------------------------------
 
-const mockCreate = mock(async (_params: unknown) => ({
-  content: [
-    {
-      type: "text",
-      text: JSON.stringify({
-        candidateNodes: [
-          {
-            id: "typescript-strict-mode",
-            type: "concept",
-            summary: "TypeScript strict mode",
-            confidence: 0.9,
-            reasoning: "Alice explicitly mentioned preferring strict TypeScript",
-            sourceSessionId: "test-session",
-          },
-        ],
-        candidateRelations: [],
-      }),
-    },
-  ],
-  usage: { input_tokens: 100, output_tokens: 50 },
-}));
-
-mock.module("@anthropic-ai/sdk", () => ({
-  default: class MockAnthropic {
-    messages = { create: mockCreate };
+function fakeClient(
+  response: {
+    content: Array<{ type: string; text?: string }>;
+    usage: { input_tokens: number; output_tokens: number };
   },
-}));
-
-// Import after mocking
-const { AnthropicAdapter } = await import("../../src/adapters/anthropic.ts");
+  throwError?: Error,
+): AnthropicClientLike {
+  return {
+    messages: {
+      create: async () => {
+        if (throwError) throw throwError;
+        return response;
+      },
+    },
+  };
+}
 
 describe("AnthropicAdapter", () => {
   test("throws if ANTHROPIC_API_KEY not set", () => {
@@ -63,8 +52,37 @@ describe("AnthropicAdapter", () => {
     expect(adapter.name).toBe("anthropic");
   });
 
+  test("accepts injected client without apiKey", () => {
+    const client = fakeClient({
+      content: [{ type: "text", text: "{}" }],
+      usage: { input_tokens: 0, output_tokens: 0 },
+    });
+    expect(() => new AnthropicAdapter({ client })).not.toThrow();
+  });
+
   test("extract returns parsed candidates", async () => {
-    const adapter = new AnthropicAdapter({ apiKey: "sk-test" });
+    const client = fakeClient({
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            candidateNodes: [
+              {
+                id: "typescript-strict-mode",
+                type: "concept",
+                summary: "TypeScript strict mode",
+                confidence: 0.9,
+                reasoning: "Alice explicitly mentioned preferring strict TypeScript",
+                sourceSessionId: "test-session",
+              },
+            ],
+            candidateRelations: [],
+          }),
+        },
+      ],
+      usage: { input_tokens: 100, output_tokens: 50 },
+    });
+    const adapter = new AnthropicAdapter({ client });
     const input: ExtractorInput = {
       transcript: "Alice prefers TypeScript strict mode",
       existingNodeIds: [],
@@ -80,26 +98,18 @@ describe("AnthropicAdapter", () => {
   });
 
   test("extract handles LLM returning invalid JSON gracefully", async () => {
-    const badCreate = mock(async () => ({
+    const client = fakeClient({
       content: [{ type: "text", text: "not valid json at all!!!" }],
       usage: { input_tokens: 10, output_tokens: 5 },
-    }));
-
-    mock.module("@anthropic-ai/sdk", () => ({
-      default: class MockAnthropic {
-        messages = { create: badCreate };
-      },
-    }));
-
-    const { AnthropicAdapter: FreshAdapter } = await import("../../src/adapters/anthropic.ts");
-    const adapter = new FreshAdapter({ apiKey: "sk-test" });
+    });
+    const adapter = new AnthropicAdapter({ client });
     const output = await adapter.extract({ transcript: "test", existingNodeIds: [] });
     expect(output.candidateNodes).toHaveLength(0);
     expect(output.candidateRelations).toHaveLength(0);
   });
 
   test("extract handles schema validation failure gracefully", async () => {
-    const badSchemaCreate = mock(async () => ({
+    const client = fakeClient({
       content: [
         {
           type: "text",
@@ -110,41 +120,25 @@ describe("AnthropicAdapter", () => {
         },
       ],
       usage: { input_tokens: 10, output_tokens: 5 },
-    }));
-
-    mock.module("@anthropic-ai/sdk", () => ({
-      default: class MockAnthropic {
-        messages = { create: badSchemaCreate };
-      },
-    }));
-
-    const { AnthropicAdapter: FreshAdapter } = await import("../../src/adapters/anthropic.ts");
-    const adapter = new FreshAdapter({ apiKey: "sk-test" });
+    });
+    const adapter = new AnthropicAdapter({ client });
     const output = await adapter.extract({ transcript: "test", existingNodeIds: [] });
-    // Invalid nodes are filtered during zod parse, empty arrays returned
     expect(output.candidateRelations).toHaveLength(0);
   });
 
   test("extract handles API error gracefully", async () => {
-    const failCreate = mock(async () => {
-      throw new Error("API rate limit exceeded");
-    });
-
-    mock.module("@anthropic-ai/sdk", () => ({
-      default: class MockAnthropic {
-        messages = { create: failCreate };
-      },
-    }));
-
-    const { AnthropicAdapter: FreshAdapter } = await import("../../src/adapters/anthropic.ts");
-    const adapter = new FreshAdapter({ apiKey: "sk-test" });
+    const client = fakeClient(
+      { content: [], usage: { input_tokens: 0, output_tokens: 0 } },
+      new Error("API rate limit exceeded"),
+    );
+    const adapter = new AnthropicAdapter({ client });
     const output = await adapter.extract({ transcript: "test", existingNodeIds: [] });
     expect(output.candidateNodes).toHaveLength(0);
     expect(output.usage.inputTokens).toBe(0);
   });
 
   test("extract strips markdown fences from response", async () => {
-    const fencedCreate = mock(async () => ({
+    const client = fakeClient({
       content: [
         {
           type: "text",
@@ -152,16 +146,8 @@ describe("AnthropicAdapter", () => {
         },
       ],
       usage: { input_tokens: 10, output_tokens: 5 },
-    }));
-
-    mock.module("@anthropic-ai/sdk", () => ({
-      default: class MockAnthropic {
-        messages = { create: fencedCreate };
-      },
-    }));
-
-    const { AnthropicAdapter: FreshAdapter } = await import("../../src/adapters/anthropic.ts");
-    const adapter = new FreshAdapter({ apiKey: "sk-test" });
+    });
+    const adapter = new AnthropicAdapter({ client });
     const output = await adapter.extract({ transcript: "test", existingNodeIds: [] });
     expect(output.candidateNodes).toHaveLength(0);
   });

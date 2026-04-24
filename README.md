@@ -205,35 +205,13 @@ Default is conservative — existing nodes are never touched unless you pass
 `--force`. Every node is validated against the schema up-front, so a corrupt
 snapshot aborts before anything lands on disk.
 
-## Roadmap
+## What's next
 
-- [x] **Part 1** — Monorepo scaffolding
-- [x] **Part 2** — Core graph model (loader, resolver, conflicts)
-- [x] **Part 3** — MCP server (5 tools, SSE + stdio)
-- [x] **Part 4** — Model-agnostic extractor + Quarantine + Weekly digest
-- [x] **Part 5** — Migration from flat markdown memory + local Ollama extractor
-- [x] **Part 6** — Universal auto-context / auto-write
-  - [x] MCP `startup-context` resource — clients auto-load recent events + active projects on connect
-  - [x] MCP server-level `instructions` — prompt-imprint for any agent ("search before answering, create on learning")
-  - [x] Generic CLI `litopys ingest <file>` — agent-agnostic entry point for transcripts (not tied to any specific client)
-  - [x] Periodic timer-daemon — incremental extraction from live transcripts without requiring session end
-  - [x] Baseline command + configurable extractor timeout — avoids long first-tick backfill on existing history
-- [x] **Part 6.5** — Web dashboard — Bun + SolidJS, runs locally at `http://localhost:3999` via `litopys viewer`
-  - [x] **Phase 1** — Read-only UI: Dashboard, Nodes table (search + type filters), Node detail (metadata + relations), Quarantine list
-  - [x] **Phase 2** — Write path: node create via `+ New node` modal (type chips, auto-slugified ids), edit summary/body/tags/aliases/confidence, delete tombstones via `until: <today>`, per-relation add/remove with source+target type validation
-  - [x] **Phase 3** — Graph visualization via Cytoscape + `cytoscape-fcose`: type-coloured nodes, directed arrows for asymmetric edges, dashed edges for `conflicts_with`, click-to-navigate, hover-to-highlight-neighborhood, Fit button
-  - [x] **Phase 4** — Quarantine review UI: per-candidate accept/reject with expandable `reasoning`, optional reject reason, merge-proposal cards with winner/loser/conflicts/merged-state preview and accept-with-confirm
-- [x] **Part 6.6** — Graph-growth guardrails (identity resolution + evolution)
-  - [x] `supersedes` relation type (directed evolution: "A replaces B") alongside existing `conflicts_with`. Relation count grows from 10 → 11.
-  - [x] `litopys similar <id> [--explain]` — deterministic merge candidates by alias / type / tag overlap / name edit-distance. No embeddings.
-  - [x] `litopys propose-merge <a> <b>` — emits a full merge-preview (result id, aliases, merged relations, detected conflicts) into the existing `quarantine/` pipeline.
-  - [x] Reuse `litopys quarantine accept/reject` for merge proposals — no separate review machinery. **Merge is never applied automatically; it requires explicit accept.** Accept writes the merged node + tombstones the loser with `until: <today>`; reject archives the proposal.
-- [~] **Part 7** — Remote transport + installer + integrations
-  - [x] **Part 7.1** — MCP HTTP/SSE transport hardening (factory, 127.0.0.1 bind default, opt-in CORS, SIGTERM)
-  - [x] **Part 7.2** — Single-binary build via `bun build --compile` (5 platforms)
-  - [x] **Part 7.3** — One-line installer (`install.sh`) + GitHub Actions release workflow
-  - [x] **Part 7.4** — Per-client integration docs (`docs/integrations/`): Claude Code, Claude Desktop, Cursor, Cline, ChatGPT, Gemini
-  - [ ] Astro landing page, npm publish, v0.1.0 release tag
+- Astro landing page
+- `npm` publish of `@litopys/cli` as a thin launcher around the single-binary
+- `v0.1.0` stable tag once the API shape settles
+
+Full release history lives in [CHANGELOG.md](./CHANGELOG.md).
 
 ## Design principles
 

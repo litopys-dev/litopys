@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
-import { defaultGraphPath, loadGraph, writeNode } from "@litopys/core";
+import { defaultGraphPath, loadGraph, withGraphLock, writeNode } from "@litopys/core";
 import type { AnyNode } from "@litopys/core";
 import type { CandidateNode, CandidateRelation } from "./adapters/types.ts";
 import { dedupCandidatesAgainstGraph } from "./dedup.ts";
@@ -240,71 +240,73 @@ export async function promoteCandidate(
   candidateIndex: number,
   graphPath: string,
 ): Promise<void> {
-  const content = await fs.readFile(quarantineFilePath, "utf-8");
-  const qFile = deserialize(content, quarantineFilePath);
+  return withGraphLock(graphPath, async () => {
+    const content = await fs.readFile(quarantineFilePath, "utf-8");
+    const qFile = deserialize(content, quarantineFilePath);
 
-  const candidate = qFile.candidates[candidateIndex];
-  if (!candidate) {
-    throw new Error(
-      `No candidate at index ${candidateIndex} in ${quarantineFilePath} (${qFile.candidates.length} total)`,
+    const candidate = qFile.candidates[candidateIndex];
+    if (!candidate) {
+      throw new Error(
+        `No candidate at index ${candidateIndex} in ${quarantineFilePath} (${qFile.candidates.length} total)`,
+      );
+    }
+
+    // Build a proper AnyNode from candidate — strip undefined fields to avoid YAML errors
+    const today = new Date().toISOString().slice(0, 10);
+    const raw: Record<string, unknown> = {
+      id: candidate.id,
+      type: candidate.type,
+      summary: candidate.summary,
+      updated: today,
+      confidence: candidate.confidence,
+    };
+    if (candidate.aliases !== undefined) raw.aliases = candidate.aliases;
+    if (candidate.tags !== undefined) raw.tags = candidate.tags;
+    if (candidate.body !== undefined) raw.body = candidate.body;
+    const node = raw as unknown as AnyNode;
+
+    await writeNode(graphPath, node);
+
+    // Find relations for this candidate and create them via toolLink logic
+    const promoted = candidate.id;
+    const relationsForCandidate = qFile.relations.filter(
+      (r) => r.sourceId === promoted || r.targetId === promoted,
     );
-  }
 
-  // Build a proper AnyNode from candidate — strip undefined fields to avoid YAML errors
-  const today = new Date().toISOString().slice(0, 10);
-  const raw: Record<string, unknown> = {
-    id: candidate.id,
-    type: candidate.type,
-    summary: candidate.summary,
-    updated: today,
-    confidence: candidate.confidence,
-  };
-  if (candidate.aliases !== undefined) raw.aliases = candidate.aliases;
-  if (candidate.tags !== undefined) raw.tags = candidate.tags;
-  if (candidate.body !== undefined) raw.body = candidate.body;
-  const node = raw as unknown as AnyNode;
-
-  await writeNode(graphPath, node);
-
-  // Find relations for this candidate and create them via toolLink logic
-  const promoted = candidate.id;
-  const relationsForCandidate = qFile.relations.filter(
-    (r) => r.sourceId === promoted || r.targetId === promoted,
-  );
-
-  if (relationsForCandidate.length > 0) {
-    const loaded = await loadGraph(graphPath);
-    const sourceNode = loaded.nodes.get(promoted);
-    if (sourceNode) {
-      // Process outgoing relations
-      const outgoing = relationsForCandidate.filter((r) => r.sourceId === promoted);
-      for (const rel of outgoing) {
-        // Ensure target exists before linking
-        if (loaded.nodes.has(rel.targetId)) {
-          const existing = sourceNode.rels?.[rel.type] ?? [];
-          if (!existing.includes(rel.targetId)) {
-            const newRels = { ...(sourceNode.rels ?? {}) } as Record<string, string[]>;
-            const list = newRels[rel.type] ?? [];
-            list.push(rel.targetId);
-            newRels[rel.type] = list;
-            const updatedNode: AnyNode = { ...sourceNode, rels: newRels } as AnyNode;
-            await writeNode(graphPath, updatedNode);
+    if (relationsForCandidate.length > 0) {
+      const loaded = await loadGraph(graphPath);
+      const sourceNode = loaded.nodes.get(promoted);
+      if (sourceNode) {
+        // Process outgoing relations
+        const outgoing = relationsForCandidate.filter((r) => r.sourceId === promoted);
+        for (const rel of outgoing) {
+          // Ensure target exists before linking
+          if (loaded.nodes.has(rel.targetId)) {
+            const existing = sourceNode.rels?.[rel.type] ?? [];
+            if (!existing.includes(rel.targetId)) {
+              const newRels = { ...(sourceNode.rels ?? {}) } as Record<string, string[]>;
+              const list = newRels[rel.type] ?? [];
+              list.push(rel.targetId);
+              newRels[rel.type] = list;
+              const updatedNode: AnyNode = { ...sourceNode, rels: newRels } as AnyNode;
+              await writeNode(graphPath, updatedNode);
+            }
           }
         }
       }
     }
-  }
 
-  // Remove candidate from the file
-  const newCandidates = qFile.candidates.filter((_, i) => i !== candidateIndex);
+    // Remove candidate from the file
+    const newCandidates = qFile.candidates.filter((_, i) => i !== candidateIndex);
 
-  if (newCandidates.length === 0 && qFile.relations.length === 0) {
-    await fs.unlink(quarantineFilePath);
-    return;
-  }
+    if (newCandidates.length === 0 && qFile.relations.length === 0) {
+      await fs.unlink(quarantineFilePath);
+      return;
+    }
 
-  const updatedContent = serialize(newCandidates, qFile.relations, qFile.meta);
-  await fs.writeFile(quarantineFilePath, updatedContent, "utf-8");
+    const updatedContent = serialize(newCandidates, qFile.relations, qFile.meta);
+    await fs.writeFile(quarantineFilePath, updatedContent, "utf-8");
+  });
 }
 
 /**

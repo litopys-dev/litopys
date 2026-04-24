@@ -16,3 +16,4 @@ export {
   type SimilarityReason,
   type FindSimilarOptions,
 } from "./graph/similarity.ts";
+export { withGraphLock, GraphLockTimeoutError, type GraphLockOptions } from "./graph/lock.ts";

@@ -1,17 +1,17 @@
 [Unit]
 Description=Litopys MCP Server (HTTP/SSE)
+Documentation=https://github.com/litopys-dev/litopys
 After=network.target
 
 [Service]
 Type=simple
-User=denis
-WorkingDirectory=/home/denis/litopys
+WorkingDirectory=%h/litopys
 Environment=LITOPYS_MCP_PORT=7777
-Environment=LITOPYS_GRAPH_PATH=/home/denis/.litopys/graph
-EnvironmentFile=/home/denis/.litopys/mcp.env
-ExecStart=/home/denis/.bun/bin/bun packages/mcp/src/http.ts
+Environment=LITOPYS_GRAPH_PATH=%h/.litopys/graph
+EnvironmentFile=%h/.litopys/mcp.env
+ExecStart=%h/.bun/bin/bun packages/mcp/src/http.ts
 Restart=on-failure
 RestartSec=5s
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target

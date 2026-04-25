@@ -7,6 +7,8 @@
 Persistent graph-based memory that survives across sessions and clients.
 Built for Claude Code, Claude Desktop, and any MCP-compatible agent.
 
+**[litopys-dev.github.io/litopys](https://litopys-dev.github.io/litopys/)** — install, screenshots, and quick-start
+
 [![CI](https://github.com/litopys-dev/litopys/actions/workflows/ci.yml/badge.svg)](https://github.com/litopys-dev/litopys/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Bun](https://img.shields.io/badge/runtime-Bun-black)](https://bun.sh)

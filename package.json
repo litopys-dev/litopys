@@ -23,5 +23,6 @@
     "@biomejs/biome": "^1.9.0",
     "@types/bun": "latest",
     "typescript": "^5.6.0"
-  }
+  },
+  "homepage": "https://litopys-dev.github.io/litopys/"
 }

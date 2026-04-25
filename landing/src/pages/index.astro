@@ -1,0 +1,379 @@
+---
+import Layout from "../layouts/Layout.astro";
+
+const base = import.meta.env.BASE_URL;
+const shot = (name: string) => `${base}/screenshots/${name}`;
+
+const installCmd = `curl -fsSL https://raw.githubusercontent.com/litopys-dev/litopys/main/install.sh | sh`;
+const claudeCodeCmd = `claude mcp add litopys -- ~/.local/bin/litopys mcp stdio`;
+const claudeDesktopJson = `{
+  "mcpServers": {
+    "litopys": {
+      "command": "/home/you/.local/bin/litopys",
+      "args": ["mcp", "stdio"]
+    }
+  }
+}`;
+
+const nodeTypes = [
+  { name: "person", color: "chip-person" },
+  { name: "project", color: "chip-project" },
+  { name: "system", color: "chip-system" },
+  { name: "concept", color: "chip-concept" },
+  { name: "event", color: "chip-event" },
+  { name: "lesson", color: "chip-lesson" },
+];
+
+const comparisonRows = [
+  {
+    feature: "RAM (server)",
+    litopys: "~75 MB",
+    vector: "~500 MB",
+    flatMd: "tiny",
+  },
+  {
+    feature: "Storage",
+    litopys: "Plain markdown + YAML",
+    vector: "SQLite / Qdrant / pgvector",
+    flatMd: "Plain markdown",
+  },
+  {
+    feature: "Hand-editable",
+    litopys: "Yes, any text editor",
+    vector: "No, opaque embeddings",
+    flatMd: "Yes",
+  },
+  {
+    feature: "Scales past 100 nodes",
+    litopys: "Yes, typed graph",
+    vector: "Yes",
+    flatMd: "No, becomes a wall",
+  },
+  {
+    feature: "Queryable by structure",
+    litopys: "Yes (11 relation types)",
+    vector: "No, similarity only",
+    flatMd: "No, grep only",
+  },
+  {
+    feature: "Ships with dashboard",
+    litopys: "Yes, local :3999",
+    vector: "No",
+    flatMd: "No",
+  },
+  {
+    feature: "Runs offline",
+    litopys: "Yes (Ollama extractor optional)",
+    vector: "Usually yes",
+    flatMd: "Yes",
+  },
+];
+
+const faqItems = [
+  {
+    q: "Does Litopys send my data anywhere?",
+    a: "No. The graph is files in <code>~/.litopys/graph/</code>. The MCP server binds to <code>127.0.0.1</code> by default. No telemetry. The only outbound call is the extractor — and the extractor is optional. Pick Ollama if you want zero outbound traffic.",
+  },
+  {
+    q: "What's a \"typed graph\"?",
+    a: "Every node has one of 6 types (person, project, system, concept, event, lesson), every relation is one of 11 predeclared kinds (<code>uses</code>, <code>owns</code>, <code>depends_on</code>, <code>learned_from</code>, etc.). Source/target types are checked on write, so you can't accidentally claim a <em>person</em> <code>runs_on</code> a <em>system</em>.",
+  },
+  {
+    q: "Which MCP clients does it work with?",
+    a: "Anything that speaks MCP — Claude Code, Claude Desktop, Cursor, Cline, ChatGPT Connectors (enterprise), Gemini. Per-client recipes live in <code>docs/integrations/</code>.",
+  },
+  {
+    q: "Do I need the extractor?",
+    a: "No. The MCP server works read/write-only: your agent searches, creates, and links nodes on its own. The extractor is a separate daemon that harvests facts from transcripts on a schedule. Skip it and the resident cost stays at ~75 MB.",
+  },
+  {
+    q: "What happens if the LLM writes a bad fact?",
+    a: "Extractor writes go to a <em>quarantine</em> — a pending-review pile, not the live graph. You accept or reject each candidate from the CLI (<code>litopys quarantine accept</code>) or the dashboard. Nothing lands unreviewed.",
+  },
+  {
+    q: "How do I back it up?",
+    a: "<code>litopys export > graph.json</code> for a deterministic JSON snapshot, or just <code>git init</code> inside <code>~/.litopys/</code> — everything is plain markdown, so git just works. <code>litopys import</code> restores on a fresh host.",
+  },
+];
+---
+
+<Layout
+  title="Litopys — persistent graph memory for AI agents"
+  description="A typed graph of knowledge stored as plain markdown, served over MCP. Works with Claude Code, Claude Desktop, Cursor, Cline, and any MCP-compatible agent. ~75 MB RAM, stays local."
+>
+  <!-- ============================================================ HEADER -->
+  <header class="fixed top-0 inset-x-0 z-20 bg-bg/70 backdrop-blur-md border-b border-divider">
+    <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+      <a href="#top" class="flex items-center gap-2 font-heading font-semibold">
+        <span class="text-xl">📜</span>
+        <span>Litopys</span>
+        <span class="text-xs text-text-tertiary font-mono">v0.1.1</span>
+      </a>
+      <nav class="hidden md:flex items-center gap-6 text-sm text-text-secondary">
+        <a href="#how" class="hover:text-text-primary transition">How it works</a>
+        <a href="#install" class="hover:text-text-primary transition">Install</a>
+        <a href="#compare" class="hover:text-text-primary transition">Compare</a>
+        <a href="#faq" class="hover:text-text-primary transition">FAQ</a>
+        <a
+          href="https://github.com/litopys-dev/litopys"
+          class="text-text-primary font-medium hover:text-accent transition"
+        >GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top" class="pt-24">
+    <!-- ============================================================ HERO -->
+    <section class="max-w-5xl mx-auto px-6 pt-16 pb-20 text-center">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-elevated border border-border text-xs text-text-secondary mb-6">
+        <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+        <span class="font-mono">v0.1.1</span>
+        <span>· first stable</span>
+      </div>
+
+      <h1 class="font-heading text-4xl md:text-6xl font-semibold tracking-tight leading-[1.1] mb-6">
+        A living chronicle<br />
+        <span class="text-accent">for your AI.</span>
+      </h1>
+
+      <p class="max-w-2xl mx-auto text-lg md:text-xl text-text-secondary leading-relaxed mb-10">
+        Persistent graph-based memory that survives across sessions and clients.
+        A typed graph of knowledge stored as plain markdown, served through a
+        thin MCP layer. ~75 MB RAM. Stays local.
+      </p>
+
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-3 mb-8">
+        <div class="flex items-center gap-0 rounded-card border border-border bg-surface font-mono text-sm overflow-hidden">
+          <span class="px-4 py-3 text-text-tertiary">$</span>
+          <code class="px-2 py-3 text-text-primary">{installCmd}</code>
+        </div>
+        <a
+          href="https://github.com/litopys-dev/litopys"
+          class="px-5 py-3 rounded-card border border-accent text-accent font-medium hover:bg-accent/10 transition"
+        >
+          Star on GitHub →
+        </a>
+      </div>
+
+      <p class="text-sm text-text-tertiary">
+        MIT · works with Claude Code, Claude Desktop, Cursor, Cline, ChatGPT Connectors, Gemini
+      </p>
+    </section>
+
+    <!-- ============================================================ PROBLEM -->
+    <section class="max-w-5xl mx-auto px-6 py-20 border-t border-divider">
+      <div class="grid md:grid-cols-2 gap-12 items-start">
+        <div>
+          <h2 class="font-heading text-3xl font-semibold mb-4">The memory problem</h2>
+          <p class="text-text-secondary leading-relaxed mb-4">
+            Agents today forget everything between sessions. The two common fixes
+            both break in production:
+          </p>
+          <ul class="space-y-3 text-text-secondary">
+            <li class="flex gap-3">
+              <span class="text-text-tertiary font-mono text-sm mt-1">1</span>
+              <div>
+                <strong class="text-text-primary">Vector databases.</strong>
+                Heavy (~500 MB RAM), opaque (you can't read an embedding), and
+                when the MCP server leaks you notice in OOM logs, not behaviour.
+              </div>
+            </li>
+            <li class="flex gap-3">
+              <span class="text-text-tertiary font-mono text-sm mt-1">2</span>
+              <div>
+                <strong class="text-text-primary">Flat markdown files.</strong>
+                Simple, hand-editable, grep-able — until you pass ~30 notes and
+                every agent query has to load everything.
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div>
+          <h2 class="font-heading text-3xl font-semibold mb-4">Litopys takes a third path.</h2>
+          <p class="text-text-secondary leading-relaxed mb-4">
+            A typed graph of plain markdown files. Every node is a <code class="px-1.5 py-0.5 rounded bg-elevated text-accent text-sm">.md</code> with YAML frontmatter — readable in any editor, versionable in git.
+          </p>
+          <p class="text-text-secondary leading-relaxed">
+            Queried over MCP by both keyword <em>and</em> structure. A 75 MB resident server swaps for a 500 MB one, and you can actually see what your agent remembers.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ HOW IT WORKS -->
+    <section id="how" class="max-w-6xl mx-auto px-6 py-20 border-t border-divider">
+      <h2 class="font-heading text-3xl font-semibold text-center mb-4">How it works</h2>
+      <p class="text-center text-text-secondary max-w-2xl mx-auto mb-14">
+        Your agent talks to Litopys over MCP. Litopys reads and writes plain markdown on your disk. Nothing leaves the box unless you opt in to a cloud extractor.
+      </p>
+
+      <div class="grid md:grid-cols-3 gap-6 mb-14">
+        <div class="rounded-card border border-border bg-surface p-6">
+          <div class="text-accent font-mono text-xs mb-2">01 — agent</div>
+          <h3 class="font-heading font-semibold mb-2">Claude / Cursor / Cline</h3>
+          <p class="text-sm text-text-secondary">Any MCP-compatible client. Speaks the 5-tool Litopys API: <code class="text-xs">search</code>, <code class="text-xs">get</code>, <code class="text-xs">create</code>, <code class="text-xs">link</code>, <code class="text-xs">related</code>.</p>
+        </div>
+        <div class="rounded-card border border-border bg-surface p-6">
+          <div class="text-accent font-mono text-xs mb-2">02 — mcp server</div>
+          <h3 class="font-heading font-semibold mb-2">litopys mcp stdio</h3>
+          <p class="text-sm text-text-secondary">One binary, ~75 MB RAM. Binds to 127.0.0.1 by default. Auto-loads a startup-context resource so the agent knows your active projects on every session.</p>
+        </div>
+        <div class="rounded-card border border-border bg-surface p-6">
+          <div class="text-accent font-mono text-xs mb-2">03 — graph on disk</div>
+          <h3 class="font-heading font-semibold mb-2">~/.litopys/graph/</h3>
+          <p class="text-sm text-text-secondary">Plain <code class="text-xs">.md</code> files with YAML frontmatter. Edit in Obsidian, version in git, grep from the shell. 6 node types, 11 relation types.</p>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-center gap-2 mb-10">
+        <span class="text-sm text-text-tertiary mr-2">Node types:</span>
+        {nodeTypes.map((t) => (
+          <span class="px-2.5 py-1 rounded-full bg-elevated border border-border text-xs font-mono" style={`color: var(--tw-color-${t.color}, currentColor)`}>
+            {t.name}
+          </span>
+        ))}
+      </div>
+
+      <!-- Dashboard screenshots -->
+      <div class="grid md:grid-cols-2 gap-4">
+        <figure class="rounded-card border border-border overflow-hidden bg-surface">
+          <img src={shot("dashboard.png")} alt="Dashboard — live counts by type" class="w-full" />
+          <figcaption class="px-4 py-3 text-xs text-text-tertiary border-t border-divider">Dashboard — live counts, by type</figcaption>
+        </figure>
+        <figure class="rounded-card border border-border overflow-hidden bg-surface">
+          <img src={shot("graph.png")} alt="Graph — typed nodes, directed relations" class="w-full" />
+          <figcaption class="px-4 py-3 text-xs text-text-tertiary border-t border-divider">Graph viz — force-directed, typed colors</figcaption>
+        </figure>
+        <figure class="rounded-card border border-border overflow-hidden bg-surface">
+          <img src={shot("nodes.png")} alt="Nodes — searchable table" class="w-full" />
+          <figcaption class="px-4 py-3 text-xs text-text-tertiary border-t border-divider">Nodes table — search + filter by type</figcaption>
+        </figure>
+        <figure class="rounded-card border border-border overflow-hidden bg-surface">
+          <img src={shot("quarantine.png")} alt="Quarantine — pending extractor candidates" class="w-full" />
+          <figcaption class="px-4 py-3 text-xs text-text-tertiary border-t border-divider">Quarantine — accept/reject extractor output</figcaption>
+        </figure>
+      </div>
+      <p class="text-center text-xs text-text-tertiary mt-4">Screenshots taken against a synthetic demo graph — no real data.</p>
+    </section>
+
+    <!-- ============================================================ INSTALL -->
+    <section id="install" class="max-w-4xl mx-auto px-6 py-20 border-t border-divider">
+      <h2 class="font-heading text-3xl font-semibold mb-4">Install in 10 seconds</h2>
+      <p class="text-text-secondary mb-8">
+        One-line installer downloads a single ~100 MB binary to <code class="text-sm px-1.5 py-0.5 rounded bg-elevated text-accent">~/.local/bin/litopys</code>, initializes the graph, and prints MCP registration hints.
+      </p>
+
+      <div class="rounded-card border border-border bg-surface overflow-hidden mb-8">
+        <div class="px-4 py-2 border-b border-divider text-xs font-mono text-text-tertiary">shell</div>
+        <pre class="p-4 text-sm overflow-x-auto"><code>{installCmd}</code></pre>
+      </div>
+
+      <h3 class="font-heading text-xl font-semibold mb-3">Register with your MCP client</h3>
+
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="rounded-card border border-border bg-surface overflow-hidden">
+          <div class="px-4 py-2 border-b border-divider text-xs font-mono text-text-tertiary">Claude Code</div>
+          <pre class="p-4 text-sm overflow-x-auto"><code>{claudeCodeCmd}</code></pre>
+        </div>
+        <div class="rounded-card border border-border bg-surface overflow-hidden">
+          <div class="px-4 py-2 border-b border-divider text-xs font-mono text-text-tertiary">Claude Desktop — claude_desktop_config.json</div>
+          <pre class="p-4 text-sm overflow-x-auto"><code>{claudeDesktopJson}</code></pre>
+        </div>
+      </div>
+
+      <p class="text-sm text-text-tertiary mt-6">
+        Per-client recipes for Cursor, Cline, ChatGPT Connectors, and Gemini live in <a href="https://github.com/litopys-dev/litopys/tree/main/docs/integrations" class="text-accent hover:underline">docs/integrations</a>.
+      </p>
+    </section>
+
+    <!-- ============================================================ COMPARE -->
+    <section id="compare" class="max-w-5xl mx-auto px-6 py-20 border-t border-divider">
+      <h2 class="font-heading text-3xl font-semibold mb-4">Litopys vs. the alternatives</h2>
+      <p class="text-text-secondary mb-8 max-w-2xl">
+        Honest comparison against the two common memory setups for MCP agents today.
+      </p>
+
+      <div class="rounded-card border border-border bg-surface overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-border">
+              <th class="text-left px-4 py-3 font-medium text-text-tertiary font-mono text-xs">&nbsp;</th>
+              <th class="text-left px-4 py-3 font-medium text-accent">Litopys</th>
+              <th class="text-left px-4 py-3 font-medium text-text-secondary">Vector DB (Chroma / Qdrant / pgvector)</th>
+              <th class="text-left px-4 py-3 font-medium text-text-secondary">Flat markdown</th>
+            </tr>
+          </thead>
+          <tbody>
+            {comparisonRows.map((row) => (
+              <tr class="border-b border-divider last:border-none">
+                <td class="px-4 py-3 text-text-secondary">{row.feature}</td>
+                <td class="px-4 py-3 text-text-primary">{row.litopys}</td>
+                <td class="px-4 py-3 text-text-tertiary">{row.vector}</td>
+                <td class="px-4 py-3 text-text-tertiary">{row.flatMd}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="text-xs text-text-tertiary mt-4">
+        Numbers from the author's own install (Ubuntu, Bun 1.x). Full footprint breakdown (including Ollama 3B/7B transient cost) in the README.
+      </p>
+    </section>
+
+    <!-- ============================================================ FAQ -->
+    <section id="faq" class="max-w-3xl mx-auto px-6 py-20 border-t border-divider">
+      <h2 class="font-heading text-3xl font-semibold mb-10 text-center">FAQ</h2>
+
+      <div class="space-y-6">
+        {faqItems.map((item) => (
+          <details class="group rounded-card border border-border bg-surface">
+            <summary class="list-none cursor-pointer px-5 py-4 flex items-center justify-between font-medium">
+              <span>{item.q}</span>
+              <span class="text-accent font-mono group-open:rotate-45 transition">+</span>
+            </summary>
+            <div class="px-5 pb-5 text-sm text-text-secondary leading-relaxed" set:html={item.a} />
+          </details>
+        ))}
+      </div>
+    </section>
+
+    <!-- ============================================================ FOOTER -->
+    <footer class="border-t border-divider mt-10">
+      <div class="max-w-6xl mx-auto px-6 py-12 grid md:grid-cols-3 gap-8">
+        <div>
+          <div class="flex items-center gap-2 font-heading font-semibold mb-2">
+            <span class="text-xl">📜</span>
+            <span>Litopys</span>
+          </div>
+          <p class="text-sm text-text-tertiary">
+            Means "chronicle" in Ukrainian. Because that's exactly what your AI's memory should be.
+          </p>
+        </div>
+        <div>
+          <h4 class="text-xs font-mono text-text-tertiary uppercase tracking-wider mb-3">Project</h4>
+          <ul class="space-y-2 text-sm">
+            <li><a href="https://github.com/litopys-dev/litopys" class="text-text-secondary hover:text-accent">GitHub</a></li>
+            <li><a href="https://github.com/litopys-dev/litopys/releases" class="text-text-secondary hover:text-accent">Releases</a></li>
+            <li><a href="https://github.com/litopys-dev/litopys/blob/main/CHANGELOG.md" class="text-text-secondary hover:text-accent">Changelog</a></li>
+            <li><a href="https://glama.ai/mcp/servers/litopys-dev/litopys" class="text-text-secondary hover:text-accent">Glama listing</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-xs font-mono text-text-tertiary uppercase tracking-wider mb-3">Integrations</h4>
+          <ul class="space-y-2 text-sm">
+            <li><a href="https://github.com/litopys-dev/litopys/blob/main/docs/integrations/claude-code.md" class="text-text-secondary hover:text-accent">Claude Code</a></li>
+            <li><a href="https://github.com/litopys-dev/litopys/blob/main/docs/integrations/claude-desktop.md" class="text-text-secondary hover:text-accent">Claude Desktop</a></li>
+            <li><a href="https://github.com/litopys-dev/litopys/blob/main/docs/integrations/cursor.md" class="text-text-secondary hover:text-accent">Cursor</a></li>
+            <li><a href="https://github.com/litopys-dev/litopys/blob/main/docs/integrations/cline.md" class="text-text-secondary hover:text-accent">Cline</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="max-w-6xl mx-auto px-6 pb-8 text-xs text-text-tertiary flex flex-wrap items-center justify-between gap-3">
+        <span>MIT © 2026 Denis Blashchytsia and Litopys contributors</span>
+        <span class="font-mono">v0.1.1 · first stable</span>
+      </div>
+    </footer>
+  </main>
+</Layout>

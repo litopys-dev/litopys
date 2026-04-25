@@ -12,7 +12,7 @@
     "lineWidth": 100
   },
   "files": {
-    "ignore": ["node_modules", "dist", "*.md"]
+    "ignore": ["node_modules", "dist", "*.md", "landing", ".astro"]
   },
   "overrides": [
     {

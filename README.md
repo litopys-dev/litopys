@@ -207,12 +207,9 @@ Default is conservative — existing nodes are never touched unless you pass
 `--force`. Every node is validated against the schema up-front, so a corrupt
 snapshot aborts before anything lands on disk.
 
-## What's next
+## Release history
 
-- Astro landing page
-- `npm` publish of `@litopys/cli` as a thin launcher around the single-binary
-
-Full release history lives in [CHANGELOG.md](./CHANGELOG.md).
+See [CHANGELOG.md](./CHANGELOG.md). Future work is driven by real-user feedback — open an issue if something pinches.
 
 ## Design principles
 

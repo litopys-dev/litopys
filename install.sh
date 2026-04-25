@@ -6,7 +6,7 @@
 #
 # With environment overrides (place the assignment AFTER the pipe — variables
 # set before `curl` only scope to curl, not to the piped shell):
-#   curl -fsSL https://raw.githubusercontent.com/litopys-dev/litopys/main/install.sh | LITOPYS_VERSION=v0.1.0-alpha sh
+#   curl -fsSL https://raw.githubusercontent.com/litopys-dev/litopys/main/install.sh | LITOPYS_VERSION=v0.1.1 sh
 #
 # Environment:
 #   LITOPYS_VERSION       Release tag to install (default: newest release,
@@ -44,6 +44,15 @@ need curl
 need uname
 need mkdir
 need chmod
+
+# sha256sum on Linux, shasum on macOS. We probe at install time and pick the
+# first one available — the verification step below uses whichever we found.
+sha256_cmd=""
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256_cmd="sha256sum"
+elif command -v shasum >/dev/null 2>&1; then
+  sha256_cmd="shasum -a 256"
+fi
 
 # ---------------------------------------------------------------------------
 # Platform detection
@@ -119,10 +128,40 @@ log "Graph:     $graph_path"
 
 log "Downloading ${binary_name}..."
 tmp=$(mktemp)
-trap 'rm -f "$tmp"' EXIT
+sums_tmp=$(mktemp)
+trap 'rm -f "$tmp" "$sums_tmp"' EXIT
 
 if ! curl -fsSL -o "$tmp" "$url"; then
   die "download failed: $url"
+fi
+
+# Verify SHA-256 against SHASUMS256.txt published with the release.
+# Fail closed: if we cannot fetch SHASUMS256.txt or cannot find a sha256 tool,
+# we refuse to install the binary. Set LITOPYS_SKIP_VERIFY=1 to override
+# (only useful for one-off testing against a release that hasn't published
+# checksums yet, e.g. pre-v0.1.2).
+sums_url="https://github.com/${REPO}/releases/download/${LITOPYS_VERSION}/SHASUMS256.txt"
+
+if [ "${LITOPYS_SKIP_VERIFY:-0}" = "1" ]; then
+  warn "LITOPYS_SKIP_VERIFY=1 — skipping checksum verification (NOT RECOMMENDED)."
+elif [ -z "$sha256_cmd" ]; then
+  die "no sha256 tool found (need 'sha256sum' or 'shasum'). Install one or set LITOPYS_SKIP_VERIFY=1 to override."
+else
+  log "Fetching checksums..."
+  if ! curl -fsSL -o "$sums_tmp" "$sums_url"; then
+    die "could not fetch $sums_url — old releases (<v0.1.2) ship without checksums; pin a newer LITOPYS_VERSION or set LITOPYS_SKIP_VERIFY=1 to skip."
+  fi
+
+  expected=$(grep " ${binary_name}\$" "$sums_tmp" | awk '{print $1}')
+  if [ -z "$expected" ]; then
+    die "checksum for ${binary_name} not present in SHASUMS256.txt"
+  fi
+
+  actual=$($sha256_cmd "$tmp" | awk '{print $1}')
+  if [ "$expected" != "$actual" ]; then
+    die "checksum mismatch for ${binary_name} — refusing to install. expected=$expected actual=$actual"
+  fi
+  ok "Checksum verified ($expected)"
 fi
 
 mv "$tmp" "$target"

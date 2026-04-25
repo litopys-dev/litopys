@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-04-25
+
+Security release. Three high-severity findings from the v0.1.1 audit. No public-API breakage; existing v0.1.1 installs should upgrade.
+
+### Security
+
+- **Viewer authentication for write endpoints** (`packages/viewer/src/server.ts`). Historically the viewer had no auth at all because it bound to `127.0.0.1`. Once the user opens the port to LAN (e.g. UFW rule), every CRUD endpoint becomes reachable network-wide. New `LITOPYS_VIEWER_TOKEN` env var gates `POST/PUT/DELETE /api/node*` and `POST /api/quarantine/{accept,reject}` with constant-time Bearer comparison. Read endpoints (`GET /api/stats|nodes|graph|quarantine|node/:id`) stay open so the dashboard works without configuration. If the token is unset, the dashboard runs in **read-only** mode on loopback binds and **refuses mutating requests entirely** on non-loopback binds. The web UI prompts for the token on first 401 and stores it in `localStorage` (or accepts it via `?token=...` URL param). Backwards-compatible: `createServer(port)` keeps working for existing call sites.
+- **Constant-time MCP HTTP token comparison** (`packages/mcp/src/auth.ts`). `checkBearer` previously used `token !== expected` — a classical short-circuit that leaks the secret byte-by-byte to a network attacker over enough requests. Replaced with `crypto.timingSafeEqual` after a length-check (length is not secret). Same fix mirrored into the new viewer-auth module.
+- **Checksum verification in `install.sh`**. `curl | sh` previously installed the binary with no integrity check — a compromised GitHub Release or a MITM on the download could land arbitrary code in `~/.local/bin/litopys`. Release workflow now generates `SHASUMS256.txt` from all five compiled binaries and uploads it as a release asset. `install.sh` fetches the file, looks up the expected SHA-256 for the platform-specific asset, and compares against `sha256sum` (or `shasum -a 256` on macOS) before placing the binary on disk. Fails closed if the checksum file is missing, the entry is missing, or the hashes mismatch. `LITOPYS_SKIP_VERIFY=1` is available as an explicit override but flagged loudly. Old releases (≤ v0.1.1) ship without checksums — pin a newer `LITOPYS_VERSION` or use the override.
+
+### Fixed
+
+- Stale `LITOPYS_VERSION=v0.1.0-alpha` example in the `install.sh` header comment now points at `v0.1.1`.
+
 ## [0.1.1] - 2026-04-25
 
 First stable release. Drops the `-alpha` marker after two weeks of daily-driver use and open-source maturation. Public surfaces that are now frozen: the 5-tool MCP API (`litopys_search`/`get`/`create`/`link`/`related`) plus resources, the CLI command set, JSON export `schemaVersion: 1`, and the on-disk markdown/frontmatter layout under `~/.litopys/graph/`. Future breaking changes will bump to `0.2.x`.

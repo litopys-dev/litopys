@@ -55,4 +55,22 @@ describe("checkBearer", () => {
     const result = checkBearer("", "secret123");
     expect(result.ok).toBe(false);
   });
+
+  test("rejects token with same prefix as expected (constant-time guard)", () => {
+    // If comparison short-circuited on first mismatching byte, this would
+    // not be a meaningful test — but it confirms behavioural correctness.
+    const result = checkBearer("Bearer secre", "secret123");
+    expect(result.ok).toBe(false);
+  });
+
+  test("rejects longer token that contains the expected as prefix", () => {
+    const result = checkBearer("Bearer secret123-extra", "secret123");
+    expect(result.ok).toBe(false);
+  });
+
+  test("accepts unicode tokens identical byte-for-byte", () => {
+    const token = "пароль-укр-2026";
+    const result = checkBearer(`Bearer ${token}`, token);
+    expect(result.ok).toBe(true);
+  });
 });

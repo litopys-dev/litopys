@@ -3,5 +3,5 @@ import { PACKAGE_NAME, VERSION } from "../src/index.ts";
 
 test("package exports name and version", () => {
   expect(PACKAGE_NAME).toBe("@litopys/cli");
-  expect(VERSION).toBe("0.1.0");
+  expect(VERSION).toBe("0.1.2");
 });

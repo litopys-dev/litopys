@@ -189,7 +189,7 @@ describe("CLI exports", () => {
 
   test("VERSION is correct", async () => {
     const { VERSION } = await import("../src/index.ts");
-    expect(VERSION).toBe("0.1.0");
+    expect(VERSION).toBe("0.1.2");
   });
 });
 

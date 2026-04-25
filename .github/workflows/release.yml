@@ -68,6 +68,13 @@ jobs:
       - name: List artifacts
         run: ls -la dist/
 
+      - name: Generate SHASUMS256.txt
+        working-directory: dist
+        run: |
+          # Sort the file list so the checksum file is byte-deterministic across re-runs.
+          sha256sum $(ls litopys-* | sort) > SHASUMS256.txt
+          cat SHASUMS256.txt
+
       - name: Resolve tag
         id: tag
         run: |

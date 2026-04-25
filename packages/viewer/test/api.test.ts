@@ -15,6 +15,12 @@ describe("viewer write API", () => {
   let server: Server<undefined>;
   let base: string;
 
+  const TEST_TOKEN = "test-viewer-token";
+  const authedHeaders = (extra: Record<string, string> = {}) => ({
+    Authorization: `Bearer ${TEST_TOKEN}`,
+    ...extra,
+  });
+
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "litopys-viewer-api-"));
     graphDir = path.join(tmpDir, "graph");
@@ -25,7 +31,11 @@ describe("viewer write API", () => {
     const ts = Date.now();
     const modUrl = new URL(`../src/server.ts?cachebust=${ts}-${Math.random()}`, import.meta.url);
     const { createServer } = (await import(modUrl.href)) as typeof import("../src/server.ts");
-    server = createServer(0); // 0 = random port
+    server = createServer({
+      port: 0,
+      bindAddr: "127.0.0.1",
+      auth: { mode: "writable", token: TEST_TOKEN },
+    });
     base = `http://localhost:${server.port}`;
   });
 
@@ -38,7 +48,7 @@ describe("viewer write API", () => {
   test("POST /api/node creates a node", async () => {
     const res = await fetch(`${base}/api/node`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authedHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         id: "viewer-test-concept",
         type: "concept",
@@ -60,7 +70,7 @@ describe("viewer write API", () => {
   test("POST /api/node rejects invalid type", async () => {
     const res = await fetch(`${base}/api/node`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authedHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ id: "bad", type: "banana", summary: "x" }),
     });
     expect(res.status).toBe(400);
@@ -77,7 +87,7 @@ describe("viewer write API", () => {
 
     const res = await fetch(`${base}/api/node`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authedHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         id: "already-here",
         type: "concept",
@@ -98,7 +108,7 @@ describe("viewer write API", () => {
 
     const res = await fetch(`${base}/api/node/to-update`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: authedHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ summary: "updated summary", confidence: 0.95 }),
     });
     expect(res.status).toBe(200);
@@ -121,7 +131,10 @@ describe("viewer write API", () => {
       body: "",
     });
 
-    const res = await fetch(`${base}/api/node/to-tombstone`, { method: "DELETE" });
+    const res = await fetch(`${base}/api/node/to-tombstone`, {
+      method: "DELETE",
+      headers: authedHeaders(),
+    });
     expect(res.status).toBe(204);
 
     // File still exists (soft delete), but `until` is set.
@@ -149,7 +162,7 @@ describe("viewer write API", () => {
 
     const res = await fetch(`${base}/api/node/src-project/relation`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authedHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ relation: "uses", target: "dst-system" }),
     });
     expect(res.status).toBe(200);
@@ -178,7 +191,7 @@ describe("viewer write API", () => {
     // event cannot use 'applies_to' (only concept/lesson)
     const res = await fetch(`${base}/api/node/some-event/relation`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authedHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ relation: "applies_to", target: "some-project" }),
     });
     expect(res.status).toBe(400);
@@ -205,7 +218,7 @@ describe("viewer write API", () => {
 
     const res = await fetch(`${base}/api/node/parent-project/relation`, {
       method: "DELETE",
-      headers: { "Content-Type": "application/json" },
+      headers: authedHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ relation: "uses", target: "child-system" }),
     });
     expect(res.status).toBe(200);
@@ -248,5 +261,103 @@ describe("viewer write API", () => {
     expect(usesEdges.length).toBe(1);
     expect(usesEdges[0]?.data.source).toBe("n3");
     expect(usesEdges[0]?.data.target).toBe("n2");
+  });
+
+  test("POST /api/node without bearer returns 401", async () => {
+    const res = await fetch(`${base}/api/node`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "x", type: "concept", summary: "y" }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  test("GET endpoints stay open without bearer", async () => {
+    const stats = await fetch(`${base}/api/stats`);
+    expect(stats.status).toBe(200);
+    const nodes = await fetch(`${base}/api/nodes`);
+    expect(nodes.status).toBe(200);
+    const graph = await fetch(`${base}/api/graph`);
+    expect(graph.status).toBe(200);
+  });
+
+  test("POST /api/node with wrong bearer returns 401", async () => {
+    const res = await fetch(`${base}/api/node`, {
+      method: "POST",
+      headers: { Authorization: "Bearer not-the-real-token", "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "x", type: "concept", summary: "y" }),
+    });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe("viewer auth modes (resolveViewerAuth)", () => {
+  test("loopback bind without token → read-only", async () => {
+    const ts = Date.now();
+    const modUrl = new URL(`../src/server.ts?cachebust=${ts}-${Math.random()}`, import.meta.url);
+    const { resolveViewerAuth } = (await import(modUrl.href)) as typeof import("../src/server.ts");
+    expect(resolveViewerAuth("127.0.0.1", undefined).mode).toBe("read-only");
+    expect(resolveViewerAuth("::1", undefined).mode).toBe("read-only");
+    expect(resolveViewerAuth("localhost", undefined).mode).toBe("read-only");
+  });
+
+  test("non-loopback bind without token → refuse-mutating-from-remote", async () => {
+    const ts = Date.now();
+    const modUrl = new URL(`../src/server.ts?cachebust=${ts}-${Math.random()}`, import.meta.url);
+    const { resolveViewerAuth } = (await import(modUrl.href)) as typeof import("../src/server.ts");
+    expect(resolveViewerAuth("0.0.0.0", undefined).mode).toBe("refuse-mutating-from-remote");
+    expect(resolveViewerAuth("192.168.1.10", undefined).mode).toBe("refuse-mutating-from-remote");
+  });
+
+  test("any bind with token → writable", async () => {
+    const ts = Date.now();
+    const modUrl = new URL(`../src/server.ts?cachebust=${ts}-${Math.random()}`, import.meta.url);
+    const { resolveViewerAuth } = (await import(modUrl.href)) as typeof import("../src/server.ts");
+    expect(resolveViewerAuth("127.0.0.1", "secret").mode).toBe("writable");
+    expect(resolveViewerAuth("0.0.0.0", "secret").mode).toBe("writable");
+  });
+});
+
+describe("viewer read-only mode rejects mutations", () => {
+  let tmpDir: string;
+  let graphDir: string;
+  let server: Server<undefined>;
+  let base: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "litopys-viewer-readonly-"));
+    graphDir = path.join(tmpDir, "graph");
+    await fs.mkdir(graphDir, { recursive: true });
+    process.env.LITOPYS_GRAPH_PATH = graphDir;
+
+    const ts = Date.now();
+    const modUrl = new URL(`../src/server.ts?cachebust=${ts}-${Math.random()}`, import.meta.url);
+    const { createServer } = (await import(modUrl.href)) as typeof import("../src/server.ts");
+    server = createServer({
+      port: 0,
+      bindAddr: "127.0.0.1",
+      auth: { mode: "read-only", token: undefined },
+    });
+    base = `http://localhost:${server.port}`;
+  });
+
+  afterEach(async () => {
+    server.stop(true);
+    await fs.rm(tmpDir, { recursive: true, force: true });
+    process.env.LITOPYS_GRAPH_PATH = undefined;
+  });
+
+  test("POST /api/node returns 403 in read-only mode", async () => {
+    const res = await fetch(`${base}/api/node`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "blocked", type: "concept", summary: "x" }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  test("GET /api/stats still works in read-only mode", async () => {
+    const res = await fetch(`${base}/api/stats`);
+    expect(res.status).toBe(200);
   });
 });

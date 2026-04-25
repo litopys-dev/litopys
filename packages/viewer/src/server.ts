@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import {
@@ -21,6 +22,73 @@ import {
   rejectCandidate,
   rejectMergeProposal,
 } from "@litopys/extractor";
+
+// ---------------------------------------------------------------------------
+// Auth — viewer ships with no auth historically because it bound to 127.0.0.1.
+// Once a user opens the port to LAN (e.g. UFW rule) every CRUD endpoint is
+// reachable by anyone on the network. This module gates *mutating* requests:
+// reads (GET) stay open so the dashboard works without configuration; writes
+// (POST/PUT/DELETE) require LITOPYS_VIEWER_TOKEN. If the token is unset, the
+// dashboard refuses to start on a non-loopback bind and silently drops to
+// read-only on loopback.
+// ---------------------------------------------------------------------------
+
+export type ViewerAuthMode = "read-only" | "writable" | "refuse-mutating-from-remote";
+
+export interface ViewerAuthState {
+  mode: ViewerAuthMode;
+  token: string | undefined;
+}
+
+export function resolveViewerAuth(
+  bindAddr: string,
+  token: string | undefined = process.env.LITOPYS_VIEWER_TOKEN || undefined,
+): ViewerAuthState {
+  if (token) return { mode: "writable", token };
+  if (isLoopbackBind(bindAddr)) return { mode: "read-only", token: undefined };
+  return { mode: "refuse-mutating-from-remote", token: undefined };
+}
+
+function isLoopbackBind(addr: string): boolean {
+  return addr === "127.0.0.1" || addr === "::1" || addr === "localhost";
+}
+
+function checkViewerBearer(req: Request, expected: string): boolean {
+  const header = req.headers.get("authorization") ?? "";
+  const parts = header.split(" ");
+  if (parts.length !== 2 || parts[0]?.toLowerCase() !== "bearer") return false;
+  const got = parts[1] ?? "";
+  if (got.length !== expected.length) return false;
+  const a = Buffer.from(got, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+function authGate(req: Request, auth: ViewerAuthState): Response | null {
+  if (auth.mode === "writable") {
+    if (auth.token && checkViewerBearer(req, auth.token)) return null;
+    return json({ error: "Missing or invalid bearer token" }, 401);
+  }
+  if (auth.mode === "read-only") {
+    return json(
+      {
+        error:
+          "Viewer is running without LITOPYS_VIEWER_TOKEN — mutations disabled. Set the env var to enable writes.",
+      },
+      403,
+    );
+  }
+  // refuse-mutating-from-remote: viewer is on a non-loopback bind without a
+  // token. We never trust unauthenticated writes from the network.
+  return json(
+    {
+      error:
+        "Viewer is bound to a non-loopback address without LITOPYS_VIEWER_TOKEN. Refusing mutating requests. Either bind to 127.0.0.1 or set LITOPYS_VIEWER_TOKEN.",
+    },
+    403,
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Cache
@@ -576,9 +644,22 @@ function json(data: unknown, status = 200): Response {
 // Main server
 // ---------------------------------------------------------------------------
 
-export function createServer(port = 3999) {
+export interface CreateServerOptions {
+  port?: number;
+  bindAddr?: string;
+  auth?: ViewerAuthState;
+}
+
+export function createServer(opts: CreateServerOptions | number = {}) {
+  // Back-compat: `createServer(3999)` keeps working.
+  const config: CreateServerOptions = typeof opts === "number" ? { port: opts } : opts;
+  const port = config.port ?? 3999;
+  const bindAddr = config.bindAddr ?? "127.0.0.1";
+  const auth = config.auth ?? resolveViewerAuth(bindAddr);
+
   return Bun.serve({
     port,
+    hostname: bindAddr,
     async fetch(req) {
       const url = new URL(req.url);
       const p = url.pathname;
@@ -588,31 +669,52 @@ export function createServer(port = 3999) {
         return new Response(null, { status: 204 });
       }
 
-      // API routes
+      // Read-only API routes — no auth required
       if (p === "/api/stats") return apiStats();
       if (p === "/api/nodes") return apiNodes();
       if (p === "/api/graph") return apiGraph();
       if (p === "/api/quarantine" && req.method === "GET") return apiQuarantine();
-      if (p === "/api/quarantine/accept" && req.method === "POST") return apiQuarantineAccept(req);
-      if (p === "/api/quarantine/reject" && req.method === "POST") return apiQuarantineReject(req);
+
+      // Mutating API routes — gated by auth
+      if (p === "/api/quarantine/accept" && req.method === "POST") {
+        const denied = authGate(req, auth);
+        return denied ?? apiQuarantineAccept(req);
+      }
+      if (p === "/api/quarantine/reject" && req.method === "POST") {
+        const denied = authGate(req, auth);
+        return denied ?? apiQuarantineReject(req);
+      }
 
       if (p === "/api/node" && req.method === "POST") {
-        return apiCreateNode(req);
+        const denied = authGate(req, auth);
+        return denied ?? apiCreateNode(req);
       }
 
       const relMatch = p.match(/^\/api\/node\/([^/]+)\/relation$/);
       if (relMatch?.[1]) {
         const nodeId = decodeURIComponent(relMatch[1]);
-        if (req.method === "POST") return apiAddRelation(nodeId, req);
-        if (req.method === "DELETE") return apiRemoveRelation(nodeId, req);
+        if (req.method === "POST") {
+          const denied = authGate(req, auth);
+          return denied ?? apiAddRelation(nodeId, req);
+        }
+        if (req.method === "DELETE") {
+          const denied = authGate(req, auth);
+          return denied ?? apiRemoveRelation(nodeId, req);
+        }
         return json({ error: "Method not allowed" }, 405);
       }
 
       const nodeMatch = p.match(/^\/api\/node\/(.+)$/);
       if (nodeMatch?.[1]) {
         const nodeId = decodeURIComponent(nodeMatch[1]);
-        if (req.method === "PUT") return apiUpdateNode(nodeId, req);
-        if (req.method === "DELETE") return apiDeleteNode(nodeId);
+        if (req.method === "PUT") {
+          const denied = authGate(req, auth);
+          return denied ?? apiUpdateNode(nodeId, req);
+        }
+        if (req.method === "DELETE") {
+          const denied = authGate(req, auth);
+          return denied ?? apiDeleteNode(nodeId);
+        }
         return apiNode(nodeId);
       }
 
@@ -633,6 +735,15 @@ export function createServer(port = 3999) {
 // Run directly
 if (import.meta.main) {
   const port = Number(process.env.VIEWER_PORT ?? 3999);
-  const server = createServer(port);
-  console.log(`Viewer running at http://localhost:${server.port}/`);
+  const bindAddr = process.env.VIEWER_BIND_ADDR ?? "127.0.0.1";
+  const auth = resolveViewerAuth(bindAddr);
+  const server = createServer({ port, bindAddr, auth });
+  console.log(`Viewer running at http://${bindAddr}:${server.port}/`);
+  if (auth.mode === "read-only") {
+    console.log(
+      "[viewer] LITOPYS_VIEWER_TOKEN is not set — running in read-only mode (mutations disabled).",
+    );
+  } else if (auth.mode === "writable") {
+    console.log("[viewer] LITOPYS_VIEWER_TOKEN is set — mutating endpoints require Bearer auth.");
+  }
 }

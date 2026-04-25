@@ -47,7 +47,7 @@ Screenshots taken against a synthetic demo graph bundled in `docs/screenshots/` 
 
 ## Status
 
-**[v0.1.1](https://github.com/litopys-dev/litopys/releases/tag/v0.1.1) is out** — prebuilt binaries for Linux / macOS / Windows (x64 + arm64) in the release. First stable tag after two weeks of daily-driver use by the author. Public surfaces (MCP tools, CLI, JSON export `schemaVersion: 1`, on-disk markdown layout) are frozen; breaking changes will ship as `0.2.x`.
+**[v0.1.2](https://github.com/litopys-dev/litopys/releases/tag/v0.1.2) is out** — prebuilt binaries for Linux / macOS / Windows (x64 + arm64), with SHA-256 checksums verified by `install.sh`. Security release on top of the v0.1.1 stable line — see the [CHANGELOG](./CHANGELOG.md). Public surfaces (MCP tools, CLI, JSON export `schemaVersion: 1`, on-disk markdown layout) are frozen; breaking changes will ship as `0.2.x`.
 
 Core graph, MCP server (5 tools, stdio + HTTP/SSE), extractor + quarantine + weekly digest, timer-daemon, dashboard (read + write + graph viz + quarantine review), identity-resolution guardrails, single-binary build, one-line installer, per-client integration docs — all shipped. See [What's next](#whats-next) for the planned follow-ups.
 
@@ -78,7 +78,7 @@ This downloads a single ~100 MB binary to `~/.local/bin/litopys`, initializes `~
 Pin a specific version by placing the assignment **after the pipe** — env vars set before `curl` only scope to `curl` itself, not the piped shell:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/litopys-dev/litopys/main/install.sh | LITOPYS_VERSION=v0.1.1 sh
+curl -fsSL https://raw.githubusercontent.com/litopys-dev/litopys/main/install.sh | LITOPYS_VERSION=v0.1.2 sh
 ```
 
 Then register the MCP server with your client:
@@ -144,6 +144,21 @@ systemctl --user status litopys-viewer
 # Remove:
 litopys viewer uninstall
 ```
+
+**Auth (writes only).** GET endpoints (browse, search, graph view) are open.
+Mutating endpoints (create / edit / delete a node, accept-or-reject quarantine)
+require `LITOPYS_VIEWER_TOKEN`:
+
+```bash
+# Generate any random string and put it in the env:
+export LITOPYS_VIEWER_TOKEN="$(openssl rand -hex 32)"
+litopys viewer
+```
+
+Without the token the dashboard runs read-only on loopback and refuses
+mutating requests entirely on non-loopback binds. The web UI prompts for the
+token on the first 401 and remembers it in `localStorage`. You can also pass
+it once via `?token=...` and it gets stripped from the URL after capture.
 
 Or set `LITOPYS_ENABLE_VIEWER=1` when running `install.sh` to enable it as
 part of the one-line install. Requires `loginctl enable-linger $USER` if you

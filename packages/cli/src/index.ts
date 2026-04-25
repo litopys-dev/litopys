@@ -22,7 +22,7 @@ import { cmdSimilar } from "./similar.ts";
 import { cmdViewer } from "./viewer.ts";
 
 export const PACKAGE_NAME = "@litopys/cli";
-export const VERSION = "0.1.0";
+export const VERSION = "0.1.2";
 
 // ---------------------------------------------------------------------------
 // Helpers

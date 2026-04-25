@@ -135,6 +135,46 @@ export interface QuarantineMergeFile {
 
 export type QuarantineFile = QuarantineRegularFile | QuarantineMergeFile;
 
+/**
+ * Bearer token for mutating viewer requests. The dashboard reads this from
+ * either a `?token=...` query param (set once, then cached in localStorage)
+ * or from the LITOPYS_VIEWER_TOKEN value the user pastes via the prompt the
+ * first time a write fails with 401. Read-only requests don't need it.
+ */
+const TOKEN_KEY = "litopys.viewer.token";
+
+function readStoredToken(): string {
+  if (typeof window === "undefined") return "";
+  // First-time bootstrap from URL query
+  const params = new URLSearchParams(window.location.search);
+  const fromUrl = params.get("token");
+  if (fromUrl) {
+    window.localStorage.setItem(TOKEN_KEY, fromUrl);
+    params.delete("token");
+    const cleaned = params.toString();
+    const url = `${window.location.pathname}${cleaned ? `?${cleaned}` : ""}${window.location.hash}`;
+    window.history.replaceState({}, "", url);
+    return fromUrl;
+  }
+  return window.localStorage.getItem(TOKEN_KEY) ?? "";
+}
+
+function promptForToken(): string {
+  if (typeof window === "undefined") return "";
+  const supplied = window.prompt(
+    "This viewer requires LITOPYS_VIEWER_TOKEN for writes. Paste the token:",
+    "",
+  );
+  const token = (supplied ?? "").trim();
+  if (token) window.localStorage.setItem(TOKEN_KEY, token);
+  return token;
+}
+
+function authHeaders(): Record<string, string> {
+  const token = readStoredToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function get<T>(url: string): Promise<T> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText} — ${url}`);
@@ -142,11 +182,30 @@ async function get<T>(url: string): Promise<T> {
 }
 
 async function send<T>(url: string, method: string, body?: unknown): Promise<T> {
-  const res = await fetch(url, {
+  const headers: Record<string, string> = { ...authHeaders() };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+
+  let res = await fetch(url, {
     method,
-    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+
+  // 401 — token missing or wrong. Prompt the user once, retry once.
+  if (res.status === 401) {
+    const fresh = promptForToken();
+    if (fresh) {
+      res = await fetch(url, {
+        method,
+        headers: {
+          ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+          Authorization: `Bearer ${fresh}`,
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    }
+  }
+
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
     try {

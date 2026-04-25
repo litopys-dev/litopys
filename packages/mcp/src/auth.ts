@@ -3,6 +3,8 @@
  * stdio transport does not require auth.
  */
 
+import { timingSafeEqual } from "node:crypto";
+
 export interface AuthResult {
   ok: boolean;
   error?: string;
@@ -11,6 +13,10 @@ export interface AuthResult {
 /**
  * Check Authorization header against the expected bearer token.
  * Returns { ok: true } if auth passes, { ok: false, error } otherwise.
+ *
+ * Token comparison is constant-time — see [bytes-leak the token under HTTP transport
+ * remote use] in the security audit. A naïve `===` short-circuits on the first
+ * mismatching byte, leaking the token byte by byte to a network attacker.
  */
 export function checkBearer(authHeader: string | undefined, expectedToken: string): AuthResult {
   if (!authHeader) {
@@ -23,11 +29,24 @@ export function checkBearer(authHeader: string | undefined, expectedToken: strin
   }
 
   const token = parts[1] ?? "";
-  if (token !== expectedToken) {
+  if (!constantTimeEqual(token, expectedToken)) {
     return { ok: false, error: "Invalid bearer token" };
   }
 
   return { ok: true };
+}
+
+/**
+ * Constant-time string equality. Length is intentionally checked before the
+ * timingSafeEqual call — comparing buffers of unequal length is impossible
+ * without leaking the length, and the length itself is not a secret.
+ */
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const aBuf = Buffer.from(a, "utf8");
+  const bBuf = Buffer.from(b, "utf8");
+  if (aBuf.length !== bBuf.length) return false;
+  return timingSafeEqual(aBuf, bBuf);
 }
 
 /**

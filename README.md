@@ -17,6 +17,8 @@ Built for Claude Code, Claude Desktop, and any MCP-compatible agent.
 
 ---
 
+🇺🇦 [Читати українською](./README.uk.md)
+
 ## Why Litopys?
 
 Memory systems for AI agents today force a tradeoff: either heavy vector databases with subprocess leaks and ~500 MB RAM footprint, or flat markdown files that don't scale past a few dozen notes.

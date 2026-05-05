@@ -44,7 +44,10 @@ export class OpenAIAdapter implements ExtractorAdapter {
     if (!apiKey) {
       throw new Error("OPENAI_API_KEY is not set");
     }
-    this.client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) }) as unknown as OpenAIClientLike;
+    this.client = new OpenAI({
+      apiKey,
+      ...(baseURL ? { baseURL } : {}),
+    }) as unknown as OpenAIClientLike;
   }
 
   async extract(input: ExtractorInput): Promise<ExtractorOutput> {

@@ -11,7 +11,7 @@ import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import { defaultGraphPath, loadGraph } from "@litopys/core";
 import { createAdapter, writeQuarantine } from "@litopys/extractor";
-import { searchRecentPages, getPageText, getPageTitle } from "./notion.ts";
+import { getPageText, getPageTitle, searchRecentPages } from "./notion.ts";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -80,9 +80,7 @@ async function run(): Promise<void> {
   const since = await readState(graphPath);
   const syncStart = new Date();
 
-  process.stderr.write(
-    `[notion-sync] Searching for pages edited after ${since.toISOString()}\n`,
-  );
+  process.stderr.write(`[notion-sync] Searching for pages edited after ${since.toISOString()}\n`);
 
   const rawPages = await searchRecentPages(token, since);
 

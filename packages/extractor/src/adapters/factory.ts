@@ -23,8 +23,13 @@ export function createAdapter(
     case "openai": {
       const openaiOpts = opts as OpenAIAdapterOptions | undefined;
       const baseURL = openaiOpts?.baseURL ?? process.env.LITOPYS_EXTRACTOR_BASE_URL;
-      const apiKey = openaiOpts?.apiKey ?? process.env.OPENAI_API_KEY ?? process.env.LITOPYS_EXTRACTOR_API_KEY;
-      return new OpenAIAdapter({ ...openaiOpts, ...(baseURL ? { baseURL } : {}), ...(apiKey ? { apiKey } : {}) });
+      const apiKey =
+        openaiOpts?.apiKey ?? process.env.OPENAI_API_KEY ?? process.env.LITOPYS_EXTRACTOR_API_KEY;
+      return new OpenAIAdapter({
+        ...openaiOpts,
+        ...(baseURL ? { baseURL } : {}),
+        ...(apiKey ? { apiKey } : {}),
+      });
     }
     case "ollama":
       return new OllamaAdapter(opts as OllamaAdapterOptions);

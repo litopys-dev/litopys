@@ -24,7 +24,11 @@ export default function Quarantine() {
   const [hiddenKeys, setHiddenKeys] = createSignal(new Set<string>());
 
   const hide = (key: string) =>
-    setHiddenKeys((s) => { const n = new Set(s); n.add(key); return n; });
+    setHiddenKeys((s) => {
+      const n = new Set(s);
+      n.add(key);
+      return n;
+    });
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -300,7 +304,10 @@ function MergeCard(props: {
     props.setError(null);
     try {
       await api.acceptQuarantine(props.file.filePath);
-      props.onAction(`Merged ${p.result.loserId} → ${p.result.winnerId}`, `file:${props.file.filePath}`);
+      props.onAction(
+        `Merged ${p.result.loserId} → ${p.result.winnerId}`,
+        `file:${props.file.filePath}`,
+      );
     } catch (e) {
       props.setError(String((e as Error).message ?? e));
     } finally {
@@ -313,7 +320,10 @@ function MergeCard(props: {
     props.setError(null);
     try {
       await api.rejectQuarantine(props.file.filePath);
-      props.onAction(`Rejected merge proposal: ${props.file.filePath}`, `file:${props.file.filePath}`);
+      props.onAction(
+        `Rejected merge proposal: ${props.file.filePath}`,
+        `file:${props.file.filePath}`,
+      );
     } catch (e) {
       props.setError(String((e as Error).message ?? e));
     } finally {

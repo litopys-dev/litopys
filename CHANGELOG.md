@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-05-05
+
+Adds a connector for OpenAI-compatible self-hosted model servers. Users who run vLLM, LM Studio, LocalAI, or any other OpenAI-compatible endpoint can now point Litopys at their own infrastructure instead of relying on Anthropic or a local Ollama instance. No code changes required — two env vars are enough. Also ships minor viewer improvements (bind-address override, optimistic quarantine UI).
+
 ### Added
 
 - **`VIEWER_BIND_ADDR` env var** (`packages/cli/src/viewer.ts`). `litopys viewer` now reads `VIEWER_BIND_ADDR` (default `127.0.0.1`) and passes it to `createServer`, making it possible to bind the dashboard to a LAN interface without recompiling. Previously the bind address was hardcoded deep in the server and the CLI had no way to override it.

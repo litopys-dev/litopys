@@ -89,6 +89,8 @@ Source adapters:
 Environment:
   LITOPYS_GRAPH_PATH             Path to the graph directory (default: ~/.litopys/graph)
   LITOPYS_EXTRACTOR_PROVIDER     LLM provider: anthropic | openai | ollama (default: anthropic)
+  LITOPYS_EXTRACTOR_BASE_URL     Base URL for OpenAI-compatible self-hosted endpoint (e.g. http://host:8080/v1)
+  LITOPYS_EXTRACTOR_API_KEY      API key for self-hosted endpoint (omit if not required)
   LITOPYS_DAEMON_STATE           Override daemon state file path
   LITOPYS_DAEMON_SOURCES         JSON array of {adapter,glob} source configs
 `);

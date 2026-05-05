@@ -23,6 +23,7 @@ export interface OpenAIClientLike {
 
 export interface OpenAIAdapterOptions {
   apiKey?: string;
+  baseURL?: string;
   model?: string;
   client?: OpenAIClientLike;
 }
@@ -38,11 +39,12 @@ export class OpenAIAdapter implements ExtractorAdapter {
       this.client = opts.client;
       return;
     }
-    const apiKey = opts.apiKey ?? process.env.OPENAI_API_KEY;
+    const baseURL = opts.baseURL ?? process.env.LITOPYS_EXTRACTOR_BASE_URL;
+    const apiKey = opts.apiKey ?? process.env.OPENAI_API_KEY ?? (baseURL ? "none" : undefined);
     if (!apiKey) {
       throw new Error("OPENAI_API_KEY is not set");
     }
-    this.client = new OpenAI({ apiKey }) as unknown as OpenAIClientLike;
+    this.client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) }) as unknown as OpenAIClientLike;
   }
 
   async extract(input: ExtractorInput): Promise<ExtractorOutput> {

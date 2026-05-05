@@ -21,13 +21,18 @@ export default function Quarantine() {
   const [files, { refetch }] = createResource<QuarantineFile[]>(() => api.quarantine());
   const [toast, setToast] = createSignal<string | null>(null);
   const [globalError, setGlobalError] = createSignal<string | null>(null);
+  const [hiddenKeys, setHiddenKeys] = createSignal(new Set<string>());
+
+  const hide = (key: string) =>
+    setHiddenKeys((s) => { const n = new Set(s); n.add(key); return n; });
 
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 4000);
   };
 
-  const onAction = (msg: string) => {
+  const onAction = (msg: string, hideKey: string) => {
+    hide(hideKey);
     showToast(msg);
     void refetch();
   };
@@ -68,13 +73,23 @@ export default function Quarantine() {
         >
           <ul class="space-y-4">
             <For each={files()}>
-              {(f) =>
-                f.kind === "merge" ? (
-                  <MergeCard file={f} onAction={onAction} setError={setGlobalError} />
-                ) : (
-                  <RegularCard file={f} onAction={onAction} setError={setGlobalError} />
-                )
-              }
+              {(f) => {
+                if (hiddenKeys().has(`file:${f.filePath}`)) return null;
+                if (f.kind === "merge") {
+                  return <MergeCard file={f} onAction={onAction} setError={setGlobalError} />;
+                }
+                const visibleCandidates = f.candidates.filter(
+                  (c) => !hiddenKeys().has(`${f.filePath}:${c.id}`),
+                );
+                if (visibleCandidates.length === 0) return null;
+                return (
+                  <RegularCard
+                    file={{ ...f, candidates: visibleCandidates }}
+                    onAction={onAction}
+                    setError={setGlobalError}
+                  />
+                );
+              }}
             </For>
           </ul>
         </Show>
@@ -95,7 +110,7 @@ export default function Quarantine() {
 
 function RegularCard(props: {
   file: QuarantineRegularFile;
-  onAction: (msg: string) => void;
+  onAction: (msg: string, hideKey: string) => void;
   setError: Setter<string | null>;
 }) {
   const f = props.file;
@@ -146,7 +161,7 @@ function CandidateRow(props: {
   candidate: QuarantineCandidate;
   index: number;
   filePath: string;
-  onAction: (msg: string) => void;
+  onAction: (msg: string, hideKey: string) => void;
   setError: Setter<string | null>;
 }) {
   const c = props.candidate;
@@ -158,7 +173,7 @@ function CandidateRow(props: {
     props.setError(null);
     try {
       await api.acceptQuarantine(props.filePath, props.index);
-      props.onAction(`Accepted candidate ${c.id}`);
+      props.onAction(`Accepted candidate ${c.id}`, `${props.filePath}:${c.id}`);
     } catch (e) {
       props.setError(String((e as Error).message ?? e));
     } finally {
@@ -173,7 +188,7 @@ function CandidateRow(props: {
     props.setError(null);
     try {
       await api.rejectQuarantine(props.filePath, props.index, reason || undefined);
-      props.onAction(`Rejected candidate ${c.id}`);
+      props.onAction(`Rejected candidate ${c.id}`, `${props.filePath}:${c.id}`);
     } catch (e) {
       props.setError(String((e as Error).message ?? e));
     } finally {
@@ -268,7 +283,7 @@ function RelationsList(props: { relations: QuarantineRelation[] }) {
 
 function MergeCard(props: {
   file: QuarantineMergeFile;
-  onAction: (msg: string) => void;
+  onAction: (msg: string, hideKey: string) => void;
   setError: Setter<string | null>;
 }) {
   const p = props.file.proposal;
@@ -285,7 +300,7 @@ function MergeCard(props: {
     props.setError(null);
     try {
       await api.acceptQuarantine(props.file.filePath);
-      props.onAction(`Merged ${p.result.loserId} → ${p.result.winnerId}`);
+      props.onAction(`Merged ${p.result.loserId} → ${p.result.winnerId}`, `file:${props.file.filePath}`);
     } catch (e) {
       props.setError(String((e as Error).message ?? e));
     } finally {
@@ -298,7 +313,7 @@ function MergeCard(props: {
     props.setError(null);
     try {
       await api.rejectQuarantine(props.file.filePath);
-      props.onAction(`Rejected merge proposal: ${props.file.filePath}`);
+      props.onAction(`Rejected merge proposal: ${props.file.filePath}`, `file:${props.file.filePath}`);
     } catch (e) {
       props.setError(String((e as Error).message ?? e));
     } finally {

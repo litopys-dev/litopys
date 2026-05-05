@@ -37,9 +37,10 @@ export async function cmdViewer(args: string[]): Promise<void> {
 
   const { createServer } = (await import(
     /* @vite-ignore */ path.join(pkgDir, "src/server.ts")
-  )) as { createServer: (port: number) => { port: number; stop: () => void } };
+  )) as { createServer: (config: { port: number; bindAddr?: string }) => { port: number; stop: () => void } };
 
-  const server = createServer(port);
+  const bindAddr = process.env.VIEWER_BIND_ADDR ?? "127.0.0.1";
+  const server = createServer({ port, bindAddr });
   const url = `http://localhost:${server.port}/`;
   process.stdout.write(`Viewer running at ${url}\n`);
 

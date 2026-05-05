@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`VIEWER_BIND_ADDR` env var** (`packages/cli/src/viewer.ts`). `litopys viewer` now reads `VIEWER_BIND_ADDR` (default `127.0.0.1`) and passes it to `createServer`, making it possible to bind the dashboard to a LAN interface without recompiling. Previously the bind address was hardcoded deep in the server and the CLI had no way to override it.
+
+- **Optimistic hide in Quarantine UI** (`packages/viewer/src/app/pages/Quarantine.tsx`). After accepting or rejecting a candidate or merge proposal, the corresponding card/row disappears immediately rather than waiting for the `refetch()` round-trip. Implemented via a local `hiddenKeys` signal that filters out acted-on items before the server response arrives. Eliminates the ~300ms flicker where a card stays visible after action.
+
+- **OpenAI-compatible self-hosted endpoint support** (`packages/extractor/src/adapters/openai.ts`). `OpenAIAdapter` now accepts a `baseURL` option (and reads `LITOPYS_EXTRACTOR_BASE_URL` from env) so any OpenAI-compatible server — vLLM, LM Studio, LocalAI, Ollama's `/v1` proxy, etc. — can be used as the extractor backend. When `baseURL` is set and no `apiKey` is provided, a placeholder `"none"` is used automatically (standard convention for servers that don't require auth). New env var `LITOPYS_EXTRACTOR_API_KEY` lets you pass a key without setting the OpenAI-specific `OPENAI_API_KEY`. Factory (`packages/extractor/src/adapters/factory.ts`) reads both new env vars when constructing the OpenAI adapter. CLI help updated to document all three extractor env vars. Example usage: `LITOPYS_EXTRACTOR_PROVIDER=openai LITOPYS_EXTRACTOR_BASE_URL=http://myserver:8080/v1 litopys ingest ...`
+
 ## [0.1.2] - 2026-04-25
 
 Security release. Three high-severity findings from the v0.1.1 audit. No public-API breakage; existing v0.1.1 installs should upgrade.

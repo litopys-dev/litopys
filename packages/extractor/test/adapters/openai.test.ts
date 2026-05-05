@@ -34,6 +34,23 @@ describe("OpenAIAdapter", () => {
     if (original !== undefined) process.env.OPENAI_API_KEY = original;
   });
 
+  test("does not throw when only baseURL is provided (uses 'none' as apiKey)", () => {
+    const original = process.env.OPENAI_API_KEY;
+    process.env.OPENAI_API_KEY = undefined;
+    expect(() => new OpenAIAdapter({ baseURL: "http://localhost:8080/v1" })).not.toThrow();
+    if (original !== undefined) process.env.OPENAI_API_KEY = original;
+  });
+
+  test("reads baseURL from LITOPYS_EXTRACTOR_BASE_URL env", () => {
+    const originalKey = process.env.OPENAI_API_KEY;
+    const originalBase = process.env.LITOPYS_EXTRACTOR_BASE_URL;
+    process.env.OPENAI_API_KEY = undefined;
+    process.env.LITOPYS_EXTRACTOR_BASE_URL = "http://myserver:8080/v1";
+    expect(() => new OpenAIAdapter()).not.toThrow();
+    process.env.LITOPYS_EXTRACTOR_BASE_URL = originalBase;
+    if (originalKey !== undefined) process.env.OPENAI_API_KEY = originalKey;
+  });
+
   test("uses provided apiKey option", () => {
     expect(() => new OpenAIAdapter({ apiKey: "sk-openai-test" })).not.toThrow();
   });

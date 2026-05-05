@@ -1,0 +1,17 @@
+{
+  "name": "@litopys/notion-sync",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "author": "Denis Blashchytsia",
+  "license": "MIT",
+  "main": "./src/index.ts",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "dependencies": {
+    "@litopys/core": "workspace:*",
+    "@litopys/extractor": "workspace:*"
+  }
+}

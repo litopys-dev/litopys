@@ -12,7 +12,7 @@
     },
     "packages/cli": {
       "name": "@litopys/cli",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@litopys/core": "workspace:*",
         "@litopys/daemon": "workspace:*",
@@ -22,7 +22,7 @@
     },
     "packages/core": {
       "name": "@litopys/core",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "gray-matter": "^4.0.3",
         "zod": "^3.23.0",
@@ -30,7 +30,7 @@
     },
     "packages/daemon": {
       "name": "@litopys/daemon",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@litopys/core": "workspace:*",
         "@litopys/extractor": "workspace:*",
@@ -38,7 +38,7 @@
     },
     "packages/extractor": {
       "name": "@litopys/extractor",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.90.0",
         "@litopys/core": "workspace:*",
@@ -48,16 +48,24 @@
     },
     "packages/mcp": {
       "name": "@litopys/mcp",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@litopys/core": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "zod": "^4.3.6",
       },
     },
+    "packages/notion-sync": {
+      "name": "@litopys/notion-sync",
+      "version": "0.1.0",
+      "dependencies": {
+        "@litopys/core": "workspace:*",
+        "@litopys/extractor": "workspace:*",
+      },
+    },
     "packages/viewer": {
       "name": "@litopys/viewer",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@litopys/core": "workspace:*",
         "@litopys/extractor": "workspace:*",
@@ -179,6 +187,8 @@
     "@litopys/extractor": ["@litopys/extractor@workspace:packages/extractor"],
 
     "@litopys/mcp": ["@litopys/mcp@workspace:packages/mcp"],
+
+    "@litopys/notion-sync": ["@litopys/notion-sync@workspace:packages/notion-sync"],
 
     "@litopys/viewer": ["@litopys/viewer@workspace:packages/viewer"],
 

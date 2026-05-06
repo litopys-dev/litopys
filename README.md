@@ -136,31 +136,37 @@ systemctl --user enable --now litopys-daemon.timer
 ### Optional — web dashboard autostart
 
 The dashboard (`litopys viewer`) can run as a systemd user service so it comes
-back after every reboot. Listens on `127.0.0.1:3999` by default — no public
-exposure, reach it over LAN / WireGuard.
+back after every reboot.
 
 ```bash
-litopys viewer install          # writes unit, daemon-reload, enable --now
+litopys viewer install        # generates token, writes unit, enables service
+litopys viewer install --lan  # same + binds to 0.0.0.0 for LAN access
 systemctl --user status litopys-viewer
 
 # Remove:
 litopys viewer uninstall
 ```
 
-**Auth (writes only).** GET endpoints (browse, search, graph view) are open.
-Mutating endpoints (create / edit / delete a node, accept-or-reject quarantine)
-require `LITOPYS_VIEWER_TOKEN`:
+**Access token.** `viewer install` generates a random token automatically and
+saves it to `~/.litopys/viewer.token`. The install output prints a ready-to-use
+URL with the token embedded:
 
-```bash
-# Generate any random string and put it in the env:
-export LITOPYS_VIEWER_TOKEN="$(openssl rand -hex 32)"
-litopys viewer
+```
+✓ litopys-viewer installed
+
+  Open dashboard:    http://localhost:3999/?token=<token>
+  Share with others: http://192.168.1.x:3999/?token=<token>   # --lan only
+
+  Opening the link once saves the token — no re-entry needed.
+  Retrieve token later: cat ~/.litopys/viewer.token
 ```
 
-Without the token the dashboard runs read-only on loopback and refuses
-mutating requests entirely on non-loopback binds. The web UI prompts for the
-token on the first 401 and remembers it in `localStorage`. You can also pass
-it once via `?token=...` and it gets stripped from the URL after capture.
+Opening the URL once saves the token in `localStorage` — no further prompts.
+To share write access with someone, send them the URL that includes `?token=…`.
+To retrieve the token at any time: `cat ~/.litopys/viewer.token`.
+
+GET endpoints (browse, search, graph view) are always open. Mutating endpoints
+(create / edit / delete nodes, accept-or-reject quarantine) require the token.
 
 Or set `LITOPYS_ENABLE_VIEWER=1` when running `install.sh` to enable it as
 part of the one-line install. Requires `loginctl enable-linger $USER` if you

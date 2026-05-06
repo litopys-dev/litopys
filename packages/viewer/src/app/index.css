@@ -107,6 +107,13 @@ body {
   color: #2dd4bf;
 }
 
+/* Graph page — dark dot-grid atmosphere */
+.graph-bg {
+  background-color: #080a0d;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
 /* Skeleton animation */
 @keyframes shimmer {
   0% {

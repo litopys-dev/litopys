@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { promises as fs } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -88,11 +89,15 @@ function tryOpenBrowser(url: string): void {
 
 async function installService(args: string[]): Promise<void> {
   let port: number | undefined;
+  let lanAccess = false;
+
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--port" && args[i + 1]) {
       port = Number(args[i + 1]);
       i++;
+    } else if (arg === "--lan") {
+      lanAccess = true;
     } else {
       process.stderr.write(`Unknown install flag: ${arg}\n`);
       process.exit(1);
@@ -104,16 +109,37 @@ async function installService(args: string[]): Promise<void> {
     process.exit(1);
   }
 
+  // ── Token: reuse existing or generate new ────────────────────────────────
+  const tokenPath = path.join(os.homedir(), ".litopys", "viewer.token");
+  let token: string;
+  let tokenIsNew = false;
+  try {
+    token = (await fs.readFile(tokenPath, "utf-8")).trim();
+  } catch {
+    token = randomBytes(32).toString("hex");
+    await fs.mkdir(path.dirname(tokenPath), { recursive: true });
+    await fs.writeFile(tokenPath, token, { mode: 0o600, encoding: "utf-8" });
+    tokenIsNew = true;
+  }
+
+  // ── Write systemd unit ────────────────────────────────────────────────────
   const unitDir = path.join(os.homedir(), ".config", "systemd", "user");
   await fs.mkdir(unitDir, { recursive: true });
   const unitPath = path.join(unitDir, SERVICE_NAME);
 
   const exec = buildExecStart();
-  const envLines = port ? `Environment=VIEWER_PORT=${port}\n` : "";
   const wd = exec.workingDirectory ? `WorkingDirectory=${exec.workingDirectory}\n` : "";
+  const envLines = [
+    `Environment=LITOPYS_VIEWER_TOKEN=${token}`,
+    lanAccess ? "Environment=VIEWER_BIND_ADDR=0.0.0.0" : "",
+    port ? `Environment=VIEWER_PORT=${port}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n")
+    .concat("\n");
 
   const unit = `[Unit]
-Description=Litopys web dashboard (read-only graph viewer)
+Description=Litopys web dashboard
 Documentation=https://github.com/litopys-dev/litopys
 After=network.target
 
@@ -131,15 +157,50 @@ WantedBy=default.target
 `;
 
   await fs.writeFile(unitPath, unit, "utf8");
-  process.stdout.write(`Wrote ${unitPath}\n`);
 
   await runSystemctl(["--user", "daemon-reload"]);
   await runSystemctl(["--user", "enable", "--now", SERVICE_NAME]);
 
+  // ── Print install summary ─────────────────────────────────────────────────
   const p = port ?? 3999;
-  process.stdout.write(`\nlitopys-viewer enabled. Dashboard: http://localhost:${p}/\n`);
-  process.stdout.write("Status:   systemctl --user status litopys-viewer\n");
-  process.stdout.write("Logs:     journalctl --user -u litopys-viewer -f\n");
+  const localUrl = `http://localhost:${p}/?token=${token}`;
+
+  process.stdout.write("\n✓ litopys-viewer installed\n\n");
+
+  if (tokenIsNew) {
+    process.stdout.write(`  Access token generated and saved to:\n`);
+    process.stdout.write(`  ${tokenPath}\n\n`);
+  } else {
+    process.stdout.write(`  Reusing existing token from ${tokenPath}\n\n`);
+  }
+
+  process.stdout.write(`  Open dashboard:   ${localUrl}\n`);
+
+  if (lanAccess) {
+    const lanIp = getLanIp();
+    if (lanIp) {
+      process.stdout.write(`  Share with others: http://${lanIp}:${p}/?token=${token}\n`);
+    }
+  } else {
+    process.stdout.write(`\n  For LAN access re-run with --lan:\n`);
+    process.stdout.write(`  litopys viewer install --lan\n`);
+  }
+
+  process.stdout.write(`\n  Opening the link once saves the token automatically — no re-entry needed.\n`);
+  process.stdout.write(`  Retrieve token later: cat ${tokenPath}\n\n`);
+  process.stdout.write(`  Status: systemctl --user status litopys-viewer\n`);
+  process.stdout.write(`  Logs:   journalctl --user -u litopys-viewer -f\n`);
+}
+
+function getLanIp(): string | null {
+  const interfaces = os.networkInterfaces();
+  for (const iface of Object.values(interfaces)) {
+    if (!iface) continue;
+    for (const addr of iface) {
+      if (addr.family === "IPv4" && !addr.internal) return addr.address;
+    }
+  }
+  return null;
 }
 
 async function uninstallService(): Promise<void> {

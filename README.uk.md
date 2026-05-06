@@ -135,25 +135,32 @@ systemctl --user enable --now litopys-daemon.timer
 
 ### Опційно — автозапуск вебпанелі
 
-Вебпанель (`litopys viewer`) можна запустити як systemd user service, щоб вона відновлювалася після кожного перезавантаження. Слухає на `127.0.0.1:3999` за замовчуванням — без публічного доступу, доступна через LAN / WireGuard.
+Вебпанель (`litopys viewer`) можна запустити як systemd user service, щоб вона відновлювалася після кожного перезавантаження.
 
 ```bash
-litopys viewer install          # записує юніт, daemon-reload, enable --now
+litopys viewer install        # генерує токен, записує юніт, вмикає сервіс
+litopys viewer install --lan  # те саме + прив'язка до 0.0.0.0 для доступу з LAN
 systemctl --user status litopys-viewer
 
 # Видалити:
 litopys viewer uninstall
 ```
 
-**Автентифікація (тільки для записів).** GET-ендпоінти (перегляд, пошук, відображення графу) відкриті. Мутуючі ендпоінти (створення / редагування / видалення вузла, прийняття або відхилення quarantine) потребують `LITOPYS_VIEWER_TOKEN`:
+**Токен доступу.** `viewer install` автоматично генерує випадковий токен і зберігає його у `~/.litopys/viewer.token`. Після встановлення виводиться готова посилання з вбудованим токеном:
 
-```bash
-# Згенеруйте довільний рядок і додайте його до середовища:
-export LITOPYS_VIEWER_TOKEN="$(openssl rand -hex 32)"
-litopys viewer
+```
+✓ litopys-viewer installed
+
+  Open dashboard:    http://localhost:3999/?token=<token>
+  Share with others: http://192.168.1.x:3999/?token=<token>   # тільки з --lan
+
+  Opening the link once saves the token — no re-entry needed.
+  Retrieve token later: cat ~/.litopys/viewer.token
 ```
 
-Без токена панель працює в режимі лише для читання на loopback і повністю відмовляє в мутуючих запитах при прив'язці до не-loopback-адрес. Вебінтерфейс запитує токен при першій відповіді 401 і зберігає його в `localStorage`. Також можна передати його один раз через `?token=...` — він буде видалений із URL після захоплення.
+Відкривши посилання один раз, токен зберігається в `localStorage` — більше запитів не буде. Щоб надати доступ іншій людині — надішліть їй посилання з `?token=…`. Переглянути токен у будь-який момент: `cat ~/.litopys/viewer.token`.
+
+GET-ендпоінти (перегляд, пошук, граф) завжди відкриті. Мутуючі ендпоінти (створення / редагування / видалення вузлів, прийняття чи відхилення quarantine) потребують токена.
 
 Або встановіть `LITOPYS_ENABLE_VIEWER=1` при запуску `install.sh`, щоб увімкнути її в межах однорядкового встановлення. Потрібен `loginctl enable-linger $USER`, якщо хочете, щоб панель залишалась активною після виходу з системи.
 

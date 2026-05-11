@@ -168,7 +168,7 @@ WantedBy=default.target
   process.stdout.write("\n✓ litopys-viewer installed\n\n");
 
   if (tokenIsNew) {
-    process.stdout.write(`  Access token generated and saved to:\n`);
+    process.stdout.write("  Access token generated and saved to:\n");
     process.stdout.write(`  ${tokenPath}\n\n`);
   } else {
     process.stdout.write(`  Reusing existing token from ${tokenPath}\n\n`);
@@ -182,14 +182,16 @@ WantedBy=default.target
       process.stdout.write(`  Share with others: http://${lanIp}:${p}/?token=${token}\n`);
     }
   } else {
-    process.stdout.write(`\n  For LAN access re-run with --lan:\n`);
-    process.stdout.write(`  litopys viewer install --lan\n`);
+    process.stdout.write("\n  For LAN access re-run with --lan:\n");
+    process.stdout.write("  litopys viewer install --lan\n");
   }
 
-  process.stdout.write(`\n  Opening the link once saves the token automatically — no re-entry needed.\n`);
+  process.stdout.write(
+    "\n  Opening the link once saves the token automatically — no re-entry needed.\n",
+  );
   process.stdout.write(`  Retrieve token later: cat ${tokenPath}\n\n`);
-  process.stdout.write(`  Status: systemctl --user status litopys-viewer\n`);
-  process.stdout.write(`  Logs:   journalctl --user -u litopys-viewer -f\n`);
+  process.stdout.write("  Status: systemctl --user status litopys-viewer\n");
+  process.stdout.write("  Logs:   journalctl --user -u litopys-viewer -f\n");
 }
 
 function getLanIp(): string | null {

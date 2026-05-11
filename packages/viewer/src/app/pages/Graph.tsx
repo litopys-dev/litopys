@@ -64,16 +64,18 @@ export default function Graph() {
     const hubCount = Math.max(HUB_MIN, Math.ceil(sorted.length * HUB_RATIO));
     const hubIds = new Set(sorted.slice(0, hubCount).map((n) => n.id()));
 
-    nodes.forEach((n) => n.addClass(hubIds.has(n.id()) ? "a-hub" : "a-dim"));
+    for (const n of nodes.toArray()) {
+      n.addClass(hubIds.has(n.id()) ? "a-hub" : "a-dim");
+    }
 
     const edges = cy.edges().filter((e) => e.style("display") !== "none");
 
     // Hub-to-hub edges are always fully visible
-    edges.forEach((e) => {
+    for (const e of edges.toArray() as cytoscape.EdgeSingular[]) {
       if (hubIds.has(e.source().id()) && hubIds.has(e.target().id())) {
         e.addClass("a-hub-edge");
       }
-    });
+    }
 
     // Per-hub: top HUB_VISIBLE_EDGES edges to non-hub nodes
     for (const hubId of hubIds) {
@@ -102,15 +104,15 @@ export default function Graph() {
   function applyTypeVisibility() {
     if (!cy) return;
     const hidden = hiddenTypes();
-    cy.nodes().forEach((n) => {
+    for (const n of cy.nodes().toArray()) {
       n.style("display", hidden.has(n.data("type") as NodeType) ? "none" : "element");
-    });
-    cy.edges().forEach((e) => {
+    }
+    for (const e of cy.edges().toArray()) {
       const hide =
         hidden.has(e.source().data("type") as NodeType) ||
         hidden.has(e.target().data("type") as NodeType);
       e.style("display", hide ? "none" : "element");
-    });
+    }
     applyAmbientState();
   }
 
@@ -185,7 +187,7 @@ export default function Graph() {
               "shadow-offset-x": 0,
               "shadow-offset-y": 0,
               "transition-property": "opacity shadow-opacity shadow-blur",
-              "transition-duration": 200 as unknown as string,
+              "transition-duration": 200,
             },
           },
           // ── Ambient: hub nodes always glow ──────────────────────────────────
@@ -217,7 +219,7 @@ export default function Graph() {
               "text-background-padding": "2px",
               opacity: 0.7,
               "transition-property": "opacity width line-color",
-              "transition-duration": 200 as unknown as string,
+              "transition-duration": 200,
             },
           },
           // ── Ambient: edge tiers ──────────────────────────────────────────────

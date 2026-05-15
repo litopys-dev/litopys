@@ -42,6 +42,18 @@ The `litopys://startup-context` resource is auto-served, but some workflows pref
 
 The hook prints a markdown snapshot that Claude Code prepends to the conversation.
 
+## Agent skill (recommended)
+
+The MCP connection alone gives Claude the five tools and five baseline rules. For **full graph discipline** — mandatory traversal after search, `supersedes` chain awareness, write decision tree, temporal tombstone checks — install the bundled `litopys-memory` skill:
+
+```bash
+cp -r skills/litopys-memory ~/.claude/skills/
+```
+
+Then edit `~/.claude/skills/litopys-memory/SKILL.md`: replace the placeholder trigger description with the **exact project and system names** from your graph. Run `litopys startup-context` to see them.
+
+**Why this matters:** without the skill Claude Code uses the graph as a flat search index — it calls `litopys_search` but rarely follows up with `litopys_related`, so it misses 80% of the context stored in edges. The skill enforces the full search → traverse → decide pipeline.
+
 ## Troubleshooting
 
 - **"Could not spawn litopys"** — the binary is not on PATH for the Claude Code process. Use the absolute path (`/home/you/.local/bin/litopys`) in the `mcp add` command.

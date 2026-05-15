@@ -202,6 +202,18 @@ litopys ingest ~/.claude/projects/.../*.jsonl
 
 When `LITOPYS_EXTRACTOR_BASE_URL` is set and no API key is provided, authentication is skipped automatically — no dummy key needed. Use `LITOPYS_EXTRACTOR_API_KEY` to pass a key without overwriting the global `OPENAI_API_KEY`.
 
+### Agent skill — richer graph behavior (Claude Code)
+
+The MCP connection gives Claude the 5 tools and 5 baseline rules. For **full graph discipline** — mandatory traversal after every search, `supersedes` chain awareness, write decision tree, temporal tombstoning — install the bundled skill:
+
+```bash
+cp -r skills/litopys-memory ~/.claude/skills/
+```
+
+Then open `~/.claude/skills/litopys-memory/SKILL.md` and replace the placeholder trigger description with **the actual project and system names from your graph** — run `litopys startup-context` to see them.
+
+Without the skill, Claude Code uses Litopys correctly but shallowly: it searches but rarely traverses edges, and may miss `supersedes` patterns that mark stale nodes.
+
 ### Integrity check
 
 ```bash

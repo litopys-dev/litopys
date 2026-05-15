@@ -87,6 +87,10 @@ const faqItems = [
     a: "No. The MCP server works read/write-only: your agent searches, creates, and links nodes on its own. The extractor is a separate daemon that harvests facts from transcripts on a schedule. Skip it and the resident cost stays at ~75 MB.",
   },
   {
+    q: "Can Litopys pull notes from Notion?",
+    a: "Yes — <code>@litopys/notion-sync</code> reads recently edited Notion pages via the Notion REST API, extracts knowledge candidates with your configured LLM, and queues them in quarantine for review. Set <code>NOTION_TOKEN</code> and run <code>litopys notion-sync</code>, or install the bundled systemd timer for hands-free 6-hour syncs.",
+  },
+  {
     q: "What happens if the LLM writes a bad fact?",
     a: "Extractor writes go to a <em>quarantine</em> — a pending-review pile, not the live graph. You accept or reject each candidate from the CLI (<code>litopys quarantine accept</code>) or the dashboard. Nothing lands unreviewed.",
   },
@@ -107,7 +111,7 @@ const faqItems = [
       <a href="#top" class="flex items-center gap-2 font-heading font-semibold">
         <span class="text-xl">📜</span>
         <span>Litopys</span>
-        <span class="text-xs text-text-tertiary font-mono">v0.1.1</span>
+        <span class="text-xs text-text-tertiary font-mono">v0.1.4</span>
       </a>
       <nav class="hidden md:flex items-center gap-6 text-sm text-text-secondary">
         <a href="#how" class="hover:text-text-primary transition">How it works</a>
@@ -127,8 +131,8 @@ const faqItems = [
     <section class="max-w-5xl mx-auto px-6 pt-16 pb-20 text-center">
       <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-elevated border border-border text-xs text-text-secondary mb-6">
         <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
-        <span class="font-mono">v0.1.1</span>
-        <span>· first stable</span>
+        <span class="font-mono">v0.1.4</span>
+        <span>· graph viz overhaul + Notion sync</span>
       </div>
 
       <h1 class="font-heading text-4xl md:text-6xl font-semibold tracking-tight leading-[1.1] mb-6">
@@ -372,7 +376,7 @@ const faqItems = [
       </div>
       <div class="max-w-6xl mx-auto px-6 pb-8 text-xs text-text-tertiary flex flex-wrap items-center justify-between gap-3">
         <span>MIT © 2026 Denis Blashchytsia and Litopys contributors</span>
-        <span class="font-mono">v0.1.1 · first stable</span>
+        <span class="font-mono">v0.1.4 · graph viz overhaul + Notion sync</span>
       </div>
     </footer>
   </main>

@@ -1,6 +1,6 @@
 {
   "name": "@litopys/cli",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "type": "module",
   "private": true,
   "main": "./src/index.ts",

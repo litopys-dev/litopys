@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-05-15
+
+Viewer overhaul: token-based auth is now auto-generated on `litopys viewer install` (no more manual env var), the graph page gets a full visual redesign with typed node shapes, hub glow, and chain-highlight on hover, and a `--lan` flag makes LAN sharing one flag away. CI action versions bumped to Node 24 runners.
+
+### Added
+
+- **Auto-generated viewer token on `litopys viewer install`** (`packages/cli/src/viewer.ts`). `viewer install` now generates a cryptographically random token on first run, writes it to `~/.litopys/viewer.token` (mode `0600`), and bakes it directly into the systemd unit's `Environment=` block — no separate env var setup required. Prints a ready-to-use `?token=` URL so the user can open the dashboard immediately. Re-running `viewer install` reuses the existing token rather than rotating it. Previously users had to set `LITOPYS_VIEWER_TOKEN` by hand before the auth introduced in v0.1.2 was usable.
+
+- **`--lan` flag for `litopys viewer install`** (`packages/cli/src/viewer.ts`). Passing `--lan` binds the viewer to `0.0.0.0` instead of `127.0.0.1` and prints a LAN share URL alongside the localhost URL, making it straightforward to expose the dashboard to other machines on the local network.
+
+- **Graph page visual overhaul** (`packages/viewer/src/app/pages/Graph.tsx`). Hub nodes (top 15 % by degree) always glow with a type-colored shadow. Hover activates a chain highlight: 1-hop neighbors render at full opacity, 2-hop at 45 %, all other nodes fade out. Node shapes now vary by type — hexagon, diamond, round-rectangle, ellipse — and size scales with degree. A type-filter bar and a hover tooltip were added. The canvas background uses a dot-grid CSS pattern.
+
+### Fixed
+
+- **Biome lint errors and Cytoscape type fixes in viewer** (`packages/viewer/`). Replaced useless template literals flagged by Biome, converted `Collection.forEach` calls to `for...of` via `.toArray()`, removed an invalid type cast, and added `cytoscape-augment.d.ts` to declare the shadow-* style properties used by the graph page. Unblocked the CI lint step that had been failing since the graph overhaul landed.
+
+### Changed
+
+- **CI action versions bumped to Node 24 runners** (`.github/workflows/`). `actions/checkout` v4 → v6, `upload-artifact` v4 → v7, `download-artifact` v4 → v8, `upload-pages-artifact` v3 → v5, `deploy-pages` v4 → v5.
+
+- **Package version drift corrected.** `package.json` versions were mistakenly not bumped during the v0.1.3 release; all packages were still at `0.1.2`. This release corrects the drift — all packages jump from `0.1.2` to `0.1.4`.
+
 ## [0.1.3] - 2026-05-05
 
 Adds a connector for OpenAI-compatible self-hosted model servers. Users who run vLLM, LM Studio, LocalAI, or any other OpenAI-compatible endpoint can now point Litopys at their own infrastructure instead of relying on Anthropic or a local Ollama instance. No code changes required — two env vars are enough. Also ships minor viewer improvements (bind-address override, optimistic quarantine UI).
@@ -103,3 +125,11 @@ First tagged release. Covers monorepo scaffolding (Part 1), core graph model (Pa
 
 ### Changed
 - Default daemon glob now matches the real Claude Code layout (`~/.claude/projects/*/*.jsonl`) instead of the non-existent `sessions/` subdirectory.
+
+[Unreleased]: https://github.com/litopys-dev/litopys/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/litopys-dev/litopys/compare/v0.1.3...v0.1.4
+[0.1.3]: https://github.com/litopys-dev/litopys/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/litopys-dev/litopys/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/litopys-dev/litopys/compare/v0.1.1-alpha...v0.1.1
+[0.1.1-alpha]: https://github.com/litopys-dev/litopys/compare/v0.1.0-alpha...v0.1.1-alpha
+[0.1.0-alpha]: https://github.com/litopys-dev/litopys/releases/tag/v0.1.0-alpha

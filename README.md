@@ -49,7 +49,7 @@ Screenshots taken against a synthetic demo graph bundled in `docs/screenshots/` 
 
 ## Status
 
-**[v0.1.2](https://github.com/litopys-dev/litopys/releases/tag/v0.1.2) is out** — prebuilt binaries for Linux / macOS / Windows (x64 + arm64), with SHA-256 checksums verified by `install.sh`. Security release on top of the v0.1.1 stable line — see the [CHANGELOG](./CHANGELOG.md). Public surfaces (MCP tools, CLI, JSON export `schemaVersion: 1`, on-disk markdown layout) are frozen; breaking changes will ship as `0.2.x`.
+**[v0.1.4](https://github.com/litopys-dev/litopys/releases/tag/v0.1.4) is out** — graph visual overhaul, viewer auto-token generation, Notion sync integration, and OpenAI-compatible extractor endpoints — see the [CHANGELOG](./CHANGELOG.md). Prebuilt binaries for Linux / macOS / Windows (x64 + arm64), with SHA-256 checksums verified by `install.sh`. Public surfaces (MCP tools, CLI, JSON export `schemaVersion: 1`, on-disk markdown layout) are frozen; breaking changes will ship as `0.2.x`.
 
 Core graph, MCP server (5 tools, stdio + HTTP/SSE), extractor + quarantine + weekly digest, timer-daemon, dashboard (read + write + graph viz + quarantine review), identity-resolution guardrails, single-binary build, one-line installer, per-client integration docs — all shipped. See [What's next](#whats-next) for the planned follow-ups.
 
@@ -80,7 +80,7 @@ This downloads a single ~100 MB binary to `~/.local/bin/litopys`, initializes `~
 Pin a specific version by placing the assignment **after the pipe** — env vars set before `curl` only scope to `curl` itself, not the piped shell:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/litopys-dev/litopys/main/install.sh | LITOPYS_VERSION=v0.1.2 sh
+curl -fsSL https://raw.githubusercontent.com/litopys-dev/litopys/main/install.sh | LITOPYS_VERSION=v0.1.4 sh
 ```
 
 Then register the MCP server with your client:
@@ -172,6 +172,36 @@ Or set `LITOPYS_ENABLE_VIEWER=1` when running `install.sh` to enable it as
 part of the one-line install. Requires `loginctl enable-linger $USER` if you
 want the dashboard to stay up across logouts.
 
+### Optional — Notion sync
+
+`@litopys/notion-sync` reads your recently edited Notion pages via the Notion REST API, passes them through the configured LLM extractor to identify knowledge candidates, and writes the results to quarantine for review. A state file `~/.litopys/notion-sync.json` tracks the last-sync timestamp so incremental runs only fetch pages modified since the previous sync.
+
+```bash
+# Set your Notion integration token
+echo 'NOTION_TOKEN=secret_...' >> ~/.litopys/.env
+
+# Run once to test
+NOTION_TOKEN=secret_... litopys notion-sync
+
+# Or install as a systemd timer (runs every 6 hours)
+cp packages/notion-sync/systemd/litopys-notion-sync.{service,timer} ~/.config/systemd/user/
+systemctl --user enable --now litopys-notion-sync.timer
+```
+
+Create the integration token at [notion.so/my-integrations](https://www.notion.so/my-integrations) and share the pages or databases you want synced with the integration.
+
+### Extractor — self-hosted OpenAI-compatible endpoints
+
+The extractor now supports any OpenAI-compatible server — vLLM, LM Studio, LocalAI, Ollama's `/v1` proxy — via two environment variables:
+
+```bash
+LITOPYS_EXTRACTOR_PROVIDER=openai \
+LITOPYS_EXTRACTOR_BASE_URL=http://myserver:8080/v1 \
+litopys ingest ~/.claude/projects/.../*.jsonl
+```
+
+When `LITOPYS_EXTRACTOR_BASE_URL` is set and no API key is provided, authentication is skipped automatically — no dummy key needed. Use `LITOPYS_EXTRACTOR_API_KEY` to pass a key without overwriting the global `OPENAI_API_KEY`.
+
 ### Integrity check
 
 ```bash
@@ -236,7 +266,7 @@ See [CHANGELOG.md](./CHANGELOG.md). Future work is driven by real-user feedback 
 
 ## Design principles
 
-- **Agent-agnostic.** No hard dependency on any LLM vendor or client. MCP is the only integration point. Ollama is the default extractor; Anthropic/OpenAI are optional adapters.
+- **Agent-agnostic.** No hard dependency on any LLM vendor or client. MCP is the only integration point. Ollama is the default extractor; Anthropic/OpenAI are optional adapters. The extractor also supports any self-hosted OpenAI-compatible server (vLLM, LM Studio, LocalAI, Ollama `/v1` proxy) via `LITOPYS_EXTRACTOR_BASE_URL`.
 - **Portable data.** The graph is plain markdown + YAML frontmatter on disk. Readable in any editor, versionable in git, greppable from the shell.
 - **Light runtime.** ~75 MB RAM for the MCP server. The extractor is out-of-process and runs on your schedule, not on every request — see [Resource footprint](#resource-footprint) for the full cost breakdown across adapters.
 - **Opt-in integrations.** Client-specific helpers (hooks, config snippets) live in `docs/integrations/` — you can use Litopys without any of them.

@@ -25,10 +25,12 @@ export function createAdapter(
       const baseURL = openaiOpts?.baseURL ?? process.env.LITOPYS_EXTRACTOR_BASE_URL;
       const apiKey =
         openaiOpts?.apiKey ?? process.env.OPENAI_API_KEY ?? process.env.LITOPYS_EXTRACTOR_API_KEY;
+      const model = openaiOpts?.model ?? process.env.LITOPYS_EXTRACTOR_MODEL;
       return new OpenAIAdapter({
         ...openaiOpts,
         ...(baseURL ? { baseURL } : {}),
         ...(apiKey ? { apiKey } : {}),
+        ...(model ? { model } : {}),
       });
     }
     case "ollama":

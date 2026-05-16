@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-05-16
+
+Adds a bi-temporal model to the graph: every node can now record **when the fact was true in the world** (`occurred_at`, `since`, `until`) independently of **when the node was last written** (`updated`). This unlocks "as-of" queries — e.g. "what did we know about the server in March?" — and lets `supersedes` automatically close the validity interval of the older node. Fully additive — `schemaVersion` is not bumped, existing nodes load unchanged, calls without `as_of` behave exactly as before.
+
+### Added
+
+- **`occurred_at`, tightened `since` / `until`** on every node (`packages/core/src/schema/base.ts`). All three are optional ISO calendar dates (`YYYY-MM-DD`) with explicit regex validation. `occurred_at` records the event time of the underlying fact; `since` / `until` define a half-open validity interval `[since, until)`. Schema migration is unnecessary — old nodes lacking these fields keep working.
+
+- **Temporal helpers exposed from `@litopys/core`** (`packages/core/src/graph/temporal.ts`). `resolveOccurredAt(node)` walks the fallback chain `occurred_at → since → id-prefix (events only) → updated`. `isValidAsOf(node, isoDate)` implements the half-open interval check. `eventDateFromId(id)` parses the `YYYY-MM-DD` prefix of event ids. `isIsoDate(s)` is the shared guard.
+
+- **`as_of` parameter on `litopys_search` and `litopys_related`** (`packages/mcp/src/tools.ts`). When supplied, the tool filters out nodes (and traversed neighbours) whose validity interval does not contain the given date. Calls without `as_of` are unchanged.
+
+- **`litopys_create` accepts `occurred_at`, `since`, `until`** (`packages/mcp/src/tools.ts`). The fields are persisted to the node's frontmatter on creation.
+
+- **`litopys_link` auto-closes `supersedes` chains** (`packages/mcp/src/tools.ts`). When linking `A → supersedes → B` and `B.until` is unset, the tool sets `B.until = A.since ?? A.updated` so the two nodes don't overlap in time. Returns `auto_closed: { node, until }` on success and a `warnings` array if `B` was already tombstoned.
+
+- **`litopys check --fix-temporal [--dry-run]`** (`packages/cli/src/check.ts`). Idempotent backfill of `occurred_at`: event nodes whose id starts with `YYYY-MM-DD` pick up the prefix, everything else falls back to `updated`. Nodes that already have `occurred_at` are skipped. `--dry-run` reports what would change without writing.
+
+- **`docs/temporal-model.md`** — full specification of the model, fallback chain, `as_of` semantics, and `supersedes` auto-close behaviour.
+
+### Tests
+
+- 31 new tests across `packages/core/test/temporal.test.ts`, `packages/mcp/test/temporal.test.ts`, `packages/cli/test/check-temporal.test.ts`. Total suite: **512 / 512 pass** (was 481).
+
 ## [0.1.4] - 2026-05-15
 
 Viewer overhaul: token-based auth is now auto-generated on `litopys viewer install` (no more manual env var), the graph page gets a full visual redesign with typed node shapes, hub glow, and chain-highlight on hover, and a `--lan` flag makes LAN sharing one flag away. CI action versions bumped to Node 24 runners.

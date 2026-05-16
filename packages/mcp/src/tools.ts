@@ -6,11 +6,15 @@ import {
   type RelationName,
   RelationName as RelationNameEnum,
   defaultGraphPath,
+  isValidAsOf,
   loadGraph,
   resolveGraph,
   writeNode,
 } from "@litopys/core";
 import { z } from "zod";
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const isoDate = z.string().regex(ISO_DATE_RE, "must be ISO date YYYY-MM-DD");
 
 // ---------------------------------------------------------------------------
 // Graph path
@@ -31,6 +35,11 @@ export const SearchInputSchema = z.object({
     .optional()
     .describe("Filter results to specific node types"),
   limit: z.number().int().min(1).max(100).default(20).describe("Max results to return"),
+  as_of: isoDate
+    .optional()
+    .describe(
+      "ISO date (YYYY-MM-DD). When set, only nodes valid at that event-time are returned (since <= as_of < until).",
+    ),
 });
 
 export const GetInputSchema = z.object({
@@ -48,6 +57,13 @@ export const CreateInputSchema = z.object({
   aliases: z.array(z.string()).optional().describe("Alternative names"),
   body: z.string().optional().describe("Markdown body content"),
   tags: z.array(z.string()).optional().describe("Tags"),
+  occurred_at: isoDate
+    .optional()
+    .describe("Event time (ISO date). When the underlying fact actually took place."),
+  since: isoDate.optional().describe("Start of validity interval (ISO date)."),
+  until: isoDate
+    .optional()
+    .describe("End of validity interval (ISO date, half-open: not valid AT until)."),
   relations: z
     .array(
       z.object({
@@ -70,6 +86,11 @@ export const RelatedInputSchema = z.object({
   relation_type: z.enum(RelationNameEnum.options).optional().describe("Filter by relation type"),
   depth: z.number().int().min(1).max(5).default(1).describe("BFS traversal depth (1–5)"),
   direction: z.enum(["out", "in", "both"]).default("both").describe("Edge direction to follow"),
+  as_of: isoDate
+    .optional()
+    .describe(
+      "ISO date (YYYY-MM-DD). When set, only neighbours valid at that event-time are returned.",
+    ),
 });
 
 // ---------------------------------------------------------------------------
@@ -177,6 +198,9 @@ export async function toolSearch(
     if (input.types && input.types.length > 0 && !input.types.includes(node.type)) {
       continue;
     }
+    if (input.as_of && !isValidAsOf(node, input.as_of)) {
+      continue;
+    }
     const score = scoreNode(node, queryWords);
     if (score > 0) {
       hits.push({
@@ -243,6 +267,9 @@ export async function toolCreate(
   if (input.aliases !== undefined) raw.aliases = input.aliases;
   if (input.body !== undefined) raw.body = input.body;
   if (input.tags !== undefined) raw.tags = input.tags;
+  if (input.occurred_at !== undefined) raw.occurred_at = input.occurred_at;
+  if (input.since !== undefined) raw.since = input.since;
+  if (input.until !== undefined) raw.until = input.until;
   if (Object.keys(rels).length > 0) raw.rels = rels;
   const node = raw as unknown as AnyNode;
 
@@ -260,10 +287,20 @@ export async function toolCreate(
   return { ok: true, data: { id: input.id, path } };
 }
 
+export interface LinkResult {
+  source: string;
+  target: string;
+  relation: string;
+  /** When supersedes auto-closed the target's validity interval. */
+  auto_closed?: { node: string; until: string };
+  /** Non-fatal notices (e.g. target already had `until` set, supersede tombstoned node). */
+  warnings?: string[];
+}
+
 export async function toolLink(
   input: z.infer<typeof LinkInputSchema>,
   dir: string,
-): Promise<ToolResult<{ source: string; target: string; relation: string }>> {
+): Promise<ToolResult<LinkResult>> {
   const loaded = await loadGraph(dir);
 
   const sourceNode = loaded.nodes.get(input.source_id);
@@ -296,17 +333,52 @@ export async function toolLink(
   list.push(input.target_id);
   newRels[input.relation_type] = list;
 
-  const updated: AnyNode = {
+  const updatedSource: AnyNode = {
     ...sourceNode,
     rels: newRels,
   } as AnyNode;
 
-  await writeNode(dir, updated);
+  const warnings: string[] = [];
+  let autoClosed: { node: string; until: string } | undefined;
 
-  return {
-    ok: true,
-    data: { source: input.source_id, target: input.target_id, relation: input.relation_type },
+  // ---------------------------------------------------------------------
+  // Bi-temporal: supersedes (A -> B) means A is newer than B.
+  // Auto-close B.until = A.since ?? A.updated  if B.until is not already set.
+  // ---------------------------------------------------------------------
+  if (input.relation_type === "supersedes") {
+    const closingDate = sourceNode.since ?? sourceNode.updated;
+
+    if (targetNode.until) {
+      if (targetNode.until <= closingDate) {
+        warnings.push(
+          `target "${targetNode.id}" already tombstoned at ${targetNode.until}; supersedes recorded but until not changed`,
+        );
+      } else {
+        warnings.push(
+          `target "${targetNode.id}" already has until=${targetNode.until}; left unchanged`,
+        );
+      }
+    } else {
+      const updatedTarget: AnyNode = {
+        ...targetNode,
+        until: closingDate,
+      } as AnyNode;
+      await writeNode(dir, updatedTarget);
+      autoClosed = { node: targetNode.id, until: closingDate };
+    }
+  }
+
+  await writeNode(dir, updatedSource);
+
+  const data: LinkResult = {
+    source: input.source_id,
+    target: input.target_id,
+    relation: input.relation_type,
   };
+  if (autoClosed) data.auto_closed = autoClosed;
+  if (warnings.length > 0) data.warnings = warnings;
+
+  return { ok: true, data };
 }
 
 export async function toolRelated(
@@ -340,8 +412,15 @@ export async function toolRelated(
       if (!follows) continue;
       if (input.relation_type && edge.relation !== input.relation_type) continue;
 
-      resultEdges.add(edge);
       const neighborId = edge.from === current.id ? edge.to : edge.from;
+
+      // as_of: skip edges leading to nodes not valid at that event-time.
+      if (input.as_of) {
+        const neighborNode = loaded.nodes.get(neighborId);
+        if (!neighborNode || !isValidAsOf(neighborNode, input.as_of)) continue;
+      }
+
+      resultEdges.add(edge);
       if (!visitedIds.has(neighborId)) {
         visitedIds.add(neighborId);
         queue.push({ id: neighborId, depth: current.depth + 1 });

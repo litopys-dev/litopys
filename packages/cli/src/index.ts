@@ -69,6 +69,10 @@ Commands:
 
   check [--json]                            Validate graph integrity (broken refs, duplicate
                                             ids, wrong relation types). Exits 1 if issues.
+    --fix-temporal [--dry-run]              Backfill bi-temporal occurred_at on every node
+                                            that lacks it. Events with date-prefixed ids
+                                            (YYYY-MM-DD-…) take the prefix; others use
+                                            \`updated\`. Idempotent; --dry-run prints the plan.
 
   export [--pretty] [--no-body]             Dump the entire graph (nodes + resolved edges) as
                                             JSON to stdout. Pipe to a file for backup or feed

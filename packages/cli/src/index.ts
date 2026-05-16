@@ -11,6 +11,7 @@ import {
   rejectMergeProposal,
 } from "@litopys/extractor";
 import { generateStartupContext } from "@litopys/mcp";
+import { cmdBench } from "./bench.ts";
 import { cmdCheck } from "./check.ts";
 import { cmdDaemon } from "./daemon.ts";
 import { cmdExport } from "./export.ts";
@@ -85,6 +86,12 @@ Commands:
                                             and existing ids are skipped — pass --force to
                                             overwrite them. Use --dry-run to preview the plan
                                             without touching the graph.
+
+  bench [--dataset N] [--output F] [--limit N] [--provider P]
+                                            Run the benchmark harness against an isolated
+                                            graph and print a markdown summary. Writes a
+                                            JSON report (default: ./bench-report.json).
+                                            See docs/benchmark.md for dataset format.
 
 Source adapters:
   text:<path>         Plain text file
@@ -275,6 +282,8 @@ async function main(): Promise<void> {
     await cmdExport(args.slice(1), graphPath());
   } else if (cmd === "import") {
     await cmdImport(args.slice(1), graphPath());
+  } else if (cmd === "bench") {
+    await cmdBench(args.slice(1));
   } else {
     process.stderr.write(`Unknown command: ${cmd}\n`);
     usage();

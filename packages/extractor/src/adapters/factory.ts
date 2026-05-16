@@ -1,11 +1,16 @@
 import { AnthropicAdapter, type AnthropicAdapterOptions } from "./anthropic.ts";
+import { MockAdapter, type MockAdapterOptions } from "./mock.ts";
 import { OllamaAdapter, type OllamaAdapterOptions } from "./ollama.ts";
 import { OpenAIAdapter, type OpenAIAdapterOptions } from "./openai.ts";
 import type { ExtractorAdapter } from "./types.ts";
 
-export type AdapterName = "anthropic" | "openai" | "ollama";
+export type AdapterName = "anthropic" | "openai" | "ollama" | "mock";
 
-export type AdapterOptions = AnthropicAdapterOptions | OpenAIAdapterOptions | OllamaAdapterOptions;
+export type AdapterOptions =
+  | AnthropicAdapterOptions
+  | OpenAIAdapterOptions
+  | OllamaAdapterOptions
+  | MockAdapterOptions;
 
 /**
  * Create an adapter by name (or auto-detect from LITOPYS_EXTRACTOR_PROVIDER env).
@@ -35,9 +40,11 @@ export function createAdapter(
     }
     case "ollama":
       return new OllamaAdapter(opts as OllamaAdapterOptions);
+    case "mock":
+      return new MockAdapter(opts as MockAdapterOptions);
     default:
       throw new Error(
-        `Unknown extractor provider: "${provider}". Valid values: "anthropic", "openai", "ollama".`,
+        `Unknown extractor provider: "${provider}". Valid values: "anthropic", "openai", "ollama", "mock".`,
       );
   }
 }

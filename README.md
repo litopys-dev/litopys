@@ -28,8 +28,10 @@ Memory systems for AI agents today force a tradeoff: either heavy vector databas
 ## Features
 
 - 🧠 **Typed graph** — 6 node types (person, project, system, concept, event, lesson) with 11 first-class relations
+- 🕰 **Bi-temporal queries** — every node carries event time (`occurred_at`, `since`, `until`) independent of when the file was last written; ask "what was true on date X?" via the `as_of` parameter (see [docs/temporal-model.md](docs/temporal-model.md))
 - 🔌 **MCP-native** — works with Claude Code, Claude Desktop, Cursor, Cline, or any MCP client (see [docs/integrations](docs/integrations))
 - 📝 **Markdown-first** — every node is a plain `.md` file with YAML frontmatter. Hand-editable, grep-able, git-versioned
+- 🧹 **Graph maintenance** — `litopys evolve` archives tombstoned nodes (with an auditable manifest) and auto-applies high-confidence merge proposals from quarantine (see [docs/memory-evolution.md](docs/memory-evolution.md))
 - 🤖 **Model-agnostic extractor** — Anthropic, OpenAI, or local Ollama. Pick by your resource/cost budget (see [Resource footprint](#resource-footprint) below). Facts flow through a quarantine so nothing lands unreviewed
 - 🌐 **Web dashboard** — browse, search, edit, visualize the graph, and review quarantine at `http://localhost:3999`
 - 🔐 **Stays local** — graph lives in `~/.litopys/graph/` as files; the server binds to `127.0.0.1` by default; no telemetry
@@ -49,7 +51,7 @@ Screenshots taken against a synthetic demo graph bundled in `docs/screenshots/` 
 
 ## Status
 
-**[v0.1.4](https://github.com/litopys-dev/litopys/releases/tag/v0.1.4) is out** — graph visual overhaul, viewer auto-token generation, Notion sync integration, and OpenAI-compatible extractor endpoints — see the [CHANGELOG](./CHANGELOG.md). Prebuilt binaries for Linux / macOS / Windows (x64 + arm64), with SHA-256 checksums verified by `install.sh`. Public surfaces (MCP tools, CLI, JSON export `schemaVersion: 1`, on-disk markdown layout) are frozen; breaking changes will ship as `0.2.x`.
+**[v0.2.0](https://github.com/litopys-dev/litopys/releases/tag/v0.2.0) is out** — bi-temporal model (`occurred_at` / `since` / `until` on every node, `as_of` queries), `litopys evolve` maintenance command (archive tombstoned nodes, auto-merge high-confidence proposals), and a new `@litopys/bench` benchmark harness with a deterministic mock extractor — see the [CHANGELOG](./CHANGELOG.md). Prebuilt binaries for Linux / macOS / Windows (x64 + arm64), with SHA-256 checksums verified by `install.sh`. Test suite at **613 / 613** pass. Public surfaces (MCP tools, CLI, JSON export `schemaVersion: 1`, on-disk markdown layout) remain backward-compatible; further breaking changes will ship as `0.3.x`.
 
 Core graph, MCP server (5 tools, stdio + HTTP/SSE), extractor + quarantine + weekly digest, timer-daemon, dashboard (read + write + graph viz + quarantine review), identity-resolution guardrails, single-binary build, one-line installer, per-client integration docs — all shipped. See [What's next](#whats-next) for the planned follow-ups.
 
@@ -67,6 +69,10 @@ Honest numbers from the author's own install (Ubuntu, Bun 1.x). The MCP server i
 
 So the minimum resident cost is ~75 MB for the MCP server. Extraction is optional — you can run Litopys read/write-only from your agent and never start the daemon. If you do enable extraction, the local-Ollama route trades cash for RAM; the Anthropic/OpenAI route trades RAM for cents per session. Ollama's `keep_alive` means the 3B/7B figures are transient — the model drops out of RAM a few minutes after the tick finishes.
 
+## Benchmark
+
+`@litopys/bench` is an end-to-end harness that runs Litopys against a dataset of question/answer sessions and scores retrieval against expected node ids. The built-in synthetic dataset (15 questions, deterministic `mock` extractor) yields **Recall@5 = 0.98**, **Precision@5 = 0.32**, **mean latency 4 ms**. The synthetic fixture exists to validate the harness itself; adapters for real industry datasets (LongMemEval, LOCOMO) are a follow-up. See [docs/benchmark.md](docs/benchmark.md) for dataset format, metric definitions, and how to plug in new adapters.
+
 ## Quick Start
 
 One-line install (Linux / macOS):
@@ -80,7 +86,7 @@ This downloads a single ~100 MB binary to `~/.local/bin/litopys`, initializes `~
 Pin a specific version by placing the assignment **after the pipe** — env vars set before `curl` only scope to `curl` itself, not the piped shell:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/litopys-dev/litopys/main/install.sh | LITOPYS_VERSION=v0.1.4 sh
+curl -fsSL https://raw.githubusercontent.com/litopys-dev/litopys/main/install.sh | LITOPYS_VERSION=v0.2.0 sh
 ```
 
 Then register the MCP server with your client:
@@ -272,9 +278,15 @@ Default is conservative — existing nodes are never touched unless you pass
 `--force`. Every node is validated against the schema up-front, so a corrupt
 snapshot aborts before anything lands on disk.
 
+## What's next
+
+- **Real benchmark adapters.** `@litopys/bench` currently ships only a synthetic 15-question fixture. Next step is concrete adapters for LongMemEval and LOCOMO so the numbers become directly comparable to other memory systems.
+- **`litopys evolve --restore`.** The archive manifest (`archive/manifest.jsonl`) records every tombstoned node moved to `archive/` with its original path. A `--restore <id>` flag will replay a single entry in reverse so archived nodes can be brought back without leaving the CLI.
+- **Vector search.** Considered and deliberately skipped — the keyword + typed-graph traversal model has been good enough in practice, and adding an embedding index would re-introduce the heavy footprint Litopys was designed to avoid. We'll revisit only if a concrete recall gap on a real benchmark dataset shows up.
+
 ## Release history
 
-See [CHANGELOG.md](./CHANGELOG.md). Future work is driven by real-user feedback — open an issue if something pinches.
+See [CHANGELOG.md](./CHANGELOG.md). Beyond the [What's next](#whats-next) items above, future work is driven by real-user feedback — open an issue if something pinches.
 
 ## Design principles
 

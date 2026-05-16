@@ -75,6 +75,16 @@ Commands:
                                             (YYYY-MM-DD-…) take the prefix; others use
                                             \`updated\`. Idempotent; --dry-run prints the plan.
 
+  evolve [flags]                            Graph evolution maintenance.
+    --archive-tombstoned [--older-than N]   Move nodes whose 'until' is more than N days
+                                            (default 365) in the past into <graph>/archive/,
+                                            preserving subdirs. Manifest at
+                                            <graph>/archive/manifest.jsonl. Idempotent.
+    --auto-merge [--min-similarity F]       Accept queued merge proposals whose detected
+                                            similarity score is >= F (default 0.95). Reuses
+                                            the same code path as 'quarantine accept'.
+    --dry-run                               Print plan; do not write.
+
   export [--pretty] [--no-body]             Dump the entire graph (nodes + resolved edges) as
                                             JSON to stdout. Pipe to a file for backup or feed
                                             to external tools.

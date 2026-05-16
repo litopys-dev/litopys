@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-16
+
+Minor version bump for two complementary additions: a `litopys evolve` command for maintaining an aging graph (archive of tombstoned nodes, auto-merge of high-confidence proposals) and a new `@litopys/bench` package that runs Litopys against memory benchmark datasets and produces a comparable report. Both features are additive — no schema changes, no breaking API changes. Bumped to 0.2.0 (not 0.1.6) because the new `bench` package and `litopys evolve` subcommand are large enough that a minor bump communicates the shape change.
+
+### Added
+
+- **`litopys evolve --archive-tombstoned [--older-than 365] [--dry-run]`** (`packages/core/src/graph/archive.ts`, `packages/cli/src/evolve.ts`). Walks the graph for nodes with `until` set more than N days in the past (default 365) and moves them to `<graph>/archive/<original-subdir>/`, preserving structure. Every move is logged as one JSON line in `<graph>/archive/manifest.jsonl` (`{id, archived_at, original_path, until}`) so the action is auditable. Files under `archive/` are never re-scanned, so re-runs are no-ops. Per-file `rename(2)` is atomic.
+
+- **`litopys evolve --auto-merge [--min-similarity 0.95] [--dry-run]`** (`packages/extractor/src/auto-merge.ts`). Walks the quarantine for merge-proposal files, parses each proposal's `detectedBy: "similar:<score>"` provenance, and accepts every proposal at or above the threshold via the existing `acceptMergeProposal` code path. Manual proposals (`detectedBy: "manual"`) are never touched. Per-file errors (missing node, type conflict) are captured and reported, not thrown.
+
+- **Both `--archive-tombstoned` and `--auto-merge` flags combine in a single invocation** so a maintenance cron can run `litopys evolve --archive-tombstoned --auto-merge` once and apply both passes.
+
+- **`@litopys/bench` workspace package** (`packages/bench/`). End-to-end benchmark harness for the graph memory layer:
+  - Dataset loader with a built-in synthetic fixture (`packages/bench/fixtures/synthetic.json`, 15 questions). Future-ready for LongMemEval / LOCOMO adapters.
+  - Scoring helpers: `recall@k`, `precision@k`, `mean`.
+  - Harness spins up an isolated graph in a temp directory, runs each session through the configured extractor, executes each question through `litopys_search` + `litopys_related`, scores against expected node ids, and records latency.
+  - Per-question and aggregate report (JSON to `--output`, markdown summary to stdout).
+
+- **`litopys bench [--dataset <name>] [--limit N] [--output bench-report.json]`** (`packages/cli/src/bench.ts`). CLI runner for the harness. Defaults to the built-in synthetic dataset; `--limit N` runs only the first N questions for fast smoke tests.
+
+- **Mock extractor adapter** (`packages/extractor/src/adapters/mock.ts`). Deterministic, network-free extractor registered as `LITOPYS_EXTRACTOR_PROVIDER=mock`. Makes the benchmark harness (and CI) reproducible without API keys.
+
+- **`docs/memory-evolution.md`** — reference for the `evolve` command, idempotency guarantees, reversibility via the archive manifest.
+
+- **`docs/benchmark.md`** — guide to the harness, dataset format, metric definitions, and how to plug in new dataset adapters.
+
+### Changed
+
+- **`@litopys/mcp` now re-exports type aliases** (`SearchHit`, `LinkResult`, `ToolResult`, `ToolOk`, `ToolErr`) so external packages (`@litopys/bench`) can type their pipelines without reaching into internal paths.
+
+### Tests
+
+- 101 new tests across `packages/core/test/archive.test.ts`, `packages/extractor/test/auto-merge.test.ts`, `packages/cli/test/evolve.test.ts`, `packages/bench/test/*.test.ts`, `packages/extractor/test/adapters/mock.test.ts`, and `packages/cli/test/bench.test.ts`. Total suite: **613 / 613 pass** (was 512).
+
+### Sample benchmark output
+
+```
+Provider: mock
+Total questions: 15
+Recall@5: 0.9778
+Precision@5: 0.3200
+Mean latency: 4.00ms
+```
+
+The low precision is an artifact of the synthetic dataset: most questions have 1–3 expected ids while `k = 5`, so empty slots count as misses by the standard precision@k convention. The harness exists primarily to enable future adapters for real industry datasets.
+
 ## [0.1.5] - 2026-05-16
 
 Adds a bi-temporal model to the graph: every node can now record **when the fact was true in the world** (`occurred_at`, `since`, `until`) independently of **when the node was last written** (`updated`). This unlocks "as-of" queries — e.g. "what did we know about the server in March?" — and lets `supersedes` automatically close the validity interval of the older node. Fully additive — `schemaVersion` is not bumped, existing nodes load unchanged, calls without `as_of` behave exactly as before.

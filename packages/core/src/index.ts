@@ -17,3 +17,9 @@ export {
   type FindSimilarOptions,
 } from "./graph/similarity.ts";
 export { withGraphLock, GraphLockTimeoutError, type GraphLockOptions } from "./graph/lock.ts";
+export {
+  isIsoDate,
+  isValidAsOf,
+  resolveOccurredAt,
+  eventDateFromId,
+} from "./graph/temporal.ts";

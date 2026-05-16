@@ -13,6 +13,7 @@ import {
 import { generateStartupContext } from "@litopys/mcp";
 import { cmdCheck } from "./check.ts";
 import { cmdDaemon } from "./daemon.ts";
+import { cmdEvolve } from "./evolve.ts";
 import { cmdExport } from "./export.ts";
 import { cmdImport } from "./import.ts";
 import { cmdIngest } from "./ingest.ts";
@@ -271,6 +272,8 @@ async function main(): Promise<void> {
     await cmdViewer(args.slice(1));
   } else if (cmd === "check") {
     await cmdCheck(args.slice(1), graphPath());
+  } else if (cmd === "evolve") {
+    await cmdEvolve(args.slice(1), graphPath());
   } else if (cmd === "export") {
     await cmdExport(args.slice(1), graphPath());
   } else if (cmd === "import") {

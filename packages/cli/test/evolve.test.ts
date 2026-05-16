@@ -1,9 +1,31 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { promises as fs } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { writeNode } from "@litopys/core";
-import { cmdEvolve } from "../src/evolve.ts";
+import { type AnyNode, writeNode } from "@litopys/core";
+
+// Mock the LLM SDKs before loading @litopys/extractor. We don't call them in
+// this file, but extractor's adapter modules import them at module-graph time
+// — without this mock, other tests' mock.module calls would race against the
+// real packages already being in the process cache.
+mock.module("@anthropic-ai/sdk", () => ({
+  default: class MockAnthropic {
+    messages = { create: mock(async () => ({ content: [], usage: {} })) };
+  },
+}));
+mock.module("openai", () => ({
+  default: class MockOpenAI {
+    chat = { completions: { create: mock(async () => ({ choices: [], usage: {} })) } };
+  },
+}));
+process.env.ANTHROPIC_API_KEY ??= "sk-mock-evolve-test";
+
+const { proposeMerge, writeMergeProposal } = await import("@litopys/extractor");
+const { cmdEvolve } = await import("../src/evolve.ts");
+
+function mkNode(partial: Partial<AnyNode> & Pick<AnyNode, "id" | "type">): AnyNode {
+  return { updated: "2026-04-21", confidence: 1, ...partial } as AnyNode;
+}
 
 describe("cmdEvolve", () => {
   let tmpDir: string;
@@ -131,5 +153,109 @@ describe("cmdEvolve", () => {
       expect(String(err)).toContain("__EXIT__1");
     }
     expect(stderrBuf).toMatch(/--older-than requires/);
+  });
+
+  test("--auto-merge accepts a high-similarity proposal", async () => {
+    const qDir = path.join(tmpDir, "quarantine");
+    await fs.mkdir(qDir, { recursive: true });
+
+    const a = mkNode({ id: "merge-a", type: "system", confidence: 0.9, body: "" });
+    const b = mkNode({ id: "merge-b", type: "system", confidence: 0.7, body: "" });
+    await writeNode(graphDir, a);
+    await writeNode(graphDir, b);
+    const proposal = proposeMerge(a, b, { detectedBy: "similar:0.97" });
+    await writeMergeProposal(proposal, qDir);
+
+    await cmdEvolve(["--auto-merge"], graphDir);
+    expect(stdoutBuf).toMatch(/Auto-merged 1 proposal/);
+    expect(stdoutBuf).toMatch(/merge-b -> merge-a/);
+  });
+
+  test("--auto-merge --dry-run does not mutate", async () => {
+    const qDir = path.join(tmpDir, "quarantine");
+    await fs.mkdir(qDir, { recursive: true });
+
+    const a = mkNode({ id: "dry-merge-a", type: "system", confidence: 0.9, body: "" });
+    const b = mkNode({ id: "dry-merge-b", type: "system", confidence: 0.7, body: "" });
+    await writeNode(graphDir, a);
+    await writeNode(graphDir, b);
+    const proposal = proposeMerge(a, b, { detectedBy: "similar:0.99" });
+    const proposalPath = await writeMergeProposal(proposal, qDir);
+
+    await cmdEvolve(["--auto-merge", "--dry-run"], graphDir);
+    expect(stdoutBuf).toMatch(/Would auto-merge 1 proposal/);
+
+    // Proposal file still present.
+    const stillThere = await fs
+      .stat(proposalPath)
+      .then(() => true)
+      .catch(() => false);
+    expect(stillThere).toBe(true);
+  });
+
+  test("--auto-merge with explicit --min-similarity skips below-threshold proposal", async () => {
+    const qDir = path.join(tmpDir, "quarantine");
+    await fs.mkdir(qDir, { recursive: true });
+
+    const a = mkNode({ id: "low-a", type: "system", confidence: 0.9, body: "" });
+    const b = mkNode({ id: "low-b", type: "system", confidence: 0.7, body: "" });
+    await writeNode(graphDir, a);
+    await writeNode(graphDir, b);
+    const proposal = proposeMerge(a, b, { detectedBy: "similar:0.85" });
+    await writeMergeProposal(proposal, qDir);
+
+    await cmdEvolve(["--auto-merge", "--min-similarity", "0.95"], graphDir);
+    expect(stdoutBuf).toMatch(/Auto-merged 0 proposal/);
+    expect(stdoutBuf).toMatch(/skipped 1/);
+  });
+
+  test("--min-similarity rejects out-of-range value", async () => {
+    try {
+      await cmdEvolve(["--auto-merge", "--min-similarity", "2"], graphDir);
+      throw new Error("expected cmdEvolve to exit");
+    } catch (err) {
+      expect(String(err)).toContain("__EXIT__1");
+    }
+    expect(stderrBuf).toMatch(/--min-similarity must be 0..1/);
+  });
+
+  test("--min-similarity requires value", async () => {
+    try {
+      await cmdEvolve(["--auto-merge", "--min-similarity"], graphDir);
+      throw new Error("expected cmdEvolve to exit");
+    } catch (err) {
+      expect(String(err)).toContain("__EXIT__1");
+    }
+    expect(stderrBuf).toMatch(/--min-similarity requires/);
+  });
+
+  test("--archive-tombstoned and --auto-merge combine", async () => {
+    const qDir = path.join(tmpDir, "quarantine");
+    await fs.mkdir(qDir, { recursive: true });
+
+    // One tombstoned node old enough to archive.
+    const longAgo = new Date();
+    longAgo.setUTCFullYear(longAgo.getUTCFullYear() - 2);
+    const longAgoIso = longAgo.toISOString().slice(0, 10);
+    await writeNode(graphDir, {
+      id: "old-arch",
+      type: "system",
+      updated: longAgoIso,
+      confidence: 1,
+      until: longAgoIso,
+      body: "",
+    });
+
+    // And one merge pair.
+    const a = mkNode({ id: "combo-a", type: "system", confidence: 0.9, body: "" });
+    const b = mkNode({ id: "combo-b", type: "system", confidence: 0.7, body: "" });
+    await writeNode(graphDir, a);
+    await writeNode(graphDir, b);
+    const proposal = proposeMerge(a, b, { detectedBy: "similar:0.98" });
+    await writeMergeProposal(proposal, qDir);
+
+    await cmdEvolve(["--archive-tombstoned", "--auto-merge"], graphDir);
+    expect(stdoutBuf).toMatch(/Archived 1 tombstoned/);
+    expect(stdoutBuf).toMatch(/Auto-merged 1 proposal/);
   });
 });

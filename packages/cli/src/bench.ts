@@ -1,11 +1,6 @@
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
-import {
-  type BenchReport,
-  formatReportMarkdown,
-  loadDataset,
-  runBenchmark,
-} from "@litopys/bench";
+import { type BenchReport, formatReportMarkdown, loadDataset, runBenchmark } from "@litopys/bench";
 
 export async function cmdBench(args: string[]): Promise<void> {
   const opts = parseArgs(args);

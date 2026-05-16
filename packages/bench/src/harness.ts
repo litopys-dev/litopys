@@ -72,7 +72,8 @@ export async function runBenchmark(
   let report: BenchReport;
   try {
     await ingestSessions(dataset.sessions, adapter, graphDir);
-    const questions = opts.limit !== undefined ? dataset.questions.slice(0, opts.limit) : dataset.questions;
+    const questions =
+      opts.limit !== undefined ? dataset.questions.slice(0, opts.limit) : dataset.questions;
     const per: PerQuestionResult[] = [];
     for (const q of questions) {
       const start = performance.now();
@@ -83,10 +84,7 @@ export async function runBenchmark(
       // is a no-op.
       const neighbours = new Set<string>();
       if (hits[0]) {
-        const rel = await toolRelated(
-          { id: hits[0].id, depth: 1, direction: "both" },
-          graphDir,
-        );
+        const rel = await toolRelated({ id: hits[0].id, depth: 1, direction: "both" }, graphDir);
         if (rel.ok) {
           for (const n of rel.data.nodes) neighbours.add(n.id);
         }

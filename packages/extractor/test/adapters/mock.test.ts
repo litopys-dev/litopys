@@ -94,9 +94,7 @@ describe("extractCandidateRelations", () => {
 
   test("ignores relations where either endpoint is unknown", () => {
     const known = new Set(["alice-chen"]);
-    expect(
-      extractCandidateRelations("alice-chen owns pegasus-api", known, "s"),
-    ).toEqual([]);
+    expect(extractCandidateRelations("alice-chen owns pegasus-api", known, "s")).toEqual([]);
   });
 
   test("dedupes identical relation tuples", () => {

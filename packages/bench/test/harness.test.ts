@@ -4,11 +4,7 @@ import { homedir } from "node:os";
 import * as path from "node:path";
 import { loadGraph } from "@litopys/core";
 import { loadDataset } from "../src/dataset.ts";
-import {
-  createIsolatedGraphDir,
-  formatReportMarkdown,
-  runBenchmark,
-} from "../src/harness.ts";
+import { createIsolatedGraphDir, formatReportMarkdown, runBenchmark } from "../src/harness.ts";
 
 describe("createIsolatedGraphDir", () => {
   test("creates a graph directory under the OS tempdir, not under $HOME", async () => {
@@ -80,24 +76,20 @@ describe("runBenchmark (end-to-end on synthetic dataset)", () => {
     expect(report.summary.recall_at_k).toBeGreaterThan(0.7);
   });
 
-  test("cleans up the auto-generated graph dir when keepGraphDir is unset", async () => {
+  test("keepGraphDir leaves the supplied graph dir on disk after the run", async () => {
     const dataset = await loadDataset("synthetic");
-    let observed: string | undefined;
-    const original = createIsolatedGraphDir;
-    // We can't easily intercept the internal mkdtemp, so instead supply our
-    // own dir and assert the harness honours `keepGraphDir`.
-    const dir = await original();
-    observed = dir;
+    // Supply an explicit graph dir so we can observe whether the harness
+    // honours keepGraphDir without intercepting internal mkdtemp.
+    const dir = await createIsolatedGraphDir();
     await runBenchmark(dataset, {
       provider: "mock",
       limit: 1,
       graphDir: dir,
       keepGraphDir: true,
     });
-    // keepGraphDir true → dir survives the run.
-    const stat = await fs.stat(observed);
+    const stat = await fs.stat(dir);
     expect(stat.isDirectory()).toBe(true);
-    await fs.rm(path.dirname(observed), { recursive: true, force: true });
+    await fs.rm(path.dirname(dir), { recursive: true, force: true });
   });
 });
 

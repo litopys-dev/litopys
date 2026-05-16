@@ -1,0 +1,22 @@
+{
+  "name": "@litopys/bench",
+  "version": "0.1.5",
+  "type": "module",
+  "private": true,
+  "author": "Denis Blashchytsia",
+  "license": "MIT",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "dependencies": {
+    "@litopys/core": "workspace:*",
+    "@litopys/extractor": "workspace:*",
+    "@litopys/mcp": "workspace:*"
+  }
+}

@@ -7,6 +7,8 @@ export const VERSION = "0.1.0";
 
 export { createAdapter } from "./adapters/factory.ts";
 export type { AdapterName, AdapterOptions } from "./adapters/factory.ts";
+export { MockAdapter } from "./adapters/mock.ts";
+export type { MockAdapterOptions } from "./adapters/mock.ts";
 
 export type {
   ExtractorAdapter,

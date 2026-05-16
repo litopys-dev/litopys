@@ -10,10 +10,21 @@
         "typescript": "^5.6.0",
       },
     },
+    "packages/bench": {
+      "name": "@litopys/bench",
+      "version": "0.1.5",
+      "dependencies": {
+        "@litopys/core": "workspace:*",
+        "@litopys/extractor": "workspace:*",
+        "@litopys/mcp": "workspace:*",
+        "zod": "^3.23.0",
+      },
+    },
     "packages/cli": {
       "name": "@litopys/cli",
-      "version": "0.1.2",
+      "version": "0.1.5",
       "dependencies": {
+        "@litopys/bench": "workspace:*",
         "@litopys/core": "workspace:*",
         "@litopys/daemon": "workspace:*",
         "@litopys/extractor": "workspace:*",
@@ -22,7 +33,7 @@
     },
     "packages/core": {
       "name": "@litopys/core",
-      "version": "0.1.2",
+      "version": "0.1.5",
       "dependencies": {
         "gray-matter": "^4.0.3",
         "zod": "^3.23.0",
@@ -30,7 +41,7 @@
     },
     "packages/daemon": {
       "name": "@litopys/daemon",
-      "version": "0.1.2",
+      "version": "0.1.5",
       "dependencies": {
         "@litopys/core": "workspace:*",
         "@litopys/extractor": "workspace:*",
@@ -38,7 +49,7 @@
     },
     "packages/extractor": {
       "name": "@litopys/extractor",
-      "version": "0.1.2",
+      "version": "0.1.5",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.90.0",
         "@litopys/core": "workspace:*",
@@ -48,7 +59,7 @@
     },
     "packages/mcp": {
       "name": "@litopys/mcp",
-      "version": "0.1.2",
+      "version": "0.1.5",
       "dependencies": {
         "@litopys/core": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.29.0",
@@ -57,7 +68,7 @@
     },
     "packages/notion-sync": {
       "name": "@litopys/notion-sync",
-      "version": "0.1.0",
+      "version": "0.1.5",
       "dependencies": {
         "@litopys/core": "workspace:*",
         "@litopys/extractor": "workspace:*",
@@ -65,7 +76,7 @@
     },
     "packages/viewer": {
       "name": "@litopys/viewer",
-      "version": "0.1.2",
+      "version": "0.1.5",
       "dependencies": {
         "@litopys/core": "workspace:*",
         "@litopys/extractor": "workspace:*",
@@ -177,6 +188,8 @@
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
+
+    "@litopys/bench": ["@litopys/bench@workspace:packages/bench"],
 
     "@litopys/cli": ["@litopys/cli@workspace:packages/cli"],
 

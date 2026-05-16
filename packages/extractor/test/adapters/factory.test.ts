@@ -43,6 +43,11 @@ describe("createAdapter", () => {
     expect(adapter.name).toBe("ollama");
   });
 
+  test("creates mock adapter", () => {
+    const adapter = createAdapter("mock");
+    expect(adapter.name).toBe("mock");
+  });
+
   test("throws on unknown provider name", () => {
     expect(() => createAdapter("unknown-llm" as "anthropic")).toThrow("Unknown extractor provider");
   });

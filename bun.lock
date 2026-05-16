@@ -17,6 +17,7 @@
         "@litopys/core": "workspace:*",
         "@litopys/extractor": "workspace:*",
         "@litopys/mcp": "workspace:*",
+        "zod": "^3.23.0",
       },
     },
     "packages/cli": {

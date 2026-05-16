@@ -1,0 +1,158 @@
+{
+  "name": "synthetic",
+  "sessions": [
+    {
+      "id": "s1",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Person: Alice Chen, lead engineer at Acme. Project: pegasus-rewrite, the customer-facing rewrite. System: pegasus-api, the public HTTP service. Alice owns pegasus-rewrite."
+        },
+        {
+          "role": "assistant",
+          "content": "Noted. Alice Chen leads pegasus-rewrite which produces pegasus-api."
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Project: orion-dashboard, internal analytics tool built on top of pegasus-api. System: orion-frontend, the Vue 3 SPA. Concept: row-level-security, a data-isolation pattern we enforce everywhere."
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Person: Bob Martinez, devops on call this week. System: postgres-primary, the main relational store. Bob owns postgres-primary maintenance."
+        }
+      ]
+    },
+    {
+      "id": "s4",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Lesson: never-deploy-friday, we had a bad incident in March and now block Friday deploys. Event: 2024-03-15-outage, the four-hour pegasus-api outage caused by a Friday push."
+        }
+      ]
+    },
+    {
+      "id": "s5",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Project: nimbus-migration, moving orion-dashboard off legacy storage. System: object-store-s3, the new blob backend. Concept: blue-green-deploy, the rollout strategy we picked for nimbus-migration."
+        }
+      ]
+    },
+    {
+      "id": "s6",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Person: Carol Singh, security lead. Concept: zero-trust-network, perimeter model Carol champions. Carol owns zero-trust-network rollout."
+        }
+      ]
+    },
+    {
+      "id": "s7",
+      "messages": [
+        {
+          "role": "user",
+          "content": "System: redis-cache, in-memory cache fronting pegasus-api. System: kafka-bus, the event backbone. Concept: event-sourcing, the pattern kafka-bus enables."
+        }
+      ]
+    },
+    {
+      "id": "s8",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Lesson: always-feature-flag, after the orion-dashboard rollback we ship behind flags. Person: Dave Park, frontend engineer on orion-frontend."
+        }
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "q1",
+      "query": "alice chen pegasus",
+      "expected_node_ids": ["alice-chen", "pegasus-rewrite", "pegasus-api"]
+    },
+    {
+      "id": "q2",
+      "query": "orion dashboard",
+      "expected_node_ids": ["orion-dashboard", "orion-frontend"]
+    },
+    {
+      "id": "q3",
+      "query": "row level security",
+      "expected_node_ids": ["row-level-security"]
+    },
+    {
+      "id": "q4",
+      "query": "bob postgres",
+      "expected_node_ids": ["bob-martinez", "postgres-primary"]
+    },
+    {
+      "id": "q5",
+      "query": "friday deploy outage",
+      "expected_node_ids": ["never-deploy-friday", "2024-03-15-outage"]
+    },
+    {
+      "id": "q6",
+      "query": "nimbus migration s3",
+      "expected_node_ids": ["nimbus-migration", "object-store-s3"]
+    },
+    {
+      "id": "q7",
+      "query": "blue green deploy",
+      "expected_node_ids": ["blue-green-deploy"]
+    },
+    {
+      "id": "q8",
+      "query": "carol zero trust",
+      "expected_node_ids": ["carol-singh", "zero-trust-network"]
+    },
+    {
+      "id": "q9",
+      "query": "redis cache pegasus",
+      "expected_node_ids": ["redis-cache", "pegasus-api"]
+    },
+    {
+      "id": "q10",
+      "query": "kafka event sourcing",
+      "expected_node_ids": ["kafka-bus", "event-sourcing"]
+    },
+    {
+      "id": "q11",
+      "query": "feature flag lesson",
+      "expected_node_ids": ["always-feature-flag"]
+    },
+    {
+      "id": "q12",
+      "query": "dave park frontend",
+      "expected_node_ids": ["dave-park", "orion-frontend"]
+    },
+    {
+      "id": "q13",
+      "query": "pegasus api",
+      "expected_node_ids": ["pegasus-api"]
+    },
+    {
+      "id": "q14",
+      "query": "acme engineer",
+      "expected_node_ids": ["alice-chen"]
+    },
+    {
+      "id": "q15",
+      "query": "security lead carol",
+      "expected_node_ids": ["carol-singh"]
+    }
+  ]
+}

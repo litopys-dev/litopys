@@ -1,104 +1,148 @@
-# Merge plan: `feat/bitemporal`
+# Merge plan: `feat/memory-evolution`
 
 ## What this branch adds
 
-Bi-temporal model (document time + event time) for the Litopys knowledge
-graph, plus as-of queries and automatic `supersedes` chain closure.
+`litopys evolve` — a maintenance command for an aging graph. Two
+sub-features land together:
+
+1. **Archive of tombstoned nodes.** Nodes whose `until` lies more than N
+   days in the past (default 365) are moved out of the active graph into
+   `<graphPath>/archive/`, preserving subdirectory layout. The move is
+   recorded in `archive/manifest.jsonl` so it is auditable and reversible.
+
+2. **Auto-apply high-confidence merge proposals.** Walks the quarantine
+   directory for `merge-proposal` files, reads each proposal's
+   `detectedBy: "similar:<score>"` provenance, and accepts every proposal
+   whose score is at least `--min-similarity` (default 0.95) via the same
+   `acceptMergeProposal` used by the manual review path. Manual proposals
+   (`detectedBy: "manual"`) are skipped.
+
+Both can be combined: `litopys evolve --archive-tombstoned --auto-merge`.
 
 ## Scope
 
-Additive only — no `schemaVersion` bump.
+Additive only — no `schemaVersion` bump, no schema changes, no new
+dependencies.
 
-### Schema (`packages/core`)
+### Core (`packages/core`)
 
-- `BaseNodeSchema` gains one new optional field: `occurred_at` (ISO date).
-- `since` and `until` (already present but loosely typed) now carry explicit
-  ISO-date regex validation and error messages.
-- New helpers exposed from `@litopys/core`:
-  - `resolveOccurredAt(node)` — fallback chain `occurred_at → since → id-prefix (events) → updated`.
-  - `isValidAsOf(node, isoDate)` — half-open `[since, until)` validity check.
-  - `eventDateFromId(id)` — extract `YYYY-MM-DD` prefix from event ids.
-  - `isIsoDate(s)`.
+- New `packages/core/src/graph/archive.ts`:
+  - `archiveTombstoned(graphPath, opts)` — pure-Bun glob walk + atomic
+    rename + append-only JSONL manifest.
+  - Public types: `ArchiveOptions`, `ArchiveResult`, `ArchivePlanItem`,
+    `ArchiveManifestEntry`.
+- `packages/core/src/index.ts` re-exports the new symbols.
 
-### MCP tools (`packages/mcp`)
+### Extractor (`packages/extractor`)
 
-- `litopys_search` and `litopys_related` accept optional `as_of: string` (ISO
-  date). Nodes / neighbours whose validity interval does not contain `as_of`
-  are filtered out.
-- `litopys_create` accepts `occurred_at`, `since`, `until`.
-- `litopys_link` with `relation_type: "supersedes"` now auto-closes the
-  target's `until` to `source.since ?? source.updated` when the target has no
-  `until` set. Returns `auto_closed: { node, until }` on success and a
-  `warnings` array when the target was already tombstoned.
+- New `packages/extractor/src/auto-merge.ts`:
+  - `autoMergeProposals({ quarantineDir, graphPath, minSimilarity, dryRun })`
+    walks `*.md`, sniffs merge-proposals via `isMergeProposalContent`, parses
+    `detectedBy`, and calls `acceptMergeProposal` for each eligible file.
+  - `parseSimilarity(detectedBy)` — small pure parser for the
+    `"similar:<0..1>"` provenance string.
+  - Per-file errors captured in `result.errors`, never thrown.
+- `packages/extractor/src/index.ts` re-exports the new symbols.
 
 ### CLI (`packages/cli`)
 
-- `litopys check --fix-temporal [--dry-run]` — idempotent backfill of
-  `occurred_at`:
-  - event nodes whose id is date-prefixed → id prefix
-  - everything else → `updated`
-  - nodes that already have `occurred_at` are skipped.
+- New `packages/cli/src/evolve.ts` — flag parsing + dispatch.
+- `packages/cli/src/index.ts` — registers `evolve` and adds usage text.
 
 ### Docs
 
-- New: `docs/temporal-model.md`.
+- New: `docs/memory-evolution.md`.
 
 ## Files
 
 ### New
 
-- `packages/core/src/graph/temporal.ts`
-- `packages/core/test/temporal.test.ts`
-- `packages/mcp/test/temporal.test.ts`
-- `packages/cli/test/check-temporal.test.ts`
-- `docs/temporal-model.md`
-- `MERGE_PLAN.md`
+- `packages/core/src/graph/archive.ts`
+- `packages/core/test/archive.test.ts`
+- `packages/extractor/src/auto-merge.ts`
+- `packages/extractor/test/auto-merge.test.ts`
+- `packages/cli/src/evolve.ts`
+- `packages/cli/test/evolve.test.ts`
+- `docs/memory-evolution.md`
+- `MERGE_PLAN.md` (this file, overwrites the bi-temporal one)
 
 ### Modified
 
-- `packages/core/src/schema/base.ts` — add `occurred_at`, tighten regex error messages on `since`/`until`.
-- `packages/core/src/index.ts` — re-export temporal helpers.
-- `packages/mcp/src/tools.ts` — `as_of` on search/related, new create fields, supersedes auto-close in link.
-- `packages/cli/src/check.ts` — `migrateTemporal()` + `--fix-temporal [--dry-run]` flag handling.
-- `packages/cli/src/index.ts` — usage text.
+- `packages/core/src/index.ts` — re-export archive symbols.
+- `packages/extractor/src/index.ts` — re-export auto-merge symbols.
+- `packages/cli/src/index.ts` — wire `evolve` command + usage text.
 
 ## Tests
 
-- Baseline (master): **481 / 481 pass**.
-- After this branch: **512 / 512 pass** (`bun test`, 41 files).
-- 31 new tests across three files:
-  - `packages/core/test/temporal.test.ts` — schema validation, fallback chain, half-open interval semantics, ISO-date guards (15 tests).
-  - `packages/mcp/test/temporal.test.ts` — create persists new fields, as-of filtering on search & related, supersedes auto-close (incl. 3-node chain), tombstone warning, non-supersedes left untouched (10 tests).
-  - `packages/cli/test/check-temporal.test.ts` — migration: non-event ⇒ updated, event w/ id-prefix ⇒ prefix, event w/o prefix ⇒ updated, idempotence, dry-run does not write (5 tests).
+- Baseline (main): **512 / 512 pass**.
+- After this branch: **549 / 549 pass** (`bun test`, 44 files).
+- **37 new tests** across three files:
+  - `packages/core/test/archive.test.ts` — 10 tests covering dry-run,
+    actual move, subdirectory preservation, manifest format, idempotency,
+    boundary (`until == cutoff` stays), bad inputs, `olderThan=0`, and the
+    "files under `archive/` are never re-scanned" invariant.
+  - `packages/extractor/test/auto-merge.test.ts` — 15 tests covering
+    `parseSimilarity` (7 cases incl. edge values and rejects), threshold
+    acceptance, below-threshold skip, dry-run preserves state, manual
+    proposals skipped, non-merge files ignored, per-file error capture
+    without aborting the run, invalid `minSimilarity` rejected.
+  - `packages/cli/test/evolve.test.ts` — 12 tests covering empty-flag
+    usage exit, archive flag end-to-end, auto-merge flag end-to-end,
+    combined run, dry-run for each, and all four flag-validation paths.
+
+New code line coverage:
+
+```
+packages/core/src/graph/archive.ts        100% funcs / 97.6% lines
+packages/extractor/src/auto-merge.ts      100% funcs / 95.9% lines
+packages/cli/src/evolve.ts                100% funcs / 95.0% lines
+```
 
 ## Backward compatibility
 
 - `schemaVersion` is **not** bumped.
-- Every new field is optional.
-- Old nodes load and validate unchanged.
-- Tools called without `as_of` behave exactly as before.
-- Existing 481 tests are untouched and all still pass.
+- No existing files renamed or moved.
+- No new dependencies added (Bun stdlib + Node `node:fs`/`node:path` only).
+- Pre-existing 512 tests are untouched and all still pass.
+- `litopys evolve` is a new sub-command; no other CLI verb changed
+  behaviour.
+
+## Commits
+
+```
+b909434 feat(evolve): archive tombstoned nodes via litopys evolve --archive-tombstoned
+5e07a2f feat(evolve): auto-apply high-confidence merge proposals
+c6dc5cb docs(cli): document evolve command in litopys usage text
+ecba678 docs: memory-evolution feature reference
+```
 
 ## Edge cases NOT covered
 
-- **`occurred_at > until`** — the schema does not currently reject a node
-  whose recorded event time is past the end of its own validity interval.
-  Real-world data may legitimately do this (e.g. a fact discovered after a
-  system was retired), so I chose not to add the constraint without
-  discussion. Could land in a follow-up.
-- **Edge-level temporal validity** — edges currently have no `since`/`until`
-  of their own; they inherit endpoint validity transitively. This is enough
-  for the stated use case but a future "edge expired in March" requirement
-  would need its own model.
-- **Time-zone semantics** — all dates are calendar-day strings with no zone.
-  Two events on the same day are unordered relative to each other. Matches
-  the existing `updated` convention.
+- **No graph-wide lock around archive.** `archiveTombstoned` uses atomic
+  `rename(2)` per file and treats existing `archive/` content as
+  read-only, so two concurrent `litopys evolve` invocations cannot
+  corrupt anything; they may, however, both list the same candidate and
+  one will lose the race with an `ENOENT`. The error surfaces and the
+  next run is still correct. A coarser `withGraphLock` could be added if
+  the operation grows.
+- **`acceptMergeProposal` already takes `withGraphLock`,** so auto-merge
+  inherits that protection.
+- **Manifest is JSON-lines, not JSON.** A crashed run can leave the file
+  with one trailing partial entry; readers should skip unparseable
+  lines. We do not provide a "compact" or "rotate" command yet.
+- **Reversibility is manual.** `manifest.jsonl` records everything
+  needed to move a file back, but there is no `litopys evolve --restore <id>`
+  helper. Adding one is a follow-up.
+- **`--auto-merge` does not currently retry transient `acceptMergeProposal`
+  failures.** A type conflict, for example, fails for good. Re-running
+  the command will hit the same error on the same file.
 
 ## Suggested merge
 
 ```bash
 git checkout main
-git merge --no-ff feat/bitemporal
+git merge --no-ff feat/memory-evolution
 ```
 
-No rebase needed — branch is fast-forward from current `main`.
+No rebase needed — branch is fast-forward from `feat/bitemporal` (already
+on `main`).

@@ -23,3 +23,10 @@ export {
   resolveOccurredAt,
   eventDateFromId,
 } from "./graph/temporal.ts";
+export {
+  archiveTombstoned,
+  type ArchiveOptions,
+  type ArchiveResult,
+  type ArchivePlanItem,
+  type ArchiveManifestEntry,
+} from "./graph/archive.ts";

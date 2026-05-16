@@ -44,6 +44,14 @@ export {
 } from "./merge-proposal.ts";
 export type { MergeProposal, MergeResult, MergeConflict } from "./merge-proposal.ts";
 export { acceptMergeProposal, rejectMergeProposal } from "./merge-apply.ts";
+export { autoMergeProposals, parseSimilarity } from "./auto-merge.ts";
+export type {
+  AutoMergeOptions,
+  AutoMergeResult,
+  AutoMergedItem,
+  AutoMergeSkip,
+  AutoMergeError,
+} from "./auto-merge.ts";
 
 // ---------------------------------------------------------------------------
 // Source adapters (agent-agnostic ingestion layer — Part 6.3a)

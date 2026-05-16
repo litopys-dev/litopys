@@ -36,13 +36,17 @@ import type {
 // touching a real LLM.
 // ---------------------------------------------------------------------------
 
+// Each pattern matches "<Type>: <name>, <description>" anywhere in the text.
+// The description ends at the next sentence boundary (./!/?/newline) followed
+// by whitespace, or at end of input. We don't use ^/$ anchors because real
+// transcripts wrap declarations inside richer prose ("[user] Person: …").
 const TYPE_PATTERNS: Array<{ regex: RegExp; type: NodeType }> = [
-  { regex: /^\s*Person:\s*([^,\n]+?)(?:,\s*(.+))?\s*$/gim, type: "person" },
-  { regex: /^\s*Project:\s*([^,\n]+?)(?:,\s*(.+))?\s*$/gim, type: "project" },
-  { regex: /^\s*System:\s*([^,\n]+?)(?:,\s*(.+))?\s*$/gim, type: "system" },
-  { regex: /^\s*Concept:\s*([^,\n]+?)(?:,\s*(.+))?\s*$/gim, type: "concept" },
-  { regex: /^\s*Lesson:\s*([^,\n]+?)(?:,\s*(.+))?\s*$/gim, type: "lesson" },
-  { regex: /^\s*Event:\s*([^,\n]+?)(?:,\s*(.+))?\s*$/gim, type: "event" },
+  { regex: /\bPerson:\s*([^,\n.!?]+?)(?:,\s*([^\n.!?]+))?(?=[.!?\n]|$)/gi, type: "person" },
+  { regex: /\bProject:\s*([^,\n.!?]+?)(?:,\s*([^\n.!?]+))?(?=[.!?\n]|$)/gi, type: "project" },
+  { regex: /\bSystem:\s*([^,\n.!?]+?)(?:,\s*([^\n.!?]+))?(?=[.!?\n]|$)/gi, type: "system" },
+  { regex: /\bConcept:\s*([^,\n.!?]+?)(?:,\s*([^\n.!?]+))?(?=[.!?\n]|$)/gi, type: "concept" },
+  { regex: /\bLesson:\s*([^,\n.!?]+?)(?:,\s*([^\n.!?]+))?(?=[.!?\n]|$)/gi, type: "lesson" },
+  { regex: /\bEvent:\s*([^,\n.!?]+?)(?:,\s*([^\n.!?]+))?(?=[.!?\n]|$)/gi, type: "event" },
 ];
 
 const KEBAB = "[a-z0-9]+(?:-[a-z0-9]+)*";

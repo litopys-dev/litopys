@@ -111,7 +111,7 @@ const faqItems = [
       <a href="#top" class="flex items-center gap-2 font-heading font-semibold">
         <span class="text-xl">📜</span>
         <span>Litopys</span>
-        <span class="text-xs text-text-tertiary font-mono">v0.1.4</span>
+        <span class="text-xs text-text-tertiary font-mono">v0.2.0</span>
       </a>
       <nav class="hidden md:flex items-center gap-6 text-sm text-text-secondary">
         <a href="#how" class="hover:text-text-primary transition">How it works</a>
@@ -131,8 +131,8 @@ const faqItems = [
     <section class="max-w-5xl mx-auto px-6 pt-16 pb-20 text-center">
       <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-elevated border border-border text-xs text-text-secondary mb-6">
         <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
-        <span class="font-mono">v0.1.4</span>
-        <span>· graph viz overhaul + Notion sync</span>
+        <span class="font-mono">v0.2.0</span>
+        <span>· bi-temporal model + graph maintenance + benchmark harness</span>
       </div>
 
       <h1 class="font-heading text-4xl md:text-6xl font-semibold tracking-tight leading-[1.1] mb-6">
@@ -261,6 +261,32 @@ const faqItems = [
       <p class="text-center text-xs text-text-tertiary mt-4">Screenshots taken against a synthetic demo graph — no real data.</p>
     </section>
 
+    <!-- ============================================================ WHAT'S NEW -->
+    <section id="whats-new" class="max-w-6xl mx-auto px-6 py-20 border-t border-divider">
+      <h2 class="font-heading text-3xl font-semibold text-center mb-4">New in v0.2.0</h2>
+      <p class="text-center text-text-secondary max-w-2xl mx-auto mb-14">
+        Time-aware queries, a maintenance pass for aging graphs, and a benchmark harness you can run in CI without API keys.
+      </p>
+
+      <div class="grid md:grid-cols-3 gap-6">
+        <div class="rounded-card border border-border bg-surface p-6">
+          <div class="text-accent font-mono text-xs mb-2">bi-temporal</div>
+          <h3 class="font-heading font-semibold mb-2">Two time axes per node</h3>
+          <p class="text-sm text-text-secondary">Every node carries <code class="text-xs">occurred_at</code>, <code class="text-xs">since</code>, and <code class="text-xs">until</code>. Ask <em>"what was true in March?"</em> independently of when the fact was recorded — <code class="text-xs">supersedes</code> auto-closes intervals so the timeline stays consistent.</p>
+        </div>
+        <div class="rounded-card border border-border bg-surface p-6">
+          <div class="text-accent font-mono text-xs mb-2">litopys evolve</div>
+          <h3 class="font-heading font-semibold mb-2">Graph maintenance</h3>
+          <p class="text-sm text-text-secondary"><code class="text-xs">--archive-tombstoned</code> moves expired nodes to <code class="text-xs">&lt;graph&gt;/archive/</code> with an auditable manifest. <code class="text-xs">--auto-merge</code> accepts similar-node proposals above a threshold. Your graph stays clean as it ages — no manual gardening.</p>
+        </div>
+        <div class="rounded-card border border-border bg-surface p-6">
+          <div class="text-accent font-mono text-xs mb-2">@litopys/bench</div>
+          <h3 class="font-heading font-semibold mb-2">Benchmark harness</h3>
+          <p class="text-sm text-text-secondary">Runs the graph against memory-benchmark datasets and scores <code class="text-xs">recall@k</code>, <code class="text-xs">precision@k</code>, and latency. Ships with a deterministic mock extractor so CI passes without API keys. Synthetic fixture today; LongMemEval / LOCOMO adapters next.</p>
+        </div>
+      </div>
+    </section>
+
     <!-- ============================================================ INSTALL -->
     <section id="install" class="max-w-4xl mx-auto px-6 py-20 border-t border-divider">
       <h2 class="font-heading text-3xl font-semibold mb-4">Install in 10 seconds</h2>
@@ -376,7 +402,7 @@ const faqItems = [
       </div>
       <div class="max-w-6xl mx-auto px-6 pb-8 text-xs text-text-tertiary flex flex-wrap items-center justify-between gap-3">
         <span>MIT © 2026 Denis Blashchytsia and Litopys contributors</span>
-        <span class="font-mono">v0.1.4 · graph viz overhaul + Notion sync</span>
+        <span class="font-mono">v0.2.0 · bi-temporal model + graph maintenance + benchmark harness</span>
       </div>
     </footer>
   </main>

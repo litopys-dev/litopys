@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowLeftRight, ArrowRight, Pencil, Plus, Trash2, X } from "
 import { For, Show, createResource, createSignal } from "solid-js";
 import { type EdgeData, type RelationInput, type RelationName, api } from "../api.ts";
 import { TypeChip } from "../components/TypeChip.tsx";
+import { relationLabel, t } from "../i18n.ts";
 
 const RELATION_NAMES: RelationName[] = [
   "owns",
@@ -31,7 +32,7 @@ export default function NodeDetail() {
   const [error, setError] = createSignal<string | null>(null);
 
   const onDelete = async () => {
-    if (!confirm(`Tombstone node '${params.id}'? (soft delete, sets 'until' to today)`)) return;
+    if (!confirm(t("node.deleteConfirm", { id: params.id }))) return;
     setBusy(true);
     setError(null);
     try {
@@ -50,18 +51,18 @@ export default function NodeDetail() {
         href="/table"
         class="inline-flex items-center gap-1.5 text-text-secondary hover:text-text-primary text-sm mb-4 transition-colors"
       >
-        <ArrowLeft size={14} /> Back to nodes
+        <ArrowLeft size={14} /> {t("node.back")}
       </A>
 
       <Show
         when={!detail.loading}
-        fallback={<div class="text-text-secondary text-sm">Loading node…</div>}
+        fallback={<div class="text-text-secondary text-sm">{t("node.loading")}</div>}
       >
         <Show
           when={detail()}
           fallback={
             <div class="text-destructive text-sm font-mono">
-              {detail.error ? String(detail.error) : "Node not found"}
+              {detail.error ? String(detail.error) : t("node.notFound")}
             </div>
           }
         >
@@ -78,7 +79,7 @@ export default function NodeDetail() {
                   </Show>
                   <Show when={data().node.until}>
                     <p class="text-destructive text-xs font-mono mt-1">
-                      tombstoned until {data().node.until as string}
+                      {t("node.tombstonedUntil", { date: data().node.until as string })}
                     </p>
                   </Show>
                 </div>
@@ -92,7 +93,7 @@ export default function NodeDetail() {
                       }}
                       class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-card text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-elevated border border-border transition-colors"
                     >
-                      <Pencil size={14} /> Edit
+                      <Pencil size={14} /> {t("node.edit")}
                     </button>
                     <button
                       type="button"
@@ -100,7 +101,7 @@ export default function NodeDetail() {
                       disabled={busy()}
                       class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-card text-sm font-medium text-destructive hover:bg-destructive/10 border border-border transition-colors disabled:opacity-50"
                     >
-                      <Trash2 size={14} /> Delete
+                      <Trash2 size={14} /> {t("node.delete")}
                     </button>
                   </div>
                 </Show>
@@ -127,13 +128,20 @@ export default function NodeDetail() {
               <Show when={!editing()}>
                 {/* Metadata grid */}
                 <section class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-                  <MetaCard label="Updated" value={data().node.updated} mono />
-                  <MetaCard label="Confidence" value={data().node.confidence.toFixed(2)} mono />
+                  <MetaCard label={t("node.metaUpdated")} value={data().node.updated} mono />
+                  <MetaCard
+                    label={t("node.metaConfidence")}
+                    value={data().node.confidence.toFixed(2)}
+                    mono
+                  />
                   <Show when={data().node.tags?.length}>
-                    <MetaCard label="Tags" value={(data().node.tags ?? []).join(", ")} />
+                    <MetaCard label={t("node.metaTags")} value={(data().node.tags ?? []).join(", ")} />
                   </Show>
                   <Show when={data().node.aliases?.length}>
-                    <MetaCard label="Aliases" value={(data().node.aliases ?? []).join(", ")} />
+                    <MetaCard
+                      label={t("node.metaAliases")}
+                      value={(data().node.aliases ?? []).join(", ")}
+                    />
                   </Show>
                 </section>
 
@@ -144,7 +152,7 @@ export default function NodeDetail() {
                       id="body-heading"
                       class="font-heading font-medium text-text-primary text-base mb-2"
                     >
-                      Body
+                      {t("node.body")}
                     </h2>
                     <pre class="bg-surface border border-border rounded-card p-4 whitespace-pre-wrap text-sm text-text-primary font-sans leading-relaxed">
                       {data().node.body}
@@ -155,7 +163,7 @@ export default function NodeDetail() {
                 {/* Outgoing relations */}
                 <Show when={data().outgoing.length > 0}>
                   <RelationSection
-                    title="Outgoing"
+                    title={t("node.outgoing")}
                     direction="out"
                     edges={data().outgoing}
                     self={data().node.id}
@@ -167,7 +175,7 @@ export default function NodeDetail() {
                 {/* Incoming relations */}
                 <Show when={data().incoming.length > 0}>
                   <RelationSection
-                    title="Incoming"
+                    title={t("node.incoming")}
                     direction="in"
                     edges={data().incoming}
                     self={data().node.id}
@@ -249,7 +257,7 @@ function EditForm(props: {
 
   return (
     <section class="mb-8 bg-surface border border-border rounded-card p-4 space-y-4">
-      <Field label="Summary">
+      <Field label={t("node.fieldSummary")}>
         <input
           type="text"
           value={summary()}
@@ -258,7 +266,7 @@ function EditForm(props: {
           maxlength={200}
         />
       </Field>
-      <Field label="Body">
+      <Field label={t("node.fieldBody")}>
         <textarea
           value={body()}
           onInput={(e) => setBody(e.currentTarget.value)}
@@ -266,7 +274,7 @@ function EditForm(props: {
           class="w-full bg-ink border border-border rounded px-3 py-2 text-sm text-text-primary focus:border-accent outline-none font-mono"
         />
       </Field>
-      <Field label="Tags (comma-separated)">
+      <Field label={t("node.fieldTags")}>
         <input
           type="text"
           value={tags()}
@@ -274,7 +282,7 @@ function EditForm(props: {
           class="w-full bg-ink border border-border rounded px-3 py-1.5 text-sm text-text-primary focus:border-accent outline-none font-mono"
         />
       </Field>
-      <Field label="Aliases (comma-separated)">
+      <Field label={t("node.fieldAliases")}>
         <input
           type="text"
           value={aliases()}
@@ -282,7 +290,7 @@ function EditForm(props: {
           class="w-full bg-ink border border-border rounded px-3 py-1.5 text-sm text-text-primary focus:border-accent outline-none font-mono"
         />
       </Field>
-      <Field label={`Confidence: ${confidence().toFixed(2)}`}>
+      <Field label={t("node.fieldConfidence", { value: confidence().toFixed(2) })}>
         <input
           type="range"
           min="0"
@@ -300,7 +308,7 @@ function EditForm(props: {
           disabled={saving()}
           class="px-3 py-1.5 rounded-card text-sm font-medium text-text-secondary hover:bg-elevated border border-border disabled:opacity-50"
         >
-          Cancel
+          {t("common.cancel")}
         </button>
         <button
           type="button"
@@ -308,7 +316,7 @@ function EditForm(props: {
           disabled={saving()}
           class="px-3 py-1.5 rounded-card text-sm font-medium bg-accent/20 text-accent border border-accent/40 hover:bg-accent/30 disabled:opacity-50"
         >
-          {saving() ? "Saving…" : "Save"}
+          {saving() ? t("common.saving") : t("common.save")}
         </button>
       </div>
     </section>
@@ -339,7 +347,12 @@ function RelationSection(props: {
   const removeEdge = async (edge: EdgeData) => {
     if (props.direction === "in") return; // incoming edges live on the other node
     const key = `${edge.relation}:${edge.to}`;
-    if (!confirm(`Remove relation '${edge.relation}' → '${edge.to}'?`)) return;
+    if (
+      !confirm(
+        t("node.removeRelConfirm", { rel: relationLabel[edge.relation].label, target: edge.to }),
+      )
+    )
+      return;
     setRemoving(key);
     props.setError(null);
     try {
@@ -365,8 +378,11 @@ function RelationSection(props: {
             const key = `${edge.relation}:${other}`;
             return (
               <li class="bg-surface border border-border rounded-card px-3 py-2 flex items-center gap-3 text-sm">
-                <span class="chip bg-elevated text-text-secondary font-mono text-xs">
-                  {edge.relation}
+                <span
+                  class="chip bg-elevated text-text-secondary text-xs"
+                  title={relationLabel[edge.relation].hint}
+                >
+                  {relationLabel[edge.relation].label}
                 </span>
                 <Show
                   when={edge.symmetric}
@@ -392,7 +408,10 @@ function RelationSection(props: {
                     onClick={() => removeEdge(edge)}
                     disabled={removing() === key}
                     class="text-text-tertiary hover:text-destructive transition-colors shrink-0 disabled:opacity-50"
-                    aria-label={`Remove ${edge.relation} → ${other}`}
+                    aria-label={t("node.removeRelAria", {
+                      rel: relationLabel[edge.relation].label,
+                      target: other,
+                    })}
                   >
                     <X size={14} />
                   </button>
@@ -439,11 +458,13 @@ function AddRelationForm(props: {
         onChange={(e) => setRelation(e.currentTarget.value as RelationName)}
         class="bg-ink border border-border rounded px-2 py-1 text-sm text-text-primary font-mono focus:border-accent outline-none"
       >
-        <For each={RELATION_NAMES}>{(r) => <option value={r}>{r}</option>}</For>
+        <For each={RELATION_NAMES}>
+          {(r) => <option value={r}>{relationLabel[r].label}</option>}
+        </For>
       </select>
       <input
         type="text"
-        placeholder="target node id"
+        placeholder={t("node.addTargetPlaceholder")}
         value={target()}
         onInput={(e) => setTarget(e.currentTarget.value)}
         onKeyDown={(e) => {
@@ -457,7 +478,7 @@ function AddRelationForm(props: {
         disabled={adding() || !target().trim()}
         class="px-3 py-1 rounded-card text-sm font-medium bg-accent/20 text-accent border border-accent/40 hover:bg-accent/30 disabled:opacity-50"
       >
-        {adding() ? "…" : "Add"}
+        {adding() ? "…" : t("node.add")}
       </button>
     </section>
   );

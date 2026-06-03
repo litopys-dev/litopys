@@ -4,6 +4,7 @@ import { For, Show, createMemo, createResource, createSignal } from "solid-js";
 import { type NodeRow, type NodeType, api } from "../api.ts";
 import { SkeletonRows } from "../components/Skeleton.tsx";
 import { TypeChip } from "../components/TypeChip.tsx";
+import { nodeTypeLabel, nodesWord, t } from "../i18n.ts";
 
 const TYPE_ORDER: NodeType[] = ["person", "project", "system", "concept", "event", "lesson"];
 
@@ -37,10 +38,14 @@ export default function NodesTable() {
   return (
     <div class="p-8 max-w-6xl">
       <header class="mb-6">
-        <h1 class="font-heading font-semibold text-text-primary text-2xl mb-1">Nodes</h1>
+        <h1 class="font-heading font-semibold text-text-primary text-2xl mb-1">{t("nodes.title")}</h1>
         <p class="text-text-secondary text-sm">
-          <Show when={!nodes.loading} fallback="Loading…">
-            {filtered().length} of {nodes()?.length ?? 0} nodes
+          <Show when={!nodes.loading} fallback={t("common.loading")}>
+            {t("nodes.count", {
+              shown: filtered().length,
+              total: nodes()?.length ?? 0,
+              word: nodesWord(nodes()?.length ?? 0),
+            })}
           </Show>
         </p>
       </header>
@@ -56,13 +61,13 @@ export default function NodesTable() {
             type="search"
             value={query()}
             onInput={(e) => setQuery(e.currentTarget.value)}
-            placeholder="Search id, summary, tags…"
-            aria-label="Search nodes"
+            placeholder={t("nodes.searchPlaceholder")}
+            aria-label={t("nodes.searchAria")}
             class="w-full bg-surface border border-border rounded-card pl-9 pr-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none transition-colors"
           />
         </div>
         <fieldset class="flex flex-wrap gap-1.5 border-0 p-0 m-0">
-          <legend class="sr-only">Filter by type</legend>
+          <legend class="sr-only">{t("nodes.filterByType")}</legend>
           <For each={TYPE_ORDER}>
             {(t) => {
               const active = () => activeTypes().has(t);
@@ -78,7 +83,7 @@ export default function NodesTable() {
                     "opacity-60 hover:opacity-100": !active(),
                   }}
                 >
-                  {t}
+                  {nodeTypeLabel[t]}
                 </button>
               );
             }}
@@ -89,7 +94,7 @@ export default function NodesTable() {
               onClick={() => setActiveTypes(new Set())}
               class="text-xs text-text-tertiary hover:text-text-primary transition-colors px-2"
             >
-              clear
+              {t("common.clear")}
             </button>
           </Show>
         </fieldset>
@@ -100,10 +105,10 @@ export default function NodesTable() {
         <table class="w-full text-sm">
           <thead class="bg-elevated border-b border-border">
             <tr class="text-left text-text-secondary">
-              <th class="px-4 py-2.5 font-medium w-24">Type</th>
-              <th class="px-4 py-2.5 font-medium">Id</th>
-              <th class="px-4 py-2.5 font-medium">Summary</th>
-              <th class="px-4 py-2.5 font-medium w-28 text-right">Updated</th>
+              <th class="px-4 py-2.5 font-medium w-24">{t("nodes.colType")}</th>
+              <th class="px-4 py-2.5 font-medium">{t("nodes.colId")}</th>
+              <th class="px-4 py-2.5 font-medium">{t("nodes.colSummary")}</th>
+              <th class="px-4 py-2.5 font-medium w-28 text-right">{t("nodes.colUpdated")}</th>
             </tr>
           </thead>
           <tbody>
@@ -113,7 +118,7 @@ export default function NodesTable() {
                 fallback={
                   <tr>
                     <td colspan="4" class="px-4 py-8 text-center text-text-tertiary text-sm">
-                      No nodes match the current filters.
+                      {t("nodes.empty")}
                     </td>
                   </tr>
                 }
@@ -127,7 +132,7 @@ export default function NodesTable() {
 
       <Show when={nodes.error}>
         <div class="mt-4 text-destructive text-sm font-mono">
-          Error loading nodes: {String(nodes.error)}
+          {t("nodes.error", { msg: String(nodes.error) })}
         </div>
       </Show>
     </div>

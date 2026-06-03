@@ -1,6 +1,7 @@
 import { A, useLocation } from "@solidjs/router";
 import { GitGraph, LayoutDashboard, Plus, ShieldAlert, Table2 } from "lucide-solid";
 import { For, type ParentProps, Show, Suspense, createSignal } from "solid-js";
+import { t } from "../i18n.ts";
 import { NewNodeModal } from "./NewNodeModal.tsx";
 
 interface NavItem {
@@ -11,10 +12,10 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: () => <LayoutDashboard size={16} />, exact: true },
-  { href: "/table", label: "Nodes", icon: () => <Table2 size={16} /> },
-  { href: "/graph", label: "Graph", icon: () => <GitGraph size={16} /> },
-  { href: "/quarantine", label: "Quarantine", icon: () => <ShieldAlert size={16} /> },
+  { href: "/", label: t("nav.dashboard"), icon: () => <LayoutDashboard size={16} />, exact: true },
+  { href: "/table", label: t("nav.nodes"), icon: () => <Table2 size={16} /> },
+  { href: "/graph", label: t("nav.graph"), icon: () => <GitGraph size={16} /> },
+  { href: "/quarantine", label: t("nav.quarantine"), icon: () => <ShieldAlert size={16} /> },
 ];
 
 function NavLink(props: NavItem) {
@@ -46,14 +47,14 @@ export function Layout(props: ParentProps) {
       {/* Sidebar */}
       <nav
         class="fixed left-0 top-0 bottom-0 w-52 bg-surface border-r border-border flex flex-col z-20"
-        aria-label="Main navigation"
+        aria-label={t("nav.ariaMain")}
       >
         {/* Logo */}
         <div class="px-4 py-5 border-b border-divider">
           <span class="font-heading font-semibold text-text-primary text-base tracking-tight">
             Litopys
           </span>
-          <span class="ml-2 font-mono text-xs text-text-tertiary">dashboard</span>
+          <span class="ml-2 font-mono text-xs text-text-tertiary">{t("nav.brandSuffix")}</span>
         </div>
 
         {/* Nav items */}
@@ -68,7 +69,7 @@ export function Layout(props: ParentProps) {
             onClick={() => setModalOpen(true)}
             class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-card text-sm font-medium bg-accent/15 text-accent border border-accent/40 hover:bg-accent/25 transition-colors"
           >
-            <Plus size={14} /> New node
+            <Plus size={14} /> {t("nav.newNode")}
           </button>
         </div>
 
@@ -80,7 +81,7 @@ export function Layout(props: ParentProps) {
 
       {/* Main content */}
       <main class="flex-1 ml-52 min-h-dvh">
-        <Suspense fallback={<div class="p-8 text-text-secondary text-sm">Loading...</div>}>
+        <Suspense fallback={<div class="p-8 text-text-secondary text-sm">{t("common.loading")}</div>}>
           {props.children}
         </Suspense>
       </main>

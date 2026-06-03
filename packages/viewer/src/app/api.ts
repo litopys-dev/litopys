@@ -84,10 +84,21 @@ export interface QuarantineCandidate {
   reasoning: string;
 }
 
+export type RefOrigin = "new" | "existing" | "unknown";
+
+export interface QuarantineRef {
+  id: string;
+  origin: RefOrigin;
+  type?: NodeType;
+  summary?: string;
+}
+
 export interface QuarantineRelation {
-  sourceId: string;
   type: RelationName;
-  targetId: string;
+  source: QuarantineRef;
+  target: QuarantineRef;
+  confidence?: number;
+  reasoning?: string;
 }
 
 export interface QuarantineRegularFile {

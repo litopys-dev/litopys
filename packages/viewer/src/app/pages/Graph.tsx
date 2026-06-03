@@ -4,7 +4,8 @@ import cytoscape, { type Core, type ElementDefinition } from "cytoscape";
 import fcose from "cytoscape-fcose";
 import { Maximize2 } from "lucide-solid";
 import { For, Show, createResource, createSignal, onCleanup, onMount } from "solid-js";
-import { type NodeType, api } from "../api.ts";
+import { type NodeType, type RelationName, api } from "../api.ts";
+import { nodeTypeLabel, nodesWord, relationLabel, relationsWord, t } from "../i18n.ts";
 
 cytoscape.use(fcose);
 
@@ -140,7 +141,13 @@ export default function Graph() {
 
       const elements: ElementDefinition[] = [
         ...payload.nodes.map((n) => ({ group: "nodes" as const, data: n.data })),
-        ...payload.edges.map((e) => ({ group: "edges" as const, data: e.data })),
+        ...payload.edges.map((e) => ({
+          group: "edges" as const,
+          data: {
+            ...e.data,
+            relLabel: relationLabel[e.data.relation as RelationName]?.label ?? e.data.relation,
+          },
+        })),
       ];
 
       cy = cytoscape({
@@ -209,7 +216,7 @@ export default function Graph() {
               "target-arrow-shape": "triangle",
               "arrow-scale": 0.7,
               "curve-style": "bezier",
-              label: "data(relation)",
+              label: "data(relLabel)",
               "font-family": "JetBrains Mono, monospace",
               "font-size": 8,
               color: "#4b5563",
@@ -332,12 +339,15 @@ export default function Graph() {
     <div class="h-dvh flex flex-col">
       <header class="flex items-center justify-between px-8 py-5 border-b border-divider">
         <div>
-          <h1 class="font-heading font-semibold text-text-primary text-2xl mb-0.5">Graph</h1>
+          <h1 class="font-heading font-semibold text-text-primary text-2xl mb-0.5">
+            {t("graph.title")}
+          </h1>
           <p class="text-text-secondary text-sm">
-            <Show when={data()} fallback="Loading…">
+            <Show when={data()} fallback={t("common.loading")}>
               {(d) => (
                 <>
-                  {d().nodes.length} nodes · {d().edges.length} edges · click to inspect
+                  {d().nodes.length} {nodesWord(d().nodes.length)} · {d().edges.length}{" "}
+                  {relationsWord(d().edges.length)} · {t("graph.hint")}
                 </>
               )}
             </Show>
@@ -349,7 +359,7 @@ export default function Graph() {
           class="inline-flex items-center gap-2 px-3 py-1.5 rounded-card text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-elevated border border-border transition-colors"
         >
           <Maximize2 size={14} />
-          Fit
+          {t("graph.fit")}
         </button>
       </header>
 
@@ -373,7 +383,7 @@ export default function Graph() {
                   class="w-2 h-2 rounded-full flex-shrink-0"
                   style={{ background: isHidden() ? "#3a4050" : TYPE_COLORS[type] }}
                 />
-                {type}
+                {nodeTypeLabel[type]}
               </button>
             );
           }}
@@ -383,19 +393,19 @@ export default function Graph() {
       <div class="flex-1 relative graph-bg">
         <Show when={data.error}>
           <div class="absolute inset-0 flex items-center justify-center text-destructive text-sm font-mono">
-            Error: {String(data.error)}
+            {t("graph.error", { msg: String(data.error) })}
           </div>
         </Show>
         <div ref={containerRef} class="absolute inset-0" />
 
         {/* Hover tooltip */}
         <Show when={tooltip()}>
-          {(t) => (
+          {(tip) => (
             <div
               class="fixed z-50 pointer-events-none"
               style={{
-                left: `${t().x}px`,
-                top: `${t().y - 14}px`,
+                left: `${tip().x}px`,
+                top: `${tip().y - 14}px`,
                 transform: "translate(-50%, -100%)",
               }}
             >
@@ -403,16 +413,18 @@ export default function Graph() {
                 class="px-2.5 py-1.5 rounded-md text-xs font-mono backdrop-blur-sm whitespace-nowrap"
                 style={{
                   background: "rgba(12, 15, 20, 0.93)",
-                  border: `1px solid ${TYPE_COLORS[t().type] ?? "#262b33"}66`,
-                  "box-shadow": `0 0 18px ${TYPE_COLORS[t().type] ?? "#0000"}30, 0 2px 8px rgba(0,0,0,0.5)`,
+                  border: `1px solid ${TYPE_COLORS[tip().type] ?? "#262b33"}66`,
+                  "box-shadow": `0 0 18px ${TYPE_COLORS[tip().type] ?? "#0000"}30, 0 2px 8px rgba(0,0,0,0.5)`,
                   color: "#e6e8eb",
                 }}
               >
-                <span style={{ color: TYPE_COLORS[t().type] ?? "#9aa3ae" }}>{t().type}</span>
+                <span style={{ color: TYPE_COLORS[tip().type] ?? "#9aa3ae" }}>
+                  {nodeTypeLabel[tip().type]}
+                </span>
                 <span class="mx-1.5" style={{ color: "#4b5563" }}>
                   ·
                 </span>
-                {t().label}
+                {tip().label}
               </div>
             </div>
           )}

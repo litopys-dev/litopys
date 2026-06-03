@@ -3,6 +3,7 @@ import { For, Show, createResource } from "solid-js";
 import { type NodeType, api } from "../api.ts";
 import { SkeletonCard } from "../components/Skeleton.tsx";
 import { TypeChip } from "../components/TypeChip.tsx";
+import { t } from "../i18n.ts";
 
 const TYPE_ORDER: NodeType[] = ["person", "project", "system", "concept", "event", "lesson"];
 
@@ -12,22 +13,30 @@ export default function Dashboard() {
   return (
     <div class="p-8 max-w-4xl">
       <header class="mb-8">
-        <h1 class="font-heading font-semibold text-text-primary text-2xl mb-1">Dashboard</h1>
-        <p class="text-text-secondary text-sm">Graph overview — live from ~/.litopys/graph/</p>
+        <h1 class="font-heading font-semibold text-text-primary text-2xl mb-1">{t("dash.title")}</h1>
+        <p class="text-text-secondary text-sm">{t("dash.subtitle")}</p>
       </header>
 
       {/* Top-level stats cards */}
       <div class="grid grid-cols-3 gap-4 mb-8">
         <Show when={!stats.loading} fallback={<SkeletonCard />}>
-          <StatCard icon={<Database size={18} />} label="Nodes" value={stats()?.nodeCount ?? 0} />
+          <StatCard
+            icon={<Database size={18} />}
+            label={t("dash.nodes")}
+            value={stats()?.nodeCount ?? 0}
+          />
         </Show>
         <Show when={!stats.loading} fallback={<SkeletonCard />}>
-          <StatCard icon={<Link2 size={18} />} label="Edges" value={stats()?.edgeCount ?? 0} />
+          <StatCard
+            icon={<Link2 size={18} />}
+            label={t("dash.edges")}
+            value={stats()?.edgeCount ?? 0}
+          />
         </Show>
         <Show when={!stats.loading} fallback={<SkeletonCard />}>
           <StatCard
             icon={<Box size={18} />}
-            label="Types"
+            label={t("dash.types")}
             value={Object.keys(stats()?.typeBreakdown ?? {}).length}
           />
         </Show>
@@ -39,7 +48,7 @@ export default function Dashboard() {
           id="type-breakdown-heading"
           class="font-heading font-medium text-text-primary text-base mb-4"
         >
-          By Type
+          {t("dash.byType")}
         </h2>
         <Show
           when={!stats.loading}
@@ -69,7 +78,7 @@ export default function Dashboard() {
 
       <Show when={stats.error}>
         <div class="mt-6 text-destructive text-sm font-mono">
-          Error loading stats: {String(stats.error)}
+          {t("dash.error", { msg: String(stats.error) })}
         </div>
       </Show>
     </div>

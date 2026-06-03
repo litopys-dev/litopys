@@ -22,6 +22,7 @@ import {
   rejectCandidate,
   rejectMergeProposal,
 } from "@litopys/extractor";
+import { type RefSource, resolveRelation } from "./quarantine-resolve.ts";
 
 // ---------------------------------------------------------------------------
 // Auth — viewer ships with no auth historically because it bound to 127.0.0.1.
@@ -218,6 +219,7 @@ async function apiGraph(): Promise<Response> {
 async function apiQuarantine(): Promise<Response> {
   const gp = defaultGraphPath();
   const files = await listQuarantine(gp);
+  const graph = await getGraph();
 
   const result = await Promise.all(
     files.map(async (f) => {
@@ -239,6 +241,10 @@ async function apiQuarantine(): Promise<Response> {
         }
       }
 
+      const candidateMap = new Map<string, RefSource>(
+        f.candidates.map((c) => [c.id, { type: c.type, summary: c.summary }]),
+      );
+
       return {
         kind: "regular" as const,
         filePath: basename,
@@ -252,11 +258,7 @@ async function apiQuarantine(): Promise<Response> {
           confidence: c.confidence,
           reasoning: c.reasoning,
         })),
-        relations: f.relations.map((r) => ({
-          sourceId: r.sourceId,
-          type: r.type,
-          targetId: r.targetId,
-        })),
+        relations: f.relations.map((r) => resolveRelation(r, candidateMap, graph.nodes)),
       };
     }),
   );

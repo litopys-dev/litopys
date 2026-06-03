@@ -1,4 +1,12 @@
-import { CheckCircle, ChevronDown, ChevronRight, GitMerge, X } from "lucide-solid";
+import { A } from "@solidjs/router";
+import {
+  CheckCircle,
+  ChevronDown,
+  ChevronRight,
+  GitMerge,
+  HelpCircle,
+  X,
+} from "lucide-solid";
 import { For, type Setter, Show, createResource, createSignal } from "solid-js";
 import {
   type MergeConflictPayload,
@@ -6,12 +14,22 @@ import {
   type QuarantineCandidate,
   type QuarantineFile,
   type QuarantineMergeFile,
+  type QuarantineRef,
   type QuarantineRegularFile,
   type QuarantineRelation,
+  type RefOrigin,
   api,
 } from "../api.ts";
 import { SkeletonCard } from "../components/Skeleton.tsx";
 import { TypeChip } from "../components/TypeChip.tsx";
+import { nodeTypeLabel, originLabel, plural, relationLabel, t } from "../i18n.ts";
+
+// Confidence colour: trusted ≥0.8, borderline 0.7–0.8, weak <0.7.
+function confClass(c: number): string {
+  if (c >= 0.8) return "text-accent";
+  if (c >= 0.7) return "text-text-secondary";
+  return "text-destructive";
+}
 
 // ---------------------------------------------------------------------------
 // Top-level page
@@ -44,11 +62,8 @@ export default function Quarantine() {
   return (
     <div class="p-8 max-w-5xl">
       <header class="mb-6">
-        <h1 class="font-heading font-semibold text-text-primary text-2xl mb-1">Quarantine</h1>
-        <p class="text-text-secondary text-sm">
-          Pending extractor candidates waiting for review. Accept to promote to the graph, reject to
-          discard.
-        </p>
+        <h1 class="font-heading font-semibold text-text-primary text-2xl mb-1">{t("q.title")}</h1>
+        <p class="text-text-secondary text-sm">{t("q.subtitle")}</p>
       </header>
 
       {/* Toast */}
@@ -71,7 +86,7 @@ export default function Quarantine() {
           when={(files() ?? []).length > 0}
           fallback={
             <div class="bg-surface border border-border rounded-card px-5 py-8 text-center text-text-tertiary text-sm">
-              No pending quarantine items.
+              {t("q.empty")}
             </div>
           }
         >
@@ -101,7 +116,7 @@ export default function Quarantine() {
 
       <Show when={files.error}>
         <div class="mt-4 text-destructive text-sm font-mono">
-          Error loading quarantine: {String(files.error)}
+          {t("q.loadError", { msg: String(files.error) })}
         </div>
       </Show>
     </div>
@@ -130,9 +145,13 @@ function RegularCard(props: {
           </div>
         </div>
         <div class="flex gap-2 shrink-0 font-mono text-xs text-text-tertiary tabular-nums pt-0.5">
-          <span>{f.candidateCount} cand</span>
+          <span>
+            {f.candidateCount} {plural(f.candidateCount, ["узел", "узла", "узлов"])}
+          </span>
           <span>·</span>
-          <span>{f.relationCount} rel</span>
+          <span>
+            {f.relationCount} {plural(f.relationCount, ["связь", "связи", "связей"])}
+          </span>
         </div>
       </div>
 
@@ -177,7 +196,7 @@ function CandidateRow(props: {
     props.setError(null);
     try {
       await api.acceptQuarantine(props.filePath, props.index);
-      props.onAction(`Accepted candidate ${c.id}`, `${props.filePath}:${c.id}`);
+      props.onAction(t("q.accepted", { id: c.id }), `${props.filePath}:${c.id}`);
     } catch (e) {
       props.setError(String((e as Error).message ?? e));
     } finally {
@@ -186,13 +205,13 @@ function CandidateRow(props: {
   };
 
   const reject = async () => {
-    const reason = window.prompt(`Reason for rejecting "${c.id}" (optional):`);
+    const reason = window.prompt(t("q.rejectPrompt", { id: c.id }));
     if (reason === null) return; // user cancelled
     setBusy(true);
     props.setError(null);
     try {
       await api.rejectQuarantine(props.filePath, props.index, reason || undefined);
-      props.onAction(`Rejected candidate ${c.id}`, `${props.filePath}:${c.id}`);
+      props.onAction(t("q.rejected", { id: c.id }), `${props.filePath}:${c.id}`);
     } catch (e) {
       props.setError(String((e as Error).message ?? e));
     } finally {
@@ -204,29 +223,34 @@ function CandidateRow(props: {
     <li class="px-4 py-3">
       {/* Main row */}
       <div class="flex items-start gap-3">
-        <TypeChip type={c.type} />
+        <TypeChip type={c.type} label={nodeTypeLabel[c.type]} />
         <div class="flex-1 min-w-0">
-          <div class="flex items-baseline gap-2">
+          <div class="flex items-baseline gap-2 flex-wrap">
             <span class="font-mono text-text-primary text-sm">{c.id}</span>
-            <span class="font-mono text-text-tertiary text-xs tabular-nums">
-              {c.confidence.toFixed(2)}
+            <span class={`font-mono text-xs tabular-nums ${confClass(c.confidence)}`}>
+              {t("q.confidence")} {c.confidence.toFixed(2)}
             </span>
           </div>
           <p class="text-text-secondary text-sm mt-0.5 break-words">{c.summary}</p>
+
+          {/* Reasoning toggle — now a labelled, discoverable control */}
+          <Show when={c.reasoning}>
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              class="mt-1.5 inline-flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary transition-colors"
+              aria-expanded={expanded()}
+            >
+              <Show when={expanded()} fallback={<ChevronRight size={12} />}>
+                <ChevronDown size={12} />
+              </Show>
+              {t("q.why")}
+            </button>
+          </Show>
         </div>
+
         {/* Action buttons */}
         <div class="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            title="Toggle reasoning"
-            class="inline-flex items-center p-1 rounded text-text-tertiary hover:text-text-secondary hover:bg-elevated transition-colors"
-            aria-expanded={expanded()}
-          >
-            <Show when={expanded()} fallback={<ChevronRight size={14} />}>
-              <ChevronDown size={14} />
-            </Show>
-          </button>
           <button
             type="button"
             onClick={reject}
@@ -234,7 +258,7 @@ function CandidateRow(props: {
             class="inline-flex items-center gap-1 px-2.5 py-1 rounded-card text-xs font-medium text-destructive hover:bg-destructive/10 border border-border transition-colors disabled:opacity-40"
           >
             <X size={12} />
-            Reject
+            {t("q.reject")}
           </button>
           <button
             type="button"
@@ -243,7 +267,7 @@ function CandidateRow(props: {
             class="inline-flex items-center gap-1 px-2.5 py-1 rounded-card text-xs font-medium bg-accent/15 text-accent border border-accent/40 hover:bg-accent/25 transition-colors disabled:opacity-40"
           >
             <CheckCircle size={12} />
-            Accept
+            {t("q.accept")}
           </button>
         </div>
       </div>
@@ -258,24 +282,89 @@ function CandidateRow(props: {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Relations — rendered as human-readable sentences with resolved endpoints
+// ---------------------------------------------------------------------------
+
+function originBadgeClass(origin: RefOrigin): string {
+  switch (origin) {
+    case "new":
+      return "bg-accent/10 text-accent border border-accent/30";
+    case "existing":
+      return "bg-elevated text-text-tertiary border border-border";
+    case "unknown":
+      return "bg-destructive/10 text-destructive border border-destructive/30";
+  }
+}
+
+function RefChip(props: { node: QuarantineRef }) {
+  const n = props.node;
+  const body = (
+    <span class="inline-flex items-center gap-1.5">
+      <Show
+        when={n.type}
+        fallback={
+          <span class="chip bg-elevated text-text-tertiary text-[10px] px-1.5 py-0.5">?</span>
+        }
+      >
+        <TypeChip type={n.type as NonNullable<QuarantineRef["type"]>} label={nodeTypeLabel[n.type as NonNullable<QuarantineRef["type"]>]} />
+      </Show>
+      <span class="font-mono text-xs text-text-primary">{n.id}</span>
+      <span class={`text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap ${originBadgeClass(n.origin)}`}>
+        {originLabel[n.origin]}
+      </span>
+    </span>
+  );
+  // Existing nodes link to their detail page; new/dangling ones are plain.
+  // The summary rides along as a native tooltip so hovering explains the id.
+  return (
+    <Show
+      when={n.origin === "existing"}
+      fallback={
+        <span title={n.summary ?? ""} class="inline-flex">
+          {body}
+        </span>
+      }
+    >
+      <A
+        href={`/node/${encodeURIComponent(n.id)}`}
+        title={n.summary ?? ""}
+        class="inline-flex hover:opacity-80 transition-opacity"
+      >
+        {body}
+      </A>
+    </Show>
+  );
+}
+
+function RelationRow(props: { relation: QuarantineRelation }) {
+  const r = props.relation;
+  const meta = relationLabel[r.type];
+  return (
+    <li class="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+      <RefChip node={r.source} />
+      <span
+        class="inline-flex items-center gap-1 text-text-secondary text-xs cursor-help"
+        title={meta.hint}
+      >
+        <span class="text-text-tertiary">──</span>
+        <span class="font-medium">{meta.label}</span>
+        <span class="text-text-tertiary">▶</span>
+        <HelpCircle size={11} class="text-text-tertiary" />
+      </span>
+      <RefChip node={r.target} />
+    </li>
+  );
+}
+
 function RelationsList(props: { relations: QuarantineRelation[] }) {
   return (
-    <div class="border-t border-border/60 px-4 py-2 bg-ink/20">
-      <div class="text-text-tertiary text-xs uppercase tracking-wide mb-1.5">
-        Relations ({props.relations.length})
+    <div class="border-t border-border/60 px-4 py-3 bg-ink/20">
+      <div class="text-text-tertiary text-xs uppercase tracking-wide mb-2">
+        {t("q.relations")} ({props.relations.length})
       </div>
-      <ul class="space-y-1">
-        <For each={props.relations}>
-          {(r) => (
-            <li class="flex items-center gap-2 text-xs font-mono text-text-secondary">
-              <span class="text-text-primary">{r.sourceId}</span>
-              <span class="chip bg-elevated text-text-tertiary text-[10px] px-1.5 py-0.5">
-                {r.type}
-              </span>
-              <span class="text-text-primary">{r.targetId}</span>
-            </li>
-          )}
-        </For>
+      <ul class="space-y-2.5">
+        <For each={props.relations}>{(r) => <RelationRow relation={r} />}</For>
       </ul>
     </div>
   );
@@ -296,7 +385,7 @@ function MergeCard(props: {
   const accept = async () => {
     if (
       !confirm(
-        `Apply merge proposal?\n\n${p.result.loserId} → ${p.result.winnerId}\n\nThe loser node will be tombstoned and the winner will absorb its aliases, tags, and relations.`,
+        t("merge.confirm", { loser: p.result.loserId, winner: p.result.winnerId }),
       )
     )
       return;
@@ -305,7 +394,7 @@ function MergeCard(props: {
     try {
       await api.acceptQuarantine(props.file.filePath);
       props.onAction(
-        `Merged ${p.result.loserId} → ${p.result.winnerId}`,
+        t("merge.merged", { loser: p.result.loserId, winner: p.result.winnerId }),
         `file:${props.file.filePath}`,
       );
     } catch (e) {
@@ -321,7 +410,7 @@ function MergeCard(props: {
     try {
       await api.rejectQuarantine(props.file.filePath);
       props.onAction(
-        `Rejected merge proposal: ${props.file.filePath}`,
+        t("merge.rejectedToast", { file: props.file.filePath }),
         `file:${props.file.filePath}`,
       );
     } catch (e) {
@@ -340,7 +429,7 @@ function MergeCard(props: {
           <div class="min-w-0">
             <div class="font-mono text-xs text-text-tertiary truncate">{props.file.filePath}</div>
             <div class="mt-0.5 text-text-secondary text-xs">
-              Merge proposal · detected by {p.detectedBy}
+              {t("merge.proposal")} · {t("merge.detectedBy", { by: p.detectedBy })}
             </div>
           </div>
         </div>
@@ -352,7 +441,7 @@ function MergeCard(props: {
             class="inline-flex items-center gap-1 px-2.5 py-1 rounded-card text-xs font-medium text-destructive hover:bg-destructive/10 border border-border transition-colors disabled:opacity-40"
           >
             <X size={12} />
-            Reject
+            {t("q.reject")}
           </button>
           <button
             type="button"
@@ -361,7 +450,7 @@ function MergeCard(props: {
             class="inline-flex items-center gap-1 px-2.5 py-1 rounded-card text-xs font-medium bg-accent/15 text-accent border border-accent/40 hover:bg-accent/25 transition-colors disabled:opacity-40"
           >
             <GitMerge size={12} />
-            Accept merge
+            {t("merge.accept")}
           </button>
         </div>
       </div>
@@ -370,12 +459,16 @@ function MergeCard(props: {
       <div class="px-4 py-4">
         <div class="flex items-center gap-3 mb-4">
           <div class="bg-ink border border-border rounded-card px-3 py-2 min-w-0">
-            <div class="text-text-tertiary text-[10px] uppercase tracking-wide mb-0.5">Loser</div>
+            <div class="text-text-tertiary text-[10px] uppercase tracking-wide mb-0.5">
+              {t("merge.loser")}
+            </div>
             <div class="font-mono text-sm text-text-primary">{p.result.loserId}</div>
           </div>
           <div class="text-text-tertiary text-lg select-none shrink-0">→</div>
           <div class="bg-accent/10 border border-accent/40 rounded-card px-3 py-2 min-w-0">
-            <div class="text-accent/70 text-[10px] uppercase tracking-wide mb-0.5">Winner</div>
+            <div class="text-accent/70 text-[10px] uppercase tracking-wide mb-0.5">
+              {t("merge.winner")}
+            </div>
             <div class="font-mono text-sm text-accent">{p.result.winnerId}</div>
           </div>
         </div>
@@ -384,7 +477,7 @@ function MergeCard(props: {
         <Show when={p.conflicts.length > 0}>
           <div class="mb-4">
             <div class="text-text-tertiary text-xs uppercase tracking-wide mb-1.5">
-              Conflicts ({p.conflicts.length})
+              {t("merge.conflicts")} ({p.conflicts.length})
             </div>
             <ul class="space-y-1">
               <For each={p.conflicts}>{(conflict) => <ConflictRow conflict={conflict} />}</For>
@@ -418,20 +511,18 @@ function MergedPreview(props: { proposal: MergeProposalPayload }) {
 
   return (
     <div class="border border-border rounded-card p-3 bg-ink/20">
-      <div class="text-text-tertiary text-xs uppercase tracking-wide mb-2">
-        Merged result preview
-      </div>
+      <div class="text-text-tertiary text-xs uppercase tracking-wide mb-2">{t("merge.preview")}</div>
       <div class="space-y-1.5 text-sm">
         <Show when={r.summary}>
           <div class="text-text-secondary">{r.summary}</div>
         </Show>
         <div class="flex flex-wrap gap-1.5 text-xs font-mono">
-          <span class="text-text-tertiary">conf:</span>
+          <span class="text-text-tertiary">{t("q.confidence")}:</span>
           <span class="text-text-primary tabular-nums">{r.confidence.toFixed(2)}</span>
         </div>
         <Show when={r.aliases.length > 0}>
           <div class="flex flex-wrap gap-1">
-            <span class="text-text-tertiary text-xs">aliases:</span>
+            <span class="text-text-tertiary text-xs">псевдонимы:</span>
             <For each={r.aliases}>
               {(a) => (
                 <span class="chip bg-elevated text-text-secondary font-mono text-[10px]">{a}</span>
@@ -441,23 +532,25 @@ function MergedPreview(props: { proposal: MergeProposalPayload }) {
         </Show>
         <Show when={r.tags.length > 0}>
           <div class="flex flex-wrap gap-1">
-            <span class="text-text-tertiary text-xs">tags:</span>
+            <span class="text-text-tertiary text-xs">теги:</span>
             <For each={r.tags}>
-              {(t) => (
-                <span class="chip bg-elevated text-text-secondary font-mono text-[10px]">{t}</span>
+              {(tag) => (
+                <span class="chip bg-elevated text-text-secondary font-mono text-[10px]">{tag}</span>
               )}
             </For>
           </div>
         </Show>
         <Show when={relEntries.length > 0}>
           <div>
-            <span class="text-text-tertiary text-xs">rels:</span>
+            <span class="text-text-tertiary text-xs">{t("q.relations").toLowerCase()}:</span>
             <ul class="mt-1 space-y-0.5 ml-2">
               <For each={relEntries}>
                 {([rel, targets]) => (
-                  <li class="flex items-center gap-1.5 text-xs font-mono">
-                    <span class="chip bg-elevated text-text-tertiary text-[10px]">{rel}</span>
-                    <span class="text-text-secondary">{(targets ?? []).join(", ")}</span>
+                  <li class="flex items-center gap-1.5 text-xs">
+                    <span class="chip bg-elevated text-text-tertiary text-[10px]">
+                      {relationLabel[rel as keyof typeof relationLabel]?.label ?? rel}
+                    </span>
+                    <span class="text-text-secondary font-mono">{(targets ?? []).join(", ")}</span>
                   </li>
                 )}
               </For>

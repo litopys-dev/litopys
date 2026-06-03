@@ -2,6 +2,7 @@ import { useNavigate } from "@solidjs/router";
 import { X } from "lucide-solid";
 import { For, Show, createSignal } from "solid-js";
 import { type NodeType, api } from "../api.ts";
+import { nodeTypeLabel, t } from "../i18n.ts";
 
 const TYPES: NodeType[] = ["person", "project", "system", "concept", "event", "lesson"];
 
@@ -37,7 +38,7 @@ export function NewNodeModal(props: { onClose: () => void }) {
   const create = async () => {
     const normalizedId = slugify(id().trim());
     if (!normalizedId) {
-      setError("id is required");
+      setError(t("modal.idRequired"));
       return;
     }
     setCreating(true);
@@ -77,12 +78,12 @@ export function NewNodeModal(props: { onClose: () => void }) {
         onKeyDown={(e) => e.stopPropagation()}
       >
         <header class="flex items-center justify-between px-5 py-3 border-b border-divider">
-          <h2 class="font-heading font-medium text-text-primary text-base">New node</h2>
+          <h2 class="font-heading font-medium text-text-primary text-base">{t("modal.title")}</h2>
           <button
             type="button"
             onClick={props.onClose}
             class="text-text-tertiary hover:text-text-primary"
-            aria-label="Close"
+            aria-label={t("common.close")}
           >
             <X size={18} />
           </button>
@@ -96,21 +97,23 @@ export function NewNodeModal(props: { onClose: () => void }) {
           </Show>
 
           <div class="block">
-            <span class="block text-text-tertiary text-xs uppercase tracking-wide mb-1">Type</span>
+            <span class="block text-text-tertiary text-xs uppercase tracking-wide mb-1">
+              {t("modal.type")}
+            </span>
             <div class="flex flex-wrap gap-1.5">
               <For each={TYPES}>
-                {(t) => (
+                {(ty) => (
                   <button
                     type="button"
-                    onClick={() => setType(t)}
+                    onClick={() => setType(ty)}
                     class="chip cursor-pointer transition-all"
                     classList={{
-                      [`chip-${t}`]: true,
-                      "ring-2 ring-accent ring-offset-2 ring-offset-surface": type() === t,
-                      "opacity-60 hover:opacity-100": type() !== t,
+                      [`chip-${ty}`]: true,
+                      "ring-2 ring-accent ring-offset-2 ring-offset-surface": type() === ty,
+                      "opacity-60 hover:opacity-100": type() !== ty,
                     }}
                   >
-                    {t}
+                    {nodeTypeLabel[ty]}
                   </button>
                 )}
               </For>
@@ -119,13 +122,13 @@ export function NewNodeModal(props: { onClose: () => void }) {
 
           <label class="block">
             <span class="block text-text-tertiary text-xs uppercase tracking-wide mb-1">
-              Summary
+              {t("modal.summary")}
             </span>
             <input
               type="text"
               value={summary()}
               onInput={(e) => onSummaryInput(e.currentTarget.value)}
-              placeholder="One-line description"
+              placeholder={t("modal.summaryPlaceholder")}
               maxlength={200}
               class="w-full bg-ink border border-border rounded px-3 py-1.5 text-sm text-text-primary focus:border-accent outline-none"
             />
@@ -133,7 +136,8 @@ export function NewNodeModal(props: { onClose: () => void }) {
 
           <label class="block">
             <span class="block text-text-tertiary text-xs uppercase tracking-wide mb-1">
-              ID (kebab-case) {!idTouched() && <span class="text-text-tertiary">— auto</span>}
+              {t("modal.id")}{" "}
+              {!idTouched() && <span class="text-text-tertiary">{t("modal.idAuto")}</span>}
             </span>
             <input
               type="text"
@@ -143,14 +147,14 @@ export function NewNodeModal(props: { onClose: () => void }) {
                 setId(e.currentTarget.value);
               }}
               onBlur={() => setId(slugify(id()))}
-              placeholder="my-node-id"
+              placeholder={t("modal.idPlaceholder")}
               class="w-full bg-ink border border-border rounded px-3 py-1.5 text-sm text-text-primary focus:border-accent outline-none font-mono"
             />
           </label>
 
           <label class="block">
             <span class="block text-text-tertiary text-xs uppercase tracking-wide mb-1">
-              Tags (comma-separated)
+              {t("modal.tags")}
             </span>
             <input
               type="text"
@@ -162,7 +166,7 @@ export function NewNodeModal(props: { onClose: () => void }) {
 
           <label class="block">
             <span class="block text-text-tertiary text-xs uppercase tracking-wide mb-1">
-              Body (markdown, optional)
+              {t("modal.body")}
             </span>
             <textarea
               value={body()}
@@ -180,7 +184,7 @@ export function NewNodeModal(props: { onClose: () => void }) {
             disabled={creating()}
             class="px-3 py-1.5 rounded-card text-sm font-medium text-text-secondary hover:bg-elevated border border-border disabled:opacity-50"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -188,7 +192,7 @@ export function NewNodeModal(props: { onClose: () => void }) {
             disabled={creating() || !id().trim()}
             class="px-3 py-1.5 rounded-card text-sm font-medium bg-accent/20 text-accent border border-accent/40 hover:bg-accent/30 disabled:opacity-50"
           >
-            {creating() ? "Creating…" : "Create"}
+            {creating() ? t("modal.creating") : t("modal.create")}
           </button>
         </footer>
       </div>

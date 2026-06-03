@@ -1,4 +1,5 @@
 import { For } from "solid-js";
+import { t } from "../i18n.ts";
 
 interface SkeletonRowsProps {
   rows?: number;
@@ -10,7 +11,7 @@ export function SkeletonRows(props: SkeletonRowsProps) {
   const cols = () => props.cols ?? 4;
 
   return (
-    <output class="block space-y-1" aria-label="Loading...">
+    <output class="block space-y-1" aria-label={t("common.loading")}>
       <For each={Array.from({ length: rows() })}>
         {() => (
           <div class="flex gap-4 px-4 py-2.5">
@@ -27,5 +28,5 @@ export function SkeletonRows(props: SkeletonRowsProps) {
 }
 
 export function SkeletonCard() {
-  return <output class="skeleton block h-24 rounded-card" aria-label="Loading..." />;
+  return <output class="skeleton block h-24 rounded-card" aria-label={t("common.loading")} />;
 }

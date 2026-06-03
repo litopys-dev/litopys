@@ -36,9 +36,10 @@ EXTRACTION RULES:
 3. DO NOT invent connections not evidenced in the transcript.
 4. DO NOT create duplicate nodes for ids already in existingNodeIds — reference those ids directly in candidateRelations.
 5. Assign confidence 0.0–1.0 based on explicitness: explicit statement = 0.9+, implied = 0.5–0.8, speculation = <0.5.
-6. Write reasoning as a single concise sentence explaining the evidence from the transcript.
+6. Write reasoning as a single concise sentence, IN RUSSIAN, explaining the evidence from the transcript.
 7. All ids must be lowercase-kebab-case (e.g. "typescript-strict-mode", "alice-johnson").
 8. Aim for quality over quantity — 3 high-confidence candidates beat 15 guesses.
+9. LANGUAGE: write every human-readable text field — "summary", "reasoning", and "body" — in Russian, even when the transcript is in English. Keep "id" in lowercase-kebab-case ASCII (transliterate if needed); "aliases" and "tags" may stay in their original language. JSON keys and the "type" enum stay in English.
 `.trim();
 
 // ---------------------------------------------------------------------------
@@ -61,12 +62,12 @@ OUTPUT FORMAT — respond with a single valid JSON object:
     {
       "id": "lowercase-kebab-case-id",
       "type": "person|project|system|concept|event|lesson",
-      "summary": "Short human-readable description (max 200 chars)",
+      "summary": "Краткое описание на русском (до 200 символов)",
       "aliases": ["optional", "alternative names"],
       "tags": ["optional", "tags"],
-      "body": "Optional markdown with additional context",
+      "body": "Необязательный markdown на русском с дополнительным контекстом",
       "confidence": 0.85,
-      "reasoning": "Single sentence explaining evidence from transcript",
+      "reasoning": "Одно предложение на русском: доказательство из транскрипта",
       "sourceSessionId": "<provided session id>"
     }
   ],
@@ -76,7 +77,7 @@ OUTPUT FORMAT — respond with a single valid JSON object:
       "sourceId": "source-node-id",
       "targetId": "target-node-id",
       "confidence": 0.8,
-      "reasoning": "Single sentence explaining evidence from transcript",
+      "reasoning": "Одно предложение на русском: доказательство из транскрипта",
       "sourceSessionId": "<provided session id>"
     }
   ]

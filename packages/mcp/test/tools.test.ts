@@ -292,6 +292,26 @@ describe("litopys_related", () => {
     expect(ids).toContain("alpha-project");
   });
 
+  test("strips neighbour bodies by default; include_body keeps them", async () => {
+    // alice -owns-> alpha-project, and alpha-project has a body.
+    const compact = await toolRelated({ id: "alice", depth: 1, direction: "out" }, tmpDir);
+    expect(compact.ok).toBe(true);
+    if (!compact.ok) return;
+    const ap = compact.data.nodes.find((n) => n.id === "alpha-project");
+    expect(ap).toBeDefined();
+    expect(ap?.summary).toBeDefined(); // summary kept
+    expect(ap?.body).toBeUndefined(); // body dropped to keep context small
+
+    const full = await toolRelated(
+      { id: "alice", depth: 1, direction: "out", include_body: true },
+      tmpDir,
+    );
+    expect(full.ok).toBe(true);
+    if (!full.ok) return;
+    const apFull = full.data.nodes.find((n) => n.id === "alpha-project");
+    expect(apFull?.body).toBeTruthy();
+  });
+
   test("returns empty nodes for isolated node", async () => {
     // web-server has no outgoing edges
     const result = await toolRelated({ id: "web-server", depth: 1, direction: "out" }, tmpDir);

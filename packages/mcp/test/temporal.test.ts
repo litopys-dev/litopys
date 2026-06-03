@@ -85,7 +85,7 @@ describe("toolSearch with as_of", () => {
     expect(idsMay).toContain("ram-new");
   });
 
-  test("without as_of, all matches return (unchanged behaviour)", async () => {
+  test("without as_of, expired nodes are hidden by default; include_expired surfaces them", async () => {
     await toolCreate(
       {
         type: "system",
@@ -96,10 +96,21 @@ describe("toolSearch with as_of", () => {
       },
       tmpDir,
     );
-    const all = await toolSearch({ query: "ram", limit: 20 }, tmpDir);
-    expect(all.ok).toBe(true);
-    if (!all.ok) return;
-    expect(all.data.map((h) => h.id)).toContain("ram-old");
+
+    // Default: no as_of → reflects today → tombstoned node is hidden.
+    const def = await toolSearch({ query: "ram", limit: 20 }, tmpDir);
+    expect(def.ok).toBe(true);
+    if (!def.ok) return;
+    expect(def.data.map((h) => h.id)).not.toContain("ram-old");
+
+    // Opt-in: include_expired surfaces the tombstoned node again.
+    const withExpired = await toolSearch(
+      { query: "ram", limit: 20, include_expired: true },
+      tmpDir,
+    );
+    expect(withExpired.ok).toBe(true);
+    if (!withExpired.ok) return;
+    expect(withExpired.data.map((h) => h.id)).toContain("ram-old");
   });
 });
 

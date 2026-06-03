@@ -38,7 +38,13 @@ export const SearchInputSchema = z.object({
   as_of: isoDate
     .optional()
     .describe(
-      "ISO date (YYYY-MM-DD). When set, only nodes valid at that event-time are returned (since <= as_of < until).",
+      "ISO date (YYYY-MM-DD) for time-travel: return only nodes valid at that event-time (since <= as_of < until). When omitted, results reflect today and tombstoned/superseded nodes (until <= today) are hidden unless include_expired=true.",
+    ),
+  include_expired: z
+    .boolean()
+    .optional()
+    .describe(
+      "When true, also return tombstoned (until <= today) or not-yet-valid nodes. Default false hides stale/superseded nodes. Ignored when as_of is set.",
     ),
 });
 
@@ -89,7 +95,19 @@ export const RelatedInputSchema = z.object({
   as_of: isoDate
     .optional()
     .describe(
-      "ISO date (YYYY-MM-DD). When set, only neighbours valid at that event-time are returned.",
+      "ISO date (YYYY-MM-DD) for time-travel: only neighbours valid at that event-time. When omitted, tombstoned/superseded neighbours (until <= today) are hidden unless include_expired=true.",
+    ),
+  include_expired: z
+    .boolean()
+    .optional()
+    .describe(
+      "When true, also traverse to tombstoned/not-yet-valid neighbours. Default false. Ignored when as_of is set.",
+    ),
+  include_body: z
+    .boolean()
+    .optional()
+    .describe(
+      "Include each neighbour's full markdown body. Default false returns compact nodes (id, type, summary, rels, tags) to keep context small — fetch a full body via litopys_get when you need it.",
     ),
 });
 
@@ -111,6 +129,20 @@ export interface SearchHit {
 
 function normalize(s: string): string {
   return s.normalize("NFC").toLowerCase();
+}
+
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Effective as-of date for validity filtering. Explicit as_of wins (time-travel).
+ * Otherwise default to today unless the caller opts into expired/superseded nodes.
+ * Returns undefined when no filtering should apply.
+ */
+function effectiveAsOf(input: { as_of?: string; include_expired?: boolean }): string | undefined {
+  if (input.as_of) return input.as_of;
+  return input.include_expired ? undefined : todayISO();
 }
 
 function scoreNode(node: AnyNode, queryWords: string[]): number {
@@ -193,12 +225,13 @@ export async function toolSearch(
     .split(/\s+/)
     .filter((w) => w.length > 0);
 
+  const asOf = effectiveAsOf(input);
   const hits: SearchHit[] = [];
   for (const [, node] of loaded.nodes) {
     if (input.types && input.types.length > 0 && !input.types.includes(node.type)) {
       continue;
     }
-    if (input.as_of && !isValidAsOf(node, input.as_of)) {
+    if (asOf && !isValidAsOf(node, asOf)) {
       continue;
     }
     const score = scoreNode(node, queryWords);
@@ -392,6 +425,7 @@ export async function toolRelated(
   }
 
   const resolved = resolveGraph(loaded);
+  const asOf = effectiveAsOf(input);
 
   const visitedIds = new Set<string>();
   const resultEdges = new Set<Edge>();
@@ -414,10 +448,11 @@ export async function toolRelated(
 
       const neighborId = edge.from === current.id ? edge.to : edge.from;
 
-      // as_of: skip edges leading to nodes not valid at that event-time.
-      if (input.as_of) {
+      // Skip edges leading to nodes not valid at the effective as-of date
+      // (defaults to today, so tombstoned/superseded neighbours are hidden).
+      if (asOf) {
         const neighborNode = loaded.nodes.get(neighborId);
-        if (!neighborNode || !isValidAsOf(neighborNode, input.as_of)) continue;
+        if (!neighborNode || !isValidAsOf(neighborNode, asOf)) continue;
       }
 
       resultEdges.add(edge);
@@ -431,7 +466,10 @@ export async function toolRelated(
   const resultNodes = Array.from(visitedIds)
     .filter((id) => id !== startNode.id)
     .map((id) => loaded.nodes.get(id))
-    .filter((n): n is AnyNode => n !== undefined);
+    .filter((n): n is AnyNode => n !== undefined)
+    // Compact by default: drop heavy markdown bodies so depth-1 traversal stays
+    // cheap on context. Callers opt into full bodies, or fetch one via litopys_get.
+    .map((n) => (input.include_body ? n : ({ ...n, body: undefined } as AnyNode)));
 
   return { ok: true, data: { nodes: resultNodes, edges: Array.from(resultEdges) } };
 }

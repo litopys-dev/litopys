@@ -2,8 +2,16 @@ import { useNavigate } from "@solidjs/router";
 import cytoscape, { type Core, type ElementDefinition } from "cytoscape";
 // @ts-expect-error — no types for fcose
 import fcose from "cytoscape-fcose";
-import { Maximize2 } from "lucide-solid";
-import { For, Show, createResource, createSignal, onCleanup, onMount } from "solid-js";
+import { ExternalLink, Maximize2, Search, X } from "lucide-solid";
+import {
+  For,
+  Show,
+  createMemo,
+  createResource,
+  createSignal,
+  onCleanup,
+  onMount,
+} from "solid-js";
 import { type NodeType, type RelationName, api } from "../api.ts";
 import { nodeTypeLabel, nodesWord, relationLabel, relationsWord, t } from "../i18n.ts";
 
@@ -35,6 +43,13 @@ const HUB_MIN = 3;
 // Per-hub: how many non-hub edges to keep visible in ambient state
 const HUB_VISIBLE_EDGES = 4;
 
+interface FocusInfo {
+  id: string;
+  label: string;
+  type: NodeType;
+  summary: string;
+}
+
 function calcNodeSize(el: cytoscape.NodeSingular): number {
   return Math.min(56, 22 + Math.sqrt(el.degree(false)) * 7);
 }
@@ -49,8 +64,25 @@ export default function Graph() {
     label: string;
     type: NodeType;
   } | null>(null);
+  const [query, setQuery] = createSignal("");
+  const [showResults, setShowResults] = createSignal(false);
+  const [focus, setFocus] = createSignal<FocusInfo | null>(null);
+  const [hops, setHops] = createSignal(1);
   let containerRef: HTMLDivElement | undefined;
   let cy: Core | undefined;
+
+  // ── Search ────────────────────────────────────────────────────────────────
+  const nodeList = createMemo(() => (data()?.nodes ?? []).map((n) => n.data));
+  const results = createMemo(() => {
+    const q = query().trim().toLowerCase();
+    if (!q) return [];
+    return nodeList()
+      .filter(
+        (n) =>
+          n.id.toLowerCase().includes(q) || (n.summary ?? "").toLowerCase().includes(q),
+      )
+      .slice(0, 8);
+  });
 
   // ---------------------------------------------------------------------------
   // Ambient state — hub glow + selective edge visibility
@@ -71,14 +103,12 @@ export default function Graph() {
 
     const edges = cy.edges().filter((e) => e.style("display") !== "none");
 
-    // Hub-to-hub edges are always fully visible
     for (const e of edges.toArray() as cytoscape.EdgeSingular[]) {
       if (hubIds.has(e.source().id()) && hubIds.has(e.target().id())) {
         e.addClass("a-hub-edge");
       }
     }
 
-    // Per-hub: top HUB_VISIBLE_EDGES edges to non-hub nodes
     for (const hubId of hubIds) {
       const hubNode = cy.$id(hubId);
       const nonHubEdges = hubNode
@@ -94,7 +124,6 @@ export default function Graph() {
       });
     }
 
-    // All other edges → dim
     edges.not(".a-hub-edge, .a-mid-edge, .a-dim-edge").addClass("a-dim-edge");
   }
 
@@ -118,6 +147,8 @@ export default function Graph() {
   }
 
   function toggleType(type: NodeType) {
+    // Type toggles take you out of focus mode (they re-paint the whole graph).
+    setFocus(null);
     setHiddenTypes((prev) => {
       const next = new Set(prev);
       if (next.has(type)) next.delete(type);
@@ -125,6 +156,56 @@ export default function Graph() {
       return next;
     });
     applyTypeVisibility();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Focus mode — isolate a node + its neighbourhood
+  // ---------------------------------------------------------------------------
+
+  function applyFocus(id: string, h = 1) {
+    const c = cy;
+    if (!c) return;
+    const start = c.$id(id);
+    if (start.empty()) return;
+
+    let hood = start.closedNeighborhood();
+    if (h >= 2) hood = hood.closedNeighborhood();
+
+    c.batch(() => {
+      c.elements().removeClass(
+        "a-hub a-dim a-hub-edge a-mid-edge a-dim-edge chain-dim chain-active chain-mid",
+      );
+      c.elements().style("display", "none");
+      hood.style("display", "element");
+    });
+
+    const d = start.data();
+    setFocus({
+      id,
+      label: (d.label as string) ?? id,
+      type: d.type as NodeType,
+      summary: (d.summary as string) ?? "",
+    });
+    setHops(h);
+    setShowResults(false);
+
+    c.animate({ fit: { eles: hood, padding: 90 }, duration: 450, easing: "ease-in-out" });
+  }
+
+  function clearFocus() {
+    const c = cy;
+    if (!c) return;
+    setFocus(null);
+    setHops(1);
+    c.elements().style("display", "element");
+    applyTypeVisibility();
+    c.animate({ fit: { eles: c.elements(), padding: 50 }, duration: 450, easing: "ease-in-out" });
+  }
+
+  function pickResult(id: string) {
+    setQuery("");
+    setShowResults(false);
+    applyFocus(id, 1);
   }
 
   // ---------------------------------------------------------------------------
@@ -166,7 +247,6 @@ export default function Graph() {
         minZoom: 0.15,
         maxZoom: 4,
         style: [
-          // ── Base nodes ──────────────────────────────────────────────────────
           {
             selector: "node",
             style: {
@@ -197,16 +277,14 @@ export default function Graph() {
               "transition-duration": 200,
             },
           },
-          // ── Ambient: hub nodes always glow ──────────────────────────────────
           {
             selector: "node.a-hub",
             style: { opacity: 1, "shadow-opacity": 0.85, "shadow-blur": 24 },
           },
           {
             selector: "node.a-dim",
-            style: { opacity: 0.15, "shadow-opacity": 0 },
+            style: { opacity: 0.28, "shadow-opacity": 0 },
           },
-          // ── Base edges ───────────────────────────────────────────────────────
           {
             selector: "edge",
             style: {
@@ -229,7 +307,6 @@ export default function Graph() {
               "transition-duration": 200,
             },
           },
-          // ── Ambient: edge tiers ──────────────────────────────────────────────
           {
             selector: "edge.a-hub-edge",
             style: {
@@ -241,13 +318,12 @@ export default function Graph() {
           },
           {
             selector: "edge.a-mid-edge",
-            style: { opacity: 0.38 },
+            style: { opacity: 0.42 },
           },
           {
             selector: "edge.a-dim-edge",
-            style: { opacity: 0.06 },
+            style: { opacity: 0.1 },
           },
-          // ── Other base ───────────────────────────────────────────────────────
           {
             selector: "edge[?symmetric]",
             style: { "target-arrow-shape": "none", "line-style": "dashed" },
@@ -261,7 +337,17 @@ export default function Graph() {
               "shadow-blur": 34,
             },
           },
-          // ── Chain: hover override (higher specificity via order) ─────────────
+          // Search highlight — bright ring on matching nodes
+          {
+            selector: "node.search-hit",
+            style: {
+              opacity: 1,
+              "border-width": 3,
+              "border-color": "#ffffff",
+              "shadow-opacity": 1,
+              "shadow-blur": 30,
+            },
+          },
           {
             selector: ".chain-dim",
             style: { opacity: 0.04 },
@@ -290,10 +376,9 @@ export default function Graph() {
         ],
       });
 
-      // Apply ambient state once layout animation completes
       cy.one("layoutstop", () => applyAmbientState());
 
-      // ── Hover: chain activation (1-hop full, 2-hop partial) ─────────────────
+      // Hover: chain activation (1-hop full, 2-hop partial) — only when not focused
       cy.on("mouseover", "node", (evt) => {
         const node = evt.target as cytoscape.NodeSingular;
         const oe = evt.originalEvent as MouseEvent;
@@ -304,7 +389,9 @@ export default function Graph() {
           type: node.data("type") as NodeType,
         });
 
-        const hop1 = node.closedNeighborhood(); // node + neighbors + edges
+        if (focus()) return; // in focus mode the neighbourhood is already isolated
+
+        const hop1 = node.closedNeighborhood();
         const hop2nodes = node.neighborhood("node").neighborhood("node").not(hop1);
         const hop2edges = hop2nodes.edgesWith(hop1);
 
@@ -316,16 +403,22 @@ export default function Graph() {
 
       cy.on("mousemove", "node", (evt) => {
         const oe = evt.originalEvent as MouseEvent;
-        setTooltip((t) => (t ? { ...t, x: oe.clientX, y: oe.clientY } : null));
+        setTooltip((tip) => (tip ? { ...tip, x: oe.clientX, y: oe.clientY } : null));
       });
 
       cy.on("mouseout", "node", () => {
         setTooltip(null);
-        cy?.elements().removeClass("chain-dim chain-active chain-mid");
+        if (!focus()) cy?.elements().removeClass("chain-dim chain-active chain-mid");
       });
 
+      // Click a node → focus it (was: navigate). Detail is reachable via the card.
       cy.on("tap", "node", (evt) => {
-        navigate(`/node/${encodeURIComponent(evt.target.id())}`);
+        applyFocus(evt.target.id(), 1);
+      });
+
+      // Click empty canvas → clear focus
+      cy.on("tap", (evt) => {
+        if (evt.target === cy) clearFocus();
       });
     };
     tryInit();
@@ -337,8 +430,8 @@ export default function Graph() {
 
   return (
     <div class="h-dvh flex flex-col">
-      <header class="flex items-center justify-between px-8 py-5 border-b border-divider">
-        <div>
+      <header class="flex items-center justify-between gap-4 px-8 py-5 border-b border-divider">
+        <div class="min-w-0">
           <h1 class="font-heading font-semibold text-text-primary text-2xl mb-0.5">
             {t("graph.title")}
           </h1>
@@ -353,14 +446,82 @@ export default function Graph() {
             </Show>
           </p>
         </div>
-        <button
-          type="button"
-          onClick={fit}
-          class="inline-flex items-center gap-2 px-3 py-1.5 rounded-card text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-elevated border border-border transition-colors"
-        >
-          <Maximize2 size={14} />
-          {t("graph.fit")}
-        </button>
+
+        <div class="flex items-center gap-3 shrink-0">
+          {/* Search */}
+          <div class="relative">
+            <Search
+              size={14}
+              class="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none"
+            />
+            <input
+              type="search"
+              value={query()}
+              placeholder={t("graph.searchPlaceholder")}
+              aria-label={t("graph.searchPlaceholder")}
+              onInput={(e) => {
+                setQuery(e.currentTarget.value);
+                setShowResults(true);
+              }}
+              onFocus={() => setShowResults(true)}
+              onBlur={() => setTimeout(() => setShowResults(false), 150)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const first = results()[0];
+                  if (first) pickResult(first.id);
+                }
+                if (e.key === "Escape") {
+                  setQuery("");
+                  setShowResults(false);
+                }
+              }}
+              class="w-64 bg-surface border border-border rounded-card pl-9 pr-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent focus:outline-none transition-colors"
+            />
+            <Show when={showResults() && results().length > 0}>
+              <ul class="absolute z-30 mt-1 w-80 right-0 bg-surface border border-border rounded-card shadow-xl overflow-hidden max-h-80 overflow-y-auto">
+                <For each={results()}>
+                  {(n) => (
+                    <li>
+                      <button
+                        type="button"
+                        // onMouseDown fires before input blur, so the pick survives
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          pickResult(n.id);
+                        }}
+                        class="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-elevated transition-colors"
+                      >
+                        <span
+                          class="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ background: TYPE_COLORS[n.type as NodeType] }}
+                        />
+                        <span class="min-w-0">
+                          <span class="block font-mono text-xs text-text-primary truncate">
+                            {n.id}
+                          </span>
+                          <Show when={n.summary}>
+                            <span class="block text-text-tertiary text-xs truncate">
+                              {n.summary}
+                            </span>
+                          </Show>
+                        </span>
+                      </button>
+                    </li>
+                  )}
+                </For>
+              </ul>
+            </Show>
+          </div>
+
+          <button
+            type="button"
+            onClick={fit}
+            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-card text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-elevated border border-border transition-colors"
+          >
+            <Maximize2 size={14} />
+            {t("graph.fit")}
+          </button>
+        </div>
       </header>
 
       {/* Type filter bar */}
@@ -397,6 +558,59 @@ export default function Graph() {
           </div>
         </Show>
         <div ref={containerRef} class="absolute inset-0" />
+
+        {/* Focus card */}
+        <Show when={focus()}>
+          {(f) => (
+            <div class="absolute left-4 bottom-4 z-30 w-80 bg-surface/95 backdrop-blur-sm border border-border rounded-card shadow-xl p-4">
+              <div class="flex items-start gap-2 mb-2">
+                <span
+                  class="w-3 h-3 rounded-full shrink-0 mt-1"
+                  style={{ background: TYPE_COLORS[f().type] }}
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="font-mono text-sm text-text-primary break-all">{f().label}</div>
+                  <div class="text-text-tertiary text-xs">{nodeTypeLabel[f().type]}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={clearFocus}
+                  aria-label={t("graph.focusReset")}
+                  class="text-text-tertiary hover:text-text-primary shrink-0"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <Show when={f().summary}>
+                <p class="text-text-secondary text-sm mb-3 leading-relaxed">{f().summary}</p>
+              </Show>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/node/${encodeURIComponent(f().id)}`)}
+                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-card text-xs font-medium bg-accent/15 text-accent border border-accent/40 hover:bg-accent/25 transition-colors"
+                >
+                  <ExternalLink size={12} />
+                  {t("graph.focusOpen")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyFocus(f().id, hops() === 1 ? 2 : 1)}
+                  class="inline-flex items-center px-2.5 py-1 rounded-card text-xs font-medium text-text-secondary hover:text-text-primary hover:bg-elevated border border-border transition-colors"
+                >
+                  {hops() === 1 ? t("graph.focusExpand") : t("graph.focusCollapse")}
+                </button>
+                <button
+                  type="button"
+                  onClick={clearFocus}
+                  class="inline-flex items-center px-2.5 py-1 rounded-card text-xs font-medium text-text-secondary hover:text-text-primary hover:bg-elevated border border-border transition-colors"
+                >
+                  {t("graph.focusReset")}
+                </button>
+              </div>
+            </div>
+          )}
+        </Show>
 
         {/* Hover tooltip */}
         <Show when={tooltip()}>

@@ -110,9 +110,14 @@ const ru: Record<string, string> = {
 
   // Graph
   "graph.title": "Граф",
-  "graph.hint": "кликните, чтобы открыть",
+  "graph.hint": "клик по узлу — фокус",
   "graph.fit": "Вписать",
   "graph.error": "Ошибка: {msg}",
+  "graph.searchPlaceholder": "Найти узел…",
+  "graph.focusOpen": "Открыть",
+  "graph.focusExpand": "Развернуть +1 шаг",
+  "graph.focusCollapse": "Свернуть до соседей",
+  "graph.focusReset": "Сбросить фокус",
 
   // New node modal
   "modal.title": "Новый узел",

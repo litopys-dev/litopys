@@ -191,6 +191,57 @@ describe("runEpisodesCatchup", () => {
   });
 
   // -------------------------------------------------------------------------
+  // mtime-date fallback: timestamp-less transcript → date from file mtime
+  // -------------------------------------------------------------------------
+
+  test("timestamp-less transcript → episode date falls back to file mtime date (2026-02-20 → 2026-02.jsonl)", async () => {
+    const filePath = path.join(tmpDir, "no-timestamps.jsonl");
+    // Build a transcript with NO timestamp fields anywhere
+    const content = makeFixtureTranscript(6)
+      .split("\n")
+      .map((line) => {
+        const ev = JSON.parse(line) as Record<string, unknown>;
+        delete ev.timestamp;
+        return JSON.stringify(ev);
+      })
+      .join("\n");
+    await fs.writeFile(filePath, content, "utf-8");
+
+    // Pin the mtime to a fixed past date — sessionDateFromTranscript returns
+    // undefined, so the catch-up must use this mtime date, NOT today.
+    const fixedMtime = new Date("2026-02-20T14:30:00.000Z");
+    await fs.utimes(filePath, fixedMtime, fixedMtime);
+
+    const adapter = makeEpisodeAdapter("работа без таймстампов");
+    const state = freshState();
+
+    const result = await runEpisodesCatchup(
+      {
+        sources: [{ adapter: "claude-code", glob: filePath }],
+        adapter,
+        episodesDir,
+        minAgeMs: 60_000,
+        minToolOps: 5,
+      },
+      state,
+    );
+
+    expect(result.filesProcessed).toBe(1);
+    expect(result.episodesFound).toBe(1);
+
+    // Episode must land in the monthly file derived from the file mtime
+    const expectedFile = path.join(episodesDir, "2026-02.jsonl");
+    const lines = (await fs.readFile(expectedFile, "utf-8"))
+      .split("\n")
+      .filter((l) => l.trim());
+    expect(lines).toHaveLength(1);
+
+    const ep = JSON.parse(lines[0]!) as { date: string; goal: string };
+    expect(ep.date).toBe("2026-02-20");
+    expect(ep.goal).toBe("работа без таймстампов");
+  });
+
+  // -------------------------------------------------------------------------
   // Idempotency: repeated call without file change → filesProcessed 0
   // -------------------------------------------------------------------------
 

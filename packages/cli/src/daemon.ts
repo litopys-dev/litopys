@@ -59,23 +59,30 @@ export async function cmdDaemonTick(args: string[], graphPath: string): Promise<
   // Episodes catch-up pass — runs AFTER runTick, sequentially (single-writer
   // contract: appendEpisodes and markClustered must never run concurrently
   // against the same episodesDir — see JSDoc on markClustered in episode-store.ts).
+  // Skipped entirely in dry-run: the catch-up makes real LLM calls, writes
+  // episode files and mutates episodesState — all side effects that dry-run
+  // promises not to have.
   let catchupResult: { filesProcessed: number; episodesFound: number } = {
     filesProcessed: 0,
     episodesFound: 0,
   };
-  try {
-    const episodesAdapter = createAdapter((provider ?? process.env.LITOPYS_EXTRACTOR_PROVIDER ?? "anthropic") as AdapterName);
-    catchupResult = await runEpisodesCatchup(
-      {
-        sources,
-        adapter: episodesAdapter,
-        episodesDir: defaultEpisodesDir(),
-      },
-      state,
-    );
-  } catch (err) {
-    process.stderr.write(`[litopys/episodes] Catch-up pass failed: ${String(err)}\n`);
-    // Catch-up errors do not abort the tick
+  if (!dryRun) {
+    try {
+      const episodesAdapter = createAdapter(
+        (provider ?? process.env.LITOPYS_EXTRACTOR_PROVIDER ?? "anthropic") as AdapterName,
+      );
+      catchupResult = await runEpisodesCatchup(
+        {
+          sources,
+          adapter: episodesAdapter,
+          episodesDir: defaultEpisodesDir(),
+        },
+        state,
+      );
+    } catch (err) {
+      process.stderr.write(`[litopys/episodes] Catch-up pass failed: ${String(err)}\n`);
+      // Catch-up errors do not abort the tick
+    }
   }
 
   // Persist state (even in dry-run — offsets are still advanced so we don't re-process)
@@ -92,7 +99,9 @@ export async function cmdDaemonTick(args: string[], graphPath: string): Promise<
     );
   }
 
-  if (catchupResult.filesProcessed > 0 || catchupResult.episodesFound > 0) {
+  if (dryRun) {
+    process.stdout.write("[dry-run] episodes catch-up skipped\n");
+  } else if (catchupResult.filesProcessed > 0 || catchupResult.episodesFound > 0) {
     process.stdout.write(
       `Episodes catch-up: processed ${catchupResult.filesProcessed} file(s), found ${catchupResult.episodesFound} episode(s)\n`,
     );

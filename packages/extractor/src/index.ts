@@ -65,7 +65,7 @@ export { JsonlAdapter } from "./sources/jsonl.ts";
 export { ClaudeCodeAdapter } from "./sources/claude-code.ts";
 export type { SourceAdapter, TranscriptChunk } from "./sources/types.ts";
 
-export { parseClaudeCodeTranscript } from "./transcript-tools.ts";
+export { parseClaudeCodeTranscript, sessionDateFromTranscript } from "./transcript-tools.ts";
 export type { ParsedTranscript, ParseOptions } from "./transcript-tools.ts";
 
 // ---------------------------------------------------------------------------
@@ -87,3 +87,9 @@ export type { Episode } from "./episode-store.ts";
 // ---------------------------------------------------------------------------
 
 export { extractEpisodes, EPISODE_EXTRACTION_PROMPT } from "./episodes.ts";
+
+// ---------------------------------------------------------------------------
+// SessionEnd hook — episode stage
+// ---------------------------------------------------------------------------
+
+export { runEpisodeStage } from "./session-end.ts";

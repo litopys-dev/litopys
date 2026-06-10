@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseClaudeCodeTranscript } from "../src/transcript-tools.ts";
+import { parseClaudeCodeTranscript, sessionDateFromTranscript } from "../src/transcript-tools.ts";
 
 const lines = [
   JSON.stringify({ type: "user", sessionId: "s1", message: { role: "user", content: "перезапусти syut" } }),
@@ -127,5 +127,81 @@ describe("parseClaudeCodeTranscript", () => {
     ].join("\n");
     const r = parseClaudeCodeTranscript(raw, { includeTools: "summary" });
     expect(r.text).toContain("TOOL: Bash(git add . git commit -m 'x') → ok");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sessionDateFromTranscript
+// ---------------------------------------------------------------------------
+
+describe("sessionDateFromTranscript", () => {
+  test("returns YYYY-MM-DD from first event with a parseable timestamp", () => {
+    const raw = [
+      JSON.stringify({ type: "permission-mode", sessionId: "s1" }),
+      JSON.stringify({ type: "user", sessionId: "s1", timestamp: "2026-03-15T10:00:00.000Z", message: { role: "user", content: "hello" } }),
+      JSON.stringify({ type: "assistant", sessionId: "s1", timestamp: "2026-03-15T10:01:00.000Z", message: { role: "assistant", content: "hi" } }),
+    ].join("\n");
+
+    const date = sessionDateFromTranscript(raw);
+    expect(date).toBe("2026-03-15");
+  });
+
+  test("skips events without timestamp, uses first one that has it", () => {
+    const raw = [
+      JSON.stringify({ type: "last-prompt", sessionId: "s1" }),
+      JSON.stringify({ type: "permission-mode", sessionId: "s1" }),
+      JSON.stringify({ type: "user", sessionId: "s1", timestamp: "2026-06-10T08:30:00.000Z" }),
+    ].join("\n");
+
+    const date = sessionDateFromTranscript(raw);
+    expect(date).toBe("2026-06-10");
+  });
+
+  test("returns undefined when no event has a timestamp", () => {
+    const raw = [
+      JSON.stringify({ type: "permission-mode", sessionId: "s1" }),
+      JSON.stringify({ type: "user", sessionId: "s1", message: { role: "user", content: "hi" } }),
+    ].join("\n");
+
+    const date = sessionDateFromTranscript(raw);
+    expect(date).toBeUndefined();
+  });
+
+  test("returns undefined for empty string", () => {
+    expect(sessionDateFromTranscript("")).toBeUndefined();
+  });
+
+  test("returns undefined for whitespace-only string", () => {
+    expect(sessionDateFromTranscript("   \n\t  ")).toBeUndefined();
+  });
+
+  test("skips events with non-string timestamp field", () => {
+    const raw = [
+      JSON.stringify({ type: "user", timestamp: 1234567890, message: { role: "user", content: "hi" } }),
+      JSON.stringify({ type: "user", timestamp: "2026-04-01T12:00:00.000Z" }),
+    ].join("\n");
+
+    const date = sessionDateFromTranscript(raw);
+    expect(date).toBe("2026-04-01");
+  });
+
+  test("skips events with invalid/non-parseable timestamp string", () => {
+    const raw = [
+      JSON.stringify({ type: "user", timestamp: "not-a-date", message: { role: "user", content: "hi" } }),
+      JSON.stringify({ type: "user", timestamp: "2026-05-20T00:00:00.000Z" }),
+    ].join("\n");
+
+    const date = sessionDateFromTranscript(raw);
+    expect(date).toBe("2026-05-20");
+  });
+
+  test("broken JSON lines are skipped", () => {
+    const raw = [
+      '{"type":"user","timestamp":',
+      JSON.stringify({ type: "user", timestamp: "2026-07-04T15:00:00.000Z" }),
+    ].join("\n");
+
+    const date = sessionDateFromTranscript(raw);
+    expect(date).toBe("2026-07-04");
   });
 });

@@ -12,6 +12,10 @@ import * as path from "node:path";
 import { defaultGraphPath, loadGraph } from "@litopys/core";
 import { createAdapter } from "./adapters/factory.ts";
 import { writeQuarantine } from "./quarantine.ts";
+import { appendEpisodes, defaultEpisodesDir } from "./episode-store.ts";
+import { extractEpisodes } from "./episodes.ts";
+import { parseClaudeCodeTranscript, sessionDateFromTranscript } from "./transcript-tools.ts";
+import type { ExtractorAdapter } from "./adapters/types.ts";
 
 // ---------------------------------------------------------------------------
 // Claude Code SessionEnd hook payload shape
@@ -127,6 +131,20 @@ async function doExtract(
     adapterName: adapter.name,
   });
 
+  // Episode extraction stage — best-effort, never throws
+  try {
+    const written = await runEpisodeStage(transcript, sessionId, adapter);
+    if (written > 0) {
+      process.stderr.write(
+        `[litopys/episodes] Wrote ${written} episode(s) for session ${sessionId}\n`,
+      );
+    }
+  } catch (err) {
+    process.stderr.write(
+      `[litopys/episodes] Unexpected error in episode stage (session ${sessionId}): ${String(err)}\n`,
+    );
+  }
+
   // Cost estimate (Haiku: ~$0.25/M input, ~$1.25/M output)
   const inputCost = (output.usage.inputTokens / 1_000_000) * 0.25;
   const outputCost = (output.usage.outputTokens / 1_000_000) * 1.25;
@@ -137,6 +155,71 @@ async function doExtract(
       `${output.candidateRelations.length} relations, ` +
       `cost $${totalCost.toFixed(4)} (${output.usage.inputTokens}in/${output.usage.outputTokens}out tokens)\n`,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Episode stage
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse the raw transcript, extract work episodes using the LLM adapter, and
+ * append them to the monthly JSONL episode store.
+ *
+ * This function is deliberately best-effort: any internal error (LLM failure,
+ * write error, schema validation) is caught, logged to stderr with the
+ * `[litopys/episodes]` prefix, and results in a return value of 0. It never
+ * throws, so callers that already completed earlier stages are unaffected.
+ *
+ * @param transcriptRaw  Raw JSONL transcript text.
+ * @param sessionId      Stable session identifier.
+ * @param adapter        LLM adapter (reused from doExtract).
+ * @param opts.minToolOps  Minimum tool operations for an episode to qualify (default: 5).
+ * @param opts.episodesDir  Directory where monthly .jsonl files are stored (default: defaultEpisodesDir()).
+ * @returns Number of episodes actually written (0 on any error or no qualifying episodes).
+ */
+export async function runEpisodeStage(
+  transcriptRaw: string,
+  sessionId: string,
+  adapter: ExtractorAdapter,
+  opts?: { minToolOps?: number; episodesDir?: string },
+): Promise<number> {
+  try {
+    const minToolOps = opts?.minToolOps ?? 5;
+    const episodesDir = opts?.episodesDir ?? defaultEpisodesDir();
+
+    const parsed = parseClaudeCodeTranscript(transcriptRaw, { includeTools: "summary" });
+
+    // Short-circuit: empty transcript → no LLM call, nothing to write
+    if (!parsed.text.trim()) {
+      return 0;
+    }
+
+    // Derive session date deterministically from the transcript content.
+    // Falls back to today's date if no timestamp found — this is a degraded
+    // mode: re-processing in a different month could produce a different date
+    // and write a duplicate to a different monthly file. Log a warning.
+    let sessionDate = sessionDateFromTranscript(transcriptRaw);
+    if (sessionDate === undefined) {
+      sessionDate = new Date().toISOString().slice(0, 10);
+      process.stderr.write(
+        `[litopys/episodes] No timestamp found in transcript for session ${sessionId}, ` +
+          `falling back to today (${sessionDate}) — determinism broken, dedup may be incomplete\n`,
+      );
+    }
+
+    const episodes = await extractEpisodes(parsed, sessionId, sessionDate, adapter, { minToolOps });
+
+    if (episodes.length === 0) {
+      return 0;
+    }
+
+    return await appendEpisodes(episodes, episodesDir);
+  } catch (err) {
+    process.stderr.write(
+      `[litopys/episodes] Episode stage failed for session ${sessionId}: ${String(err)}\n`,
+    );
+    return 0;
+  }
 }
 
 async function writeFailedStub(

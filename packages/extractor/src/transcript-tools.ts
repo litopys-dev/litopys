@@ -162,6 +162,47 @@ export function parseClaudeCodeTranscript(
 }
 
 // ---------------------------------------------------------------------------
+// Session date helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract a deterministic session date (YYYY-MM-DD) from the raw JSONL transcript.
+ *
+ * CONTRACT: the returned date is derived from the session content, NOT from the
+ * processing date (i.e. NOT `new Date().toISOString().slice(0,10)`).
+ * This is critical for appendEpisodes() deduplication correctness: re-processing
+ * the same session in a different calendar month must produce the same date so
+ * that the episode id maps to the same monthly JSONL file.
+ *
+ * Implementation: scan JSONL lines in order and return `.slice(0,10)` of the
+ * first parseable event that carries a `timestamp` field containing a valid
+ * ISO date string. Returns `undefined` when no such event is found (e.g. very
+ * short synthetic transcripts without timestamps).
+ *
+ * @param raw - Full JSONL content of the session transcript.
+ */
+export function sessionDateFromTranscript(raw: string): string | undefined {
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    let ev: unknown;
+    try {
+      ev = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
+    if (ev === null || typeof ev !== "object") continue;
+    const ts = (ev as Record<string, unknown>).timestamp;
+    if (typeof ts !== "string") continue;
+    // Validate: must be parseable and produce a real date
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) continue;
+    return ts.slice(0, 10);
+  }
+  return undefined;
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 

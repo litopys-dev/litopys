@@ -93,3 +93,10 @@ export { extractEpisodes, EPISODE_EXTRACTION_PROMPT } from "./episodes.ts";
 // ---------------------------------------------------------------------------
 
 export { runEpisodeStage } from "./session-end.ts";
+
+// ---------------------------------------------------------------------------
+// Skill-detector config
+// ---------------------------------------------------------------------------
+
+export { loadSkillConfig } from "./skill-config.ts";
+export type { SkillDetectorConfig } from "./skill-config.ts";

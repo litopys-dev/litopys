@@ -64,3 +64,6 @@ export { TextAdapter } from "./sources/text.ts";
 export { JsonlAdapter } from "./sources/jsonl.ts";
 export { ClaudeCodeAdapter } from "./sources/claude-code.ts";
 export type { SourceAdapter, TranscriptChunk } from "./sources/types.ts";
+
+export { parseClaudeCodeTranscript } from "./transcript-tools.ts";
+export type { ParsedTranscript, ParseOptions } from "./transcript-tools.ts";

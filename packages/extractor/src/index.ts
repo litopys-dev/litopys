@@ -115,3 +115,15 @@ export {
   DRAFT_PROMPT,
 } from "./skill-draft.ts";
 export type { EpisodeGroup, SkillDraftMeta } from "./skill-draft.ts";
+
+// ---------------------------------------------------------------------------
+// Stage B — skill draft quarantine (list/promote/reject)
+// ---------------------------------------------------------------------------
+
+export {
+  defaultQuarantineSkillsDir,
+  listSkillDrafts,
+  readSkillDraft,
+  promoteSkillDraft,
+  rejectSkillDraft,
+} from "./skill-quarantine.ts";

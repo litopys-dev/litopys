@@ -125,7 +125,13 @@ export class OllamaAdapter implements ExtractorAdapter {
       text = json.message?.content ?? "";
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`[litopys/extractor] Ollama complete() error: ${message}\n`);
+      if (message.includes("ECONNREFUSED") || message.includes("fetch failed")) {
+        process.stderr.write(
+          `[litopys/extractor] Ollama is not available at ${this.baseUrl}. Ensure ollama is running and OLLAMA_BASE_URL is set correctly.\n`,
+        );
+      } else {
+        process.stderr.write(`[litopys/extractor] Ollama complete() error: ${message}\n`);
+      }
     }
 
     return { text, usage: { inputTokens: 0, outputTokens: 0 } };

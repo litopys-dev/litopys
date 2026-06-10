@@ -67,3 +67,17 @@ export type { SourceAdapter, TranscriptChunk } from "./sources/types.ts";
 
 export { parseClaudeCodeTranscript } from "./transcript-tools.ts";
 export type { ParsedTranscript, ParseOptions } from "./transcript-tools.ts";
+
+// ---------------------------------------------------------------------------
+// Episode store (Stage A / skill-detector)
+// ---------------------------------------------------------------------------
+
+export {
+  EpisodeSchema,
+  makeEpisodeId,
+  defaultEpisodesDir,
+  appendEpisodes,
+  listUnclustered,
+  markClustered,
+} from "./episode-store.ts";
+export type { Episode } from "./episode-store.ts";

@@ -104,9 +104,11 @@ export async function extractEpisodes(
     return [];
   }
 
+  // Function replacement disables $-pattern expansion ($&, $', $`) that a
+  // string replacement would apply — Bash gists in transcripts often contain $.
   const prompt = EPISODE_EXTRACTION_PROMPT
     .replace("{minToolOps}", String(opts.minToolOps))
-    .replace("{transcript}", transcript.text);
+    .replace("{transcript}", () => transcript.text);
 
   // First attempt
   const firstResult = await adapter.complete({ prompt, maxTokens: 4096 });

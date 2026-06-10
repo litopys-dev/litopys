@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { MockAdapter } from "../src/adapters/mock.ts";
 import { extractEpisodes } from "../src/episodes.ts";
 import { makeEpisodeId } from "../src/episode-store.ts";
+import type { ExtractorAdapter } from "../src/adapters/types.ts";
 import type { ParsedTranscript } from "../src/transcript-tools.ts";
 
 // ---------------------------------------------------------------------------
@@ -311,6 +312,48 @@ describe("extractEpisodes", () => {
 
     expect(episodes1[0]!.id).toBe(episodes2[0]!.id);
     expect(episodes1[0]!.id).toBe(makeEpisodeId(SESSION_ID, goal));
+  });
+
+  test("transcript with $& / $' is substituted literally (no replacement-pattern expansion)", async () => {
+    const mockResponse = JSON.stringify({
+      episodes: [
+        {
+          goal: "поиск по логам",
+          steps: ["выполнить grep", "проверить вывод", "сохранить результат"],
+          toolOps: 5,
+          errorRecovery: false,
+          project: null,
+          tags: ["grep"],
+        },
+      ],
+    });
+
+    // Spy adapter: capture every prompt passed to complete()
+    const inner = new MockAdapter({ completions: [mockResponse] });
+    const capturedPrompts: string[] = [];
+    const adapter: ExtractorAdapter = {
+      name: inner.name,
+      model: inner.model,
+      extract: (input) => inner.extract(input),
+      complete: (input) => {
+        capturedPrompts.push(input.prompt);
+        return inner.complete(input);
+      },
+    };
+
+    const transcript = makeTranscript("TOOL: Bash(grep $& and $') → ok");
+
+    const episodes = await extractEpisodes(transcript, SESSION_ID, SESSION_DATE, adapter, {
+      minToolOps: 3,
+    });
+
+    expect(episodes).toHaveLength(1);
+    expect(capturedPrompts).toHaveLength(1);
+    const prompt = capturedPrompts[0]!;
+    // Literal transcript text present, $-patterns NOT expanded
+    expect(prompt).toContain("TOOL: Bash(grep $& and $') → ok");
+    // The placeholder must be fully consumed — $& expansion would re-inject it
+    expect(prompt).not.toContain("{transcript}");
   });
 
   test("API error (empty text from adapter) → triggers retry → returns []", async () => {

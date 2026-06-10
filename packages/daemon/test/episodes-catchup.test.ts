@@ -9,7 +9,7 @@
 // SDK before mock.module() has a chance to intercept it, breaking daemon.test.ts
 // whose mock.module() would find the SDK already loaded in the module cache.
 
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { promises as fs } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -44,8 +44,20 @@ mock.module("openai", () => ({
   },
 }));
 
+// Save originals before mutating env (must happen at module level, before the
+// dynamic imports below) — restored in afterAll so the mutation does not leak
+// process-wide into other test files run in the same invocation.
+const ORIG_ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const ORIG_EXTRACTOR_PROVIDER = process.env.LITOPYS_EXTRACTOR_PROVIDER;
 process.env.ANTHROPIC_API_KEY = "sk-mock-episodes-catchup-test";
 process.env.LITOPYS_EXTRACTOR_PROVIDER = "anthropic";
+
+afterAll(() => {
+  if (ORIG_ANTHROPIC_API_KEY === undefined) delete process.env.ANTHROPIC_API_KEY;
+  else process.env.ANTHROPIC_API_KEY = ORIG_ANTHROPIC_API_KEY;
+  if (ORIG_EXTRACTOR_PROVIDER === undefined) delete process.env.LITOPYS_EXTRACTOR_PROVIDER;
+  else process.env.LITOPYS_EXTRACTOR_PROVIDER = ORIG_EXTRACTOR_PROVIDER;
+});
 
 // Lazy imports after mocking — order matters
 const { runEpisodesCatchup } = await import("../src/tick.ts");
@@ -61,10 +73,20 @@ function freshState(): DaemonState {
   return { version: 1, sources: {} };
 }
 
-/** Build a minimal Claude Code JSONL transcript with timestamps and tool ops. */
-function makeFixtureTranscript(toolOpsCount: number, date = "2026-03-15"): string {
+const FIXTURE_SESSION_ID = "sess-catchup-test-001";
+
+/**
+ * Build a minimal Claude Code JSONL transcript with timestamps and tool ops.
+ * The first `errorResults` tool results are marked is_error (for testing the
+ * errorCount >= 2 branch of the cheap filter).
+ */
+function makeFixtureTranscript(
+  toolOpsCount: number,
+  date = "2026-03-15",
+  errorResults = 0,
+): string {
   const ts = `${date}T10:00:00.000Z`;
-  const sessionId = "sess-catchup-test-001";
+  const sessionId = FIXTURE_SESSION_ID;
 
   const events: object[] = [
     {
@@ -93,13 +115,21 @@ function makeFixtureTranscript(toolOpsCount: number, date = "2026-03-15"): strin
         ],
       },
     });
+    const isError = i < errorResults;
     events.push({
       type: "user",
       sessionId,
       timestamp: ts,
       message: {
         role: "user",
-        content: [{ type: "tool_result", tool_use_id: toolId, content: "ok" }],
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: toolId,
+            ...(isError ? { is_error: true } : {}),
+            content: isError ? "Exit code 1: unit not found" : "ok",
+          },
+        ],
       },
     });
   }
@@ -108,7 +138,7 @@ function makeFixtureTranscript(toolOpsCount: number, date = "2026-03-15"): strin
 }
 
 /** Build a mock adapter that returns one valid episode when complete() is called. */
-function makeEpisodeAdapter(goal = "перезапуск syut"): MockAdapter {
+function makeEpisodeAdapter(goal = "перезапуск syut"): InstanceType<typeof MockAdapter> {
   const mockResponse = JSON.stringify({
     episodes: [
       {
@@ -478,5 +508,148 @@ describe("runEpisodesCatchup", () => {
       restored,
     );
     expect(r2.filesProcessed).toBe(0);
+  });
+
+  // -------------------------------------------------------------------------
+  // sessionId guard — hook/catch-up double extraction protection
+  // -------------------------------------------------------------------------
+
+  test("session already in episode store (by sessionId) → file marked processed, LLM not called", async () => {
+    const filePath = path.join(tmpDir, "hooked-session.jsonl");
+    const content = makeFixtureTranscript(6, "2026-03-15");
+    await fs.writeFile(filePath, content, "utf-8");
+    await setMtimeAgo(filePath, 2 * 60 * 60 * 1000);
+
+    // Pre-write an episode with the fixture's sessionId into the target
+    // monthly file — as if the SessionEnd hook already processed the session.
+    await fs.mkdir(episodesDir, { recursive: true });
+    const hookEpisode = {
+      id: "ep-hook12345678",
+      sessionId: FIXTURE_SESSION_ID,
+      date: "2026-03-15",
+      goal: "уже извлечено хуком",
+      steps: ["шаг один"],
+      toolOps: 6,
+      errorRecovery: false,
+      project: null,
+      tags: [],
+      clusteredInto: null,
+    };
+    await fs.writeFile(
+      path.join(episodesDir, "2026-03.jsonl"),
+      `${JSON.stringify(hookEpisode)}\n`,
+      "utf-8",
+    );
+
+    const adapter = makeEpisodeAdapter();
+    const state = freshState();
+
+    const result = await runEpisodesCatchup(
+      {
+        sources: [{ adapter: "claude-code", glob: filePath }],
+        adapter,
+        episodesDir,
+        minAgeMs: 60_000,
+        minToolOps: 5,
+      },
+      state,
+    );
+
+    expect(adapter.completeCalls).toBe(0); // LLM NOT called — hook already did the work
+    expect(result.filesProcessed).toBe(1); // file IS marked processed
+    expect(result.episodesFound).toBe(0);
+    expect(state.episodesState?.[filePath]).toBeDefined();
+
+    // Monthly file untouched: still exactly the one hook-written episode
+    const lines = (await fs.readFile(path.join(episodesDir, "2026-03.jsonl"), "utf-8"))
+      .split("\n")
+      .filter((l) => l.trim());
+    expect(lines).toHaveLength(1);
+  });
+
+  // -------------------------------------------------------------------------
+  // Dry-run — zero side effects
+  // -------------------------------------------------------------------------
+
+  test("dryRun: no LLM calls, no episode writes, no episodesState mutation, zero counts", async () => {
+    const filePath = path.join(tmpDir, "dry-run.jsonl");
+    const content = makeFixtureTranscript(6, "2026-03-15");
+    await fs.writeFile(filePath, content, "utf-8");
+    await setMtimeAgo(filePath, 2 * 60 * 60 * 1000);
+
+    const adapter = makeEpisodeAdapter();
+    const state = freshState();
+
+    const result = await runEpisodesCatchup(
+      {
+        sources: [{ adapter: "claude-code", glob: filePath }],
+        adapter,
+        episodesDir,
+        minAgeMs: 60_000,
+        minToolOps: 5,
+        dryRun: true,
+      },
+      state,
+    );
+
+    // Zero counts returned
+    expect(result.filesProcessed).toBe(0);
+    expect(result.episodesFound).toBe(0);
+
+    // No LLM call
+    expect(adapter.completeCalls).toBe(0);
+
+    // No episodesState mutation (not even initialisation)
+    expect(state.episodesState).toBeUndefined();
+
+    // No episode files written
+    const episodesDirExists = await fs
+      .stat(episodesDir)
+      .then(() => true)
+      .catch(() => false);
+    expect(episodesDirExists).toBe(false);
+
+    // A subsequent real run must still process the file (dry-run left no trace)
+    const realResult = await runEpisodesCatchup(
+      {
+        sources: [{ adapter: "claude-code", glob: filePath }],
+        adapter,
+        episodesDir,
+        minAgeMs: 60_000,
+        minToolOps: 5,
+      },
+      state,
+    );
+    expect(realResult.filesProcessed).toBe(1);
+    expect(realResult.episodesFound).toBe(1);
+  });
+
+  // -------------------------------------------------------------------------
+  // Cheap filter: toolOps < min but errorCount >= 2 → still reaches the LLM
+  // -------------------------------------------------------------------------
+
+  test("toolOps 2 but errorCount 2 → LLM IS called (error-recovery sessions pass the cheap filter)", async () => {
+    const filePath = path.join(tmpDir, "error-recovery.jsonl");
+    // 2 tool ops, both results are errors → toolOps < 5 but errorCount >= 2
+    const content = makeFixtureTranscript(2, "2026-03-15", 2);
+    await fs.writeFile(filePath, content, "utf-8");
+    await setMtimeAgo(filePath, 2 * 60 * 60 * 1000);
+
+    const adapter = makeEpisodeAdapter();
+    const state = freshState();
+
+    const result = await runEpisodesCatchup(
+      {
+        sources: [{ adapter: "claude-code", glob: filePath }],
+        adapter,
+        episodesDir,
+        minAgeMs: 60_000,
+        minToolOps: 5,
+      },
+      state,
+    );
+
+    expect(adapter.completeCalls).toBeGreaterThan(0); // LLM reached
+    expect(result.filesProcessed).toBe(1);
   });
 });

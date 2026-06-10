@@ -20,7 +20,6 @@ import {
   saveState,
 } from "@litopys/daemon";
 import { createAdapter, defaultEpisodesDir } from "@litopys/extractor";
-import type { AdapterName } from "@litopys/extractor";
 
 // ---------------------------------------------------------------------------
 // tick
@@ -59,30 +58,27 @@ export async function cmdDaemonTick(args: string[], graphPath: string): Promise<
   // Episodes catch-up pass — runs AFTER runTick, sequentially (single-writer
   // contract: appendEpisodes and markClustered must never run concurrently
   // against the same episodesDir — see JSDoc on markClustered in episode-store.ts).
-  // Skipped entirely in dry-run: the catch-up makes real LLM calls, writes
-  // episode files and mutates episodesState — all side effects that dry-run
-  // promises not to have.
+  // In dry-run the pass is a no-op (no LLM calls, no writes, no episodesState
+  // mutation) — runEpisodesCatchup owns that contract.
   let catchupResult: { filesProcessed: number; episodesFound: number } = {
     filesProcessed: 0,
     episodesFound: 0,
   };
-  if (!dryRun) {
-    try {
-      const episodesAdapter = createAdapter(
-        (provider ?? process.env.LITOPYS_EXTRACTOR_PROVIDER ?? "anthropic") as AdapterName,
-      );
-      catchupResult = await runEpisodesCatchup(
-        {
-          sources,
-          adapter: episodesAdapter,
-          episodesDir: defaultEpisodesDir(),
-        },
-        state,
-      );
-    } catch (err) {
-      process.stderr.write(`[litopys/episodes] Catch-up pass failed: ${String(err)}\n`);
-      // Catch-up errors do not abort the tick
-    }
+  try {
+    // createAdapter owns the provider fallback (env var → "anthropic" default)
+    const episodesAdapter = createAdapter(provider);
+    catchupResult = await runEpisodesCatchup(
+      {
+        sources,
+        adapter: episodesAdapter,
+        episodesDir: defaultEpisodesDir(),
+        dryRun,
+      },
+      state,
+    );
+  } catch (err) {
+    process.stderr.write(`[litopys/episodes] Catch-up pass failed: ${String(err)}\n`);
+    // Catch-up errors do not abort the tick
   }
 
   // Persist state (even in dry-run — offsets are still advanced so we don't re-process)

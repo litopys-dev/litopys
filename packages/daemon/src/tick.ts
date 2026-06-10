@@ -65,6 +65,11 @@ export interface TickResult {
 
 // ---------------------------------------------------------------------------
 // Episodes catch-up
+//
+// NOTE on file size: tick.ts is at its size threshold. When the next pass
+// touches this area, split it into tick.ts (incremental ingestion),
+// episodes-catchup.ts (this section) and a shared sources.ts
+// (expandSources / expandGlobPattern / deriveSessionId).
 // ---------------------------------------------------------------------------
 
 export interface EpisodesCatchupOptions {
@@ -87,6 +92,11 @@ export interface EpisodesCatchupOptions {
    * Default: 5.
    */
   minToolOps?: number;
+  /**
+   * Dry-run mode: no LLM calls, no episode writes, no episodesState mutation.
+   * Returns zero counts. Default: false.
+   */
+  dryRun?: boolean;
 }
 
 export interface EpisodesCatchupResult {
@@ -98,9 +108,9 @@ export interface EpisodesCatchupResult {
  * Episodes catch-up pass — scan all claude-code source files and extract
  * work episodes from "cooled-down" sessions that have not yet been processed.
  *
- * Designed to complement the SessionEnd hook: the hook handles sessions in
- * real-time; this function catches sessions where the hook did not run
- * (e.g. timeout, crash, or hook not installed).
+ * Catches sessions the SessionEnd hook did not process (timeout, crash, hook
+ * not installed); sessions already in the episode store are skipped by
+ * sessionId before any LLM call is made.
  *
  * Semantics:
  * - Only files with adapterName === "claude-code" are considered.
@@ -109,13 +119,18 @@ export interface EpisodesCatchupResult {
  *   b) episodesState[path] is absent OR its recorded mtime != current mtime.
  * - Cheap pre-filter: if parsed.toolOps < minToolOps AND parsed.errorCount < 2,
  *   no LLM call is made — the file is still marked processed (episodesState updated).
+ * - sessionId guard: if the target monthly episodes file already contains an
+ *   episode with this sessionId (the SessionEnd hook handled the session), the
+ *   file is marked processed and the LLM is NOT called.
  * - Otherwise: extract episodes via the LLM adapter and append to episodesDir.
- *   appendEpisodes deduplicates by id so overlap with the SessionEnd hook is safe.
+ *   appendEpisodes additionally deduplicates by episode id.
  * - Session date is derived deterministically from transcript timestamps.
  *   Falls back to the file's mtime date (more deterministic than "today" for
  *   cooled-down files).
  * - Per-file errors are logged to stderr with the [litopys/episodes] prefix.
  *   The file is NOT marked processed on error (retry on next tick).
+ * - Dry-run: returns zero counts with no LLM calls, no writes and no
+ *   episodesState mutation.
  * - This function never throws.
  *
  * The `state` object is mutated in place (state.episodesState is updated).
@@ -125,6 +140,13 @@ export async function runEpisodesCatchup(
   opts: EpisodesCatchupOptions,
   state: DaemonState,
 ): Promise<EpisodesCatchupResult> {
+  // Dry-run contract: zero side effects — no LLM calls, no episode writes,
+  // no state mutation. Nothing useful to report without doing the work, so
+  // return zeros immediately.
+  if (opts.dryRun) {
+    return { filesProcessed: 0, episodesFound: 0 };
+  }
+
   const minAgeMs = opts.minAgeMs ?? 3_600_000;
   const minToolOps = opts.minToolOps ?? 5;
   const now = Date.now();
@@ -208,16 +230,29 @@ export async function runEpisodesCatchup(
       sessionDate = stat.mtime.toISOString().slice(0, 10);
     }
 
+    // sessionId guard: if the SessionEnd hook already extracted episodes for
+    // this session, the target monthly file contains them — skip the LLM call
+    // entirely (token economy + Stage B episode counts stay accurate).
+    if (await monthlyFileHasSession(opts.episodesDir, sessionDate, sessionId)) {
+      episodesState[filePath] = { mtime: currentMtime };
+      filesProcessed++;
+      continue;
+    }
+
     // Extract and append episodes
     try {
       const episodes = await extractEpisodes(parsed, sessionId, sessionDate, opts.adapter, {
         minToolOps,
       });
 
+      let written = 0;
       if (episodes.length > 0) {
-        const written = await appendEpisodes(episodes, opts.episodesDir);
+        written = await appendEpisodes(episodes, opts.episodesDir);
         episodesFound += written;
       }
+      process.stderr.write(
+        `[litopys/episodes] extracted ${written} episode(s) from ${filePath}\n`,
+      );
     } catch (err) {
       process.stderr.write(
         `[litopys/episodes] Episode extraction failed for ${filePath}: ${String(err)}\n`,
@@ -232,6 +267,40 @@ export async function runEpisodesCatchup(
   }
 
   return { filesProcessed, episodesFound };
+}
+
+/**
+ * Check whether the monthly episodes file for `sessionDate` already contains
+ * an episode with the given sessionId (i.e. the SessionEnd hook — or a
+ * previous catch-up — already processed this session).
+ *
+ * Missing file / unreadable lines → false (no episodes recorded).
+ */
+async function monthlyFileHasSession(
+  episodesDir: string,
+  sessionDate: string,
+  sessionId: string,
+): Promise<boolean> {
+  const monthlyFile = path.join(episodesDir, `${sessionDate.slice(0, 7)}.jsonl`);
+
+  let content: string;
+  try {
+    content = await fs.readFile(monthlyFile, "utf-8");
+  } catch {
+    return false;
+  }
+
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const ep = JSON.parse(trimmed) as { sessionId?: unknown };
+      if (ep.sessionId === sessionId) return true;
+    } catch {
+      // Corrupt line — ignore
+    }
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------------------

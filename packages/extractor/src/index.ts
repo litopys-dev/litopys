@@ -81,3 +81,9 @@ export {
   markClustered,
 } from "./episode-store.ts";
 export type { Episode } from "./episode-store.ts";
+
+// ---------------------------------------------------------------------------
+// Episode extraction — Stage A LLM stage
+// ---------------------------------------------------------------------------
+
+export { extractEpisodes, EPISODE_EXTRACTION_PROMPT } from "./episodes.ts";

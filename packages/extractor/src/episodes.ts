@@ -9,6 +9,7 @@ import { EpisodeSchema, makeEpisodeId } from "./episode-store.ts";
 import type { Episode } from "./episode-store.ts";
 import type { ExtractorAdapter } from "./adapters/types.ts";
 import type { ParsedTranscript } from "./transcript-tools.ts";
+import { parseKeyedArray, safeReplace } from "./llm-utils.ts";
 
 // ---------------------------------------------------------------------------
 // Prompt
@@ -31,40 +32,12 @@ TRANSCRIPT:
 // ---------------------------------------------------------------------------
 
 /**
- * Strip markdown code fences from an LLM response if present.
- * Handles ```json ... ``` and ``` ... ``` wrapping.
- */
-function stripCodeFences(text: string): string {
-  const trimmed = text.trim();
-  // Match ```json\n...\n``` or ```\n...\n```
-  const fenceMatch = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```\s*$/);
-  if (fenceMatch?.[1] !== undefined) {
-    return fenceMatch[1].trim();
-  }
-  return trimmed;
-}
-
-/**
  * Attempt to parse LLM response text into a raw episodes array.
- * Returns null on parse failure.
+ * Returns null on parse failure. (Fence-stripping + shape check shared in
+ * llm-utils.ts.)
  */
 function parseEpisodesResponse(text: string): unknown[] | null {
-  const stripped = stripCodeFences(text);
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stripped);
-  } catch {
-    return null;
-  }
-  if (
-    parsed !== null &&
-    typeof parsed === "object" &&
-    "episodes" in (parsed as object) &&
-    Array.isArray((parsed as Record<string, unknown>).episodes)
-  ) {
-    return (parsed as Record<string, unknown>).episodes as unknown[];
-  }
-  return null;
+  return parseKeyedArray(text, "episodes");
 }
 
 // ---------------------------------------------------------------------------
@@ -110,11 +83,13 @@ export async function extractEpisodes(
     return [];
   }
 
-  // Function replacement disables $-pattern expansion ($&, $', $`) that a
-  // string replacement would apply — Bash gists in transcripts often contain $.
-  const prompt = EPISODE_EXTRACTION_PROMPT
-    .replace("{minToolOps}", String(opts.minToolOps))
-    .replace("{transcript}", () => transcript.text);
+  // safeReplace uses a function replacer, disabling $-pattern expansion
+  // ($&, $', $`) — Bash gists in transcripts often contain $.
+  const prompt = safeReplace(
+    EPISODE_EXTRACTION_PROMPT.replace("{minToolOps}", String(opts.minToolOps)),
+    "{transcript}",
+    transcript.text,
+  );
 
   // First attempt
   const firstResult = await adapter.complete({ prompt, maxTokens: 4096 });

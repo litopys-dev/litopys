@@ -15,6 +15,7 @@ import { z } from "zod";
 import type { Episode } from "./episode-store.ts";
 import type { ExtractorAdapter } from "./adapters/types.ts";
 import type { SkillDetectorConfig } from "./skill-config.ts";
+import { parseKeyedArray, safeReplace, stripCodeFences } from "./llm-utils.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -85,8 +86,9 @@ description: <trigger conditions in one paragraph, English>
 
 Rules:
 - Section bodies in Russian.
+- Each section body must be non-empty — at least one sentence or step.
 - Procedure: numbered generalized steps with concrete commands where they appeared.
-- Pitfalls: extract from errorRecovery episodes — what did NOT work.
+- Pitfalls: extract from errorRecovery episodes — what did NOT work. If there are no errorRecovery episodes, derive the most likely mistake from the steps, or write "Нет известных подводных камней".
 - Verification: how to confirm the procedure succeeded.
 
 EPISODES:
@@ -97,62 +99,40 @@ EPISODES:
 // ---------------------------------------------------------------------------
 
 /**
- * Strip markdown code fences from an LLM response if present.
- * Handles ```json ... ```, ```markdown ... ```, and ``` ... ``` wrapping.
- * Also handles fences that wrap the ENTIRE document (Stage B: draftSkill).
- */
-function stripCodeFences(text: string): string {
-  const trimmed = text.trim();
-  const fenceMatch = trimmed.match(/^```(?:[a-zA-Z]*)?\s*\n([\s\S]*?)\n?```\s*$/);
-  if (fenceMatch?.[1] !== undefined) {
-    return fenceMatch[1].trim();
-  }
-  return trimmed;
-}
-
-/**
- * Safe string replacement using a function replacer to avoid $-pattern expansion.
- * Equivalent to .replace(needle, () => replacement).
- */
-function safeReplace(template: string, needle: string, replacement: string): string {
-  return template.replace(needle, () => replacement);
-}
-
-/**
  * Attempt to parse LLM response text into a raw groups array.
- * Returns null on parse failure or wrong shape.
+ * Returns null on parse failure or wrong shape. (Fence-stripping + shape
+ * check shared in llm-utils.ts.)
  */
 function parseGroupsResponse(text: string): unknown[] | null {
-  const stripped = stripCodeFences(text);
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stripped);
-  } catch {
-    return null;
-  }
-  if (
-    parsed !== null &&
-    typeof parsed === "object" &&
-    "groups" in (parsed as object) &&
-    Array.isArray((parsed as Record<string, unknown>).groups)
-  ) {
-    return (parsed as Record<string, unknown>).groups as unknown[];
-  }
-  return null;
+  return parseKeyedArray(text, "groups");
 }
+
+const REQUIRED_SECTIONS = ["## When to use", "## Procedure", "## Pitfalls", "## Verification"];
 
 /**
  * Validate that a SKILL.md string has the required structure:
  * - starts with "---"
  * - contains "name:"
  * - contains all 4 required section headers
+ * - every required section has a non-empty body (a template echo with bare
+ *   headers must NOT pass — it would burn a human review cycle)
  */
 function isValidSkillMd(text: string): boolean {
   const t = text.trimStart();
   if (!t.startsWith("---")) return false;
   if (!t.includes("name:")) return false;
-  const required = ["## When to use", "## Procedure", "## Pitfalls", "## Verification"];
-  return required.every((section) => t.includes(section));
+  if (!REQUIRED_SECTIONS.every((section) => t.includes(section))) return false;
+
+  // Empty-skeleton guard: each required header must be followed by actual
+  // body content — not immediately by another header or EOF.
+  for (const section of REQUIRED_SECTIONS) {
+    const idx = t.indexOf(section);
+    const after = t.slice(idx + section.length);
+    const nextHeader = after.search(/^#{1,6}\s/m);
+    const body = nextHeader === -1 ? after : after.slice(0, nextHeader);
+    if (body.trim() === "") return false;
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -285,9 +265,16 @@ export function selectDraftable(
 /**
  * Generate a SKILL.md draft string for a group of episodes.
  *
+ * IMPORTANT (orchestrator contract): call normalizeSkillName() FIRST and pass
+ * the group with the NORMALIZED name — `group.name` is substituted verbatim
+ * into the frontmatter `name:` field, and the Task 9 promote flow requires the
+ * frontmatter name to exactly match the draft directory name.
+ *
  * - Sends a complete() call with the draft prompt.
  * - Strips code fences from the entire document if LLM wraps it.
- * - Validates result: must start with "---", contain "name:", contain all 4 sections.
+ * - Validates result: must start with "---", contain "name:", contain all 4
+ *   sections, and every section body must be non-empty (template echoes are
+ *   rejected).
  * - 1 retry on invalid result; throws on second failure.
  */
 export async function draftSkill(

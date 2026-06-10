@@ -193,6 +193,27 @@ describe("clusterEpisodes", () => {
     expect(groups[0]!.name).toBe("valid-group");
   });
 
+  test("bad first response, good second → parsed result, completeCalls === 2", async () => {
+    const ep = makeEpisode({ id: "ep-recover00001" });
+    const goodJson = JSON.stringify({
+      groups: [
+        {
+          name: "recovered-group",
+          episodeIds: [ep.id],
+          worthSkill: true,
+          reason: "Recovered after retry.",
+        },
+      ],
+    });
+
+    const adapter = new MockAdapter({ completions: ["garbage, not json", goodJson] });
+    const groups = await clusterEpisodes([ep], adapter);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.name).toBe("recovered-group");
+    expect(adapter.completeCalls).toBe(2);
+  });
+
   test("group with all hallucinated ids → group becomes empty → discarded", async () => {
     const ep = makeEpisode({ id: "ep-real000002" });
 
@@ -421,6 +442,73 @@ describe("draftSkill", () => {
     // Both responses are garbage (no sections, not starting with ---)
     const garbage = "This is not a valid SKILL.md at all.";
     const adapter = new MockAdapter({ completions: [garbage] });
+
+    await expect(draftSkill(group, [ep], adapter)).rejects.toThrow();
+    expect(adapter.completeCalls).toBe(2);
+  });
+
+  test("template echo (4 headers, empty bodies) → retry → throws", async () => {
+    const ep = makeEpisode({ id: "ep-skeleton0001", sessionId: "sess-A" });
+    const group = {
+      name: "skeleton-skill",
+      episodeIds: [ep.id],
+      worthSkill: true,
+      reason: "Test.",
+    };
+
+    // Echoes the template: frontmatter + all 4 headers, but every body empty.
+    const skeleton = `---
+name: skeleton-skill
+description: Some description.
+---
+
+# Skeleton
+
+## When to use
+
+## Procedure
+
+## Pitfalls
+
+## Verification
+`;
+    const adapter = new MockAdapter({ completions: [skeleton] });
+
+    await expect(draftSkill(group, [ep], adapter)).rejects.toThrow();
+    expect(adapter.completeCalls).toBe(2);
+  });
+
+  test("one empty section among filled ones → rejected (retry → throw)", async () => {
+    const ep = makeEpisode({ id: "ep-skeleton0002", sessionId: "sess-A" });
+    const group = {
+      name: "half-skill",
+      episodeIds: [ep.id],
+      worthSkill: true,
+      reason: "Test.",
+    };
+
+    const halfFilled = `---
+name: half-skill
+description: Some description.
+---
+
+# Half
+
+## When to use
+
+Когда нужно сделать дело.
+
+## Procedure
+
+1. Сделать шаг.
+
+## Pitfalls
+
+## Verification
+
+Проверить результат.
+`;
+    const adapter = new MockAdapter({ completions: [halfFilled] });
 
     await expect(draftSkill(group, [ep], adapter)).rejects.toThrow();
     expect(adapter.completeCalls).toBe(2);

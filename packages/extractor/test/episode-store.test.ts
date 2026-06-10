@@ -17,6 +17,27 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** ISO date `n` days before today. */
+function daysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * A date within the last 60 days that falls in a DIFFERENT month than today.
+ * Walks back day by day until the month changes (at most ~31 steps, always
+ * inside the default 60-day window).
+ */
+function recentDateInOtherMonth(): string {
+  const currentMonth = today().slice(0, 7);
+  for (let n = 1; n <= 45; n++) {
+    const d = daysAgo(n);
+    if (d.slice(0, 7) !== currentMonth) return d;
+  }
+  throw new Error("unreachable: no month boundary within 45 days");
+}
+
 function makeEpisode(overrides: Partial<Episode> = {}): Episode {
   return {
     id: "ep-abc123def456",
@@ -104,6 +125,45 @@ describe("appendEpisodes", () => {
     expect(stat.isDirectory()).toBe(true);
   });
 
+  test("throws on malformed date (slash-separated)", async () => {
+    const bad = makeEpisode({ id: "ep-baddate111", date: "2026/06/10" });
+    await expect(appendEpisodes([bad], tmpDir)).rejects.toThrow();
+  });
+
+  test("throws on path-traversal-shaped date", async () => {
+    const bad = makeEpisode({ id: "ep-baddate222", date: "../../etc/x" });
+    await expect(appendEpisodes([bad], tmpDir)).rejects.toThrow();
+    // No file may have been created outside or inside the dir
+    const files = await fs.readdir(tmpDir);
+    expect(files.filter((f) => f.endsWith(".jsonl"))).toHaveLength(0);
+  });
+
+  test("one batch spanning two months writes two monthly files", async () => {
+    const dateA = today();
+    const dateB = recentDateInOtherMonth();
+    const epA = makeEpisode({ id: "ep-spanaaa1111", date: dateA });
+    const epB = makeEpisode({ id: "ep-spanbbb2222", date: dateB, goal: "Older month goal" });
+
+    const written = await appendEpisodes([epA, epB], tmpDir);
+    expect(written).toBe(2);
+
+    const fileA = path.join(tmpDir, `${dateA.slice(0, 7)}.jsonl`);
+    const fileB = path.join(tmpDir, `${dateB.slice(0, 7)}.jsonl`);
+    expect((await fs.stat(fileA)).isFile()).toBe(true);
+    expect((await fs.stat(fileB)).isFile()).toBe(true);
+
+    const idsA = (await fs.readFile(fileA, "utf-8"))
+      .trim()
+      .split("\n")
+      .map((l) => (JSON.parse(l) as Episode).id);
+    const idsB = (await fs.readFile(fileB, "utf-8"))
+      .trim()
+      .split("\n")
+      .map((l) => (JSON.parse(l) as Episode).id);
+    expect(idsA).toEqual(["ep-spanaaa1111"]);
+    expect(idsB).toEqual(["ep-spanbbb2222"]);
+  });
+
   test("each line is valid JSON with correct id", async () => {
     const ep1 = makeEpisode({ id: "ep-json111aaa" });
     const ep2 = makeEpisode({ id: "ep-json222bbb", goal: "Check JSON" });
@@ -179,6 +239,30 @@ describe("listUnclustered", () => {
     expect(result).toHaveLength(2);
   });
 
+  test("stranded tmp files are ignored", async () => {
+    const real = makeEpisode({ id: "ep-realfile111" });
+    await appendEpisodes([real], tmpDir);
+
+    const yyyyMM = today().slice(0, 7);
+    const strandedNew = makeEpisode({ id: "ep-stranded111", goal: "From stranded tmp" });
+    const strandedOld = makeEpisode({ id: "ep-stranded222", goal: "Old-style tmp" });
+    // New-style stranded tmp: <monthly>.jsonl.tmp-<rand>
+    await fs.writeFile(
+      path.join(tmpDir, `${yyyyMM}.jsonl.tmp-x`),
+      JSON.stringify(strandedNew) + "\n",
+      "utf-8",
+    );
+    // Old-style stranded tmp ending in .jsonl
+    await fs.writeFile(
+      path.join(tmpDir, ".tmp-abc.jsonl"),
+      JSON.stringify(strandedOld) + "\n",
+      "utf-8",
+    );
+
+    const result = await listUnclustered(tmpDir);
+    expect(result.map((e) => e.id)).toEqual(["ep-realfile111"]);
+  });
+
   test("episodes outside sinceDays window are excluded", async () => {
     // Write an episode with a date far in the past (101 days ago)
     const pastDate = new Date();
@@ -248,6 +332,60 @@ describe("markClustered", () => {
 
     const unclustered = await listUnclustered(tmpDir);
     expect(unclustered).toHaveLength(1);
+  });
+
+  test("stranded tmp files are ignored and left untouched", async () => {
+    const ep = makeEpisode({ id: "ep-marktmp111" });
+    await appendEpisodes([ep], tmpDir);
+
+    const yyyyMM = today().slice(0, 7);
+    // Stranded tmp containing an episode whose id we are about to mark
+    const stranded = makeEpisode({ id: "ep-marktmp111", goal: "stranded copy" });
+    const newStylePath = path.join(tmpDir, `${yyyyMM}.jsonl.tmp-x`);
+    const oldStylePath = path.join(tmpDir, ".tmp-abc.jsonl");
+    const strandedContent = JSON.stringify(stranded) + "\n";
+    await fs.writeFile(newStylePath, strandedContent, "utf-8");
+    await fs.writeFile(oldStylePath, strandedContent, "utf-8");
+
+    await markClustered(["ep-marktmp111"], "tmp-safety", tmpDir);
+
+    // Real file updated
+    const unclustered = await listUnclustered(tmpDir);
+    expect(unclustered).toHaveLength(0);
+
+    // Stranded tmps untouched (clusteredInto still null inside them)
+    for (const p of [newStylePath, oldStylePath]) {
+      const content = await fs.readFile(p, "utf-8");
+      const parsed = JSON.parse(content.trim()) as Episode;
+      expect(parsed.clusteredInto).toBeNull();
+    }
+  });
+
+  test("marks ids spread across two monthly files", async () => {
+    const dateA = today();
+    const dateB = recentDateInOtherMonth();
+    const epA = makeEpisode({ id: "ep-xmonth111aa", date: dateA });
+    const epB = makeEpisode({ id: "ep-xmonth222bb", date: dateB, goal: "Other month" });
+    const epC = makeEpisode({ id: "ep-xmonth333cc", date: dateB, goal: "Stays unclustered" });
+    await appendEpisodes([epA, epB, epC], tmpDir);
+
+    await markClustered(["ep-xmonth111aa", "ep-xmonth222bb"], "cross-month-skill", tmpDir);
+
+    const unclustered = await listUnclustered(tmpDir);
+    expect(unclustered.map((e) => e.id)).toEqual(["ep-xmonth333cc"]);
+
+    // Both monthly files persisted the clusteredInto change
+    for (const [d, id] of [
+      [dateA, "ep-xmonth111aa"],
+      [dateB, "ep-xmonth222bb"],
+    ] as const) {
+      const content = await fs.readFile(path.join(tmpDir, `${d.slice(0, 7)}.jsonl`), "utf-8");
+      const parsed = content
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l) as Episode);
+      expect(parsed.find((e) => e.id === id)?.clusteredInto).toBe("cross-month-skill");
+    }
   });
 
   test("can mark multiple ids at once", async () => {

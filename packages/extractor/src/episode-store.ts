@@ -1,6 +1,5 @@
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
-import * as os from "node:os";
 import * as crypto from "node:crypto";
 import { z } from "zod";
 import { defaultGraphPath } from "@litopys/core";
@@ -12,7 +11,7 @@ import { defaultGraphPath } from "@litopys/core";
 export const EpisodeSchema = z.object({
   id: z.string(), // "ep-" + sha256(sessionId+goal).slice(0,12)
   sessionId: z.string(),
-  date: z.string(), // YYYY-MM-DD
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), // YYYY-MM-DD
   goal: z.string().max(200),
   steps: z.array(z.string()).min(1).max(10),
   toolOps: z.number().int().min(0),
@@ -79,12 +78,21 @@ async function readEpisodesFromFile(filePath: string): Promise<Episode[]> {
 }
 
 /**
+ * Monthly episode files are exactly "YYYY-MM.jsonl". Tmp files used for atomic
+ * rewrites deliberately do NOT match this pattern, so a stranded tmp file
+ * (e.g. after a crash mid-rewrite) is never picked up by readers.
+ */
+const MONTHLY_FILE_RE = /^\d{4}-\d{2}\.jsonl$/;
+
+/**
  * Write episodes array back to a file atomically (tmp file + rename).
+ * Tmp file name ends in ".tmp-<rand>" (not ".jsonl") so stranded tmps are
+ * invisible to the MONTHLY_FILE_RE readdir filters.
  */
 async function writeEpisodesAtomic(filePath: string, episodes: Episode[]): Promise<void> {
-  const dir = path.dirname(filePath);
-  const tmpPath = path.join(dir, `.tmp-${Date.now()}-${Math.random().toString(36).slice(2)}.jsonl`);
-  const content = episodes.map((ep) => JSON.stringify(ep)).join("\n") + (episodes.length > 0 ? "\n" : "");
+  const tmpPath = `${filePath}.tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const content =
+    episodes.map((ep) => JSON.stringify(ep)).join("\n") + (episodes.length > 0 ? "\n" : "");
   await fs.writeFile(tmpPath, content, "utf-8");
   await fs.rename(tmpPath, filePath);
 }
@@ -131,17 +139,30 @@ export function defaultEpisodesDir(): string {
  * - Episodes are grouped by the `date` field and written to `YYYY-MM.jsonl`.
  * - Deduplication is performed by `id` against episodes already in the files.
  * - Returns the number of episodes actually written (new, non-duplicate ones).
+ * - Throws if any episode fails EpisodeSchema validation (notably a malformed
+ *   `date` such as "2026/06/10"): that is a programmer / LLM-parse error in
+ *   Stage A, and an unvalidated date must never reach path.join.
+ *
+ * NOTE on dedup semantics: dedup by `id` is per-month-file. Correctness relies
+ * on `episode.date` being derived deterministically from the session (the same
+ * session+goal always yields the same date), NOT from the processing date.
+ * Stage A must follow this — otherwise re-processing a session in a different
+ * month would write a duplicate id into another monthly file.
  *
  * @param episodes   Episodes to store.
  * @param episodesDir  Directory where monthly .jsonl files live.
  */
 export async function appendEpisodes(episodes: Episode[], episodesDir: string): Promise<number> {
+  // Validate up front (before any I/O) so a malformed date can never reach
+  // path.join — and so a partially-written batch is never left behind.
+  const validated = episodes.map((ep) => EpisodeSchema.parse(ep));
+
   await fs.mkdir(episodesDir, { recursive: true });
 
-  // Group incoming episodes by YYYY-MM
+  // Group incoming episodes by monthly file name ("YYYY-MM.jsonl")
   const byMonth = new Map<string, Episode[]>();
-  for (const ep of episodes) {
-    const key = ep.date.slice(0, 7);
+  for (const ep of validated) {
+    const key = monthlyFileName(ep.date);
     const list = byMonth.get(key) ?? [];
     list.push(ep);
     byMonth.set(key, list);
@@ -149,8 +170,8 @@ export async function appendEpisodes(episodes: Episode[], episodesDir: string): 
 
   let totalWritten = 0;
 
-  for (const [yyyyMM, incoming] of byMonth) {
-    const filePath = path.join(episodesDir, `${yyyyMM}.jsonl`);
+  for (const [fileName, incoming] of byMonth) {
+    const filePath = path.join(episodesDir, fileName);
     const existing = await readEpisodesFromFile(filePath);
     const existingIds = new Set(existing.map((e) => e.id));
 
@@ -184,16 +205,13 @@ export async function listUnclustered(episodesDir: string, sinceDays = 60): Prom
   }
 
   const windowMonths = monthsInWindow(sinceDays);
-  const today = new Date();
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - sinceDays);
+  const cutoffDate = new Date(cutoff.toISOString().slice(0, 10) + "T00:00:00.000Z");
 
   const jsonlFiles = files
-    .filter((f) => f.endsWith(".jsonl"))
-    .filter((f) => {
-      const yyyyMM = f.slice(0, 7); // "YYYY-MM"
-      return windowMonths.has(yyyyMM);
-    })
+    .filter((f) => MONTHLY_FILE_RE.test(f))
+    .filter((f) => windowMonths.has(f.slice(0, 7))) // "YYYY-MM"
     .sort();
 
   const result: Episode[] = [];
@@ -204,11 +222,10 @@ export async function listUnclustered(episodesDir: string, sinceDays = 60): Prom
 
     for (const ep of episodes) {
       if (ep.clusteredInto !== null) continue;
-      // Check date falls within window
+      // Lower bound only: future-dated episodes (e.g. UTC+3 producers near
+      // midnight) are intentionally NOT excluded.
       const epDate = new Date(ep.date + "T00:00:00.000Z");
-      const cutoffDate = new Date(cutoff.toISOString().slice(0, 10) + "T00:00:00.000Z");
-      const todayDate = new Date(today.toISOString().slice(0, 10) + "T00:00:00.000Z");
-      if (epDate >= cutoffDate && epDate <= todayDate) {
+      if (epDate >= cutoffDate) {
         result.push(ep);
       }
     }
@@ -223,6 +240,12 @@ export async function listUnclustered(episodesDir: string, sinceDays = 60): Prom
  * - Episodes may live in different monthly files; all relevant files are updated.
  * - Each affected file is rewritten atomically (tmp file + fs.rename).
  * - Unknown ids are silently ignored.
+ *
+ * CONCURRENCY (single-writer contract): the rewrite is read → modify → rename.
+ * An appendEpisodes call that lands on the same file between the read and the
+ * rename will be silently lost. Callers (the daemon) must serialize Stage A
+ * (append) and Stage B (markClustered) — never run them concurrently against
+ * the same episodesDir. No lockfile is taken here by design.
  *
  * @param ids        Episode ids to mark.
  * @param draftName  Name of the draft skill cluster (stored in `clusteredInto`).
@@ -244,7 +267,7 @@ export async function markClustered(
     return;
   }
 
-  const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
+  const jsonlFiles = files.filter((f) => MONTHLY_FILE_RE.test(f));
 
   for (const fileName of jsonlFiles) {
     const filePath = path.join(episodesDir, fileName);

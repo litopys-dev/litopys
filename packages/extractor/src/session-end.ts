@@ -241,7 +241,14 @@ async function writeFailedStub(
   }
 }
 
-run().catch((err) => {
-  process.stderr.write(`[litopys/session-end] Fatal error: ${String(err)}\n`);
-  process.exit(1);
-});
+// Entrypoint guard: only run the hook when executed directly as a script
+// (bun session-end.ts). Importing this module (tests, index.ts re-export of
+// runEpisodeStage) must have NO side effects — without this guard every
+// import would read stdin, attempt a real extraction against the real graph
+// and write failed stubs into ~/.litopys/quarantine/failed/.
+if (import.meta.main) {
+  run().catch((err) => {
+    process.stderr.write(`[litopys/session-end] Fatal error: ${String(err)}\n`);
+    process.exit(1);
+  });
+}

@@ -233,4 +233,47 @@ describe("runEpisodeStage", () => {
     const lines = content.split("\n").filter((l) => l.trim());
     expect(lines).toHaveLength(1);
   });
+
+  // -------------------------------------------------------------------------
+  // Import side-effect regression (entrypoint guard)
+  // -------------------------------------------------------------------------
+
+  test("importing session-end.ts does NOT run the hook (no failed stub written)", async () => {
+    // Spawn a fresh bun process (clean module registry — an in-process dynamic
+    // import() would hit the module cache and prove nothing) that merely
+    // imports the module. With the import.meta.main guard the hook must not
+    // run: no stdin read, no extraction, no quarantine/failed stub.
+    const graphDir = path.join(tmpDir, "graph");
+    const sessionEndPath = path.resolve(import.meta.dir, "../src/session-end.ts");
+
+    // Strip ANTHROPIC_API_KEY so even a regressed (guard-less) module could
+    // never fire a real paid API call from the test suite.
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (v !== undefined && k !== "ANTHROPIC_API_KEY") env[k] = v;
+    }
+    env.LITOPYS_GRAPH_PATH = graphDir;
+
+    const proc = Bun.spawnSync({
+      cmd: ["bun", "-e", `import ${JSON.stringify(sessionEndPath)}; console.log("imported-ok");`],
+      env,
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    expect(proc.exitCode).toBe(0);
+    expect(proc.stdout.toString()).toContain("imported-ok");
+
+    // The hook (if it had run) writes a failed stub to <graphPath>/../quarantine/failed
+    const failedDir = path.join(tmpDir, "quarantine", "failed");
+    const exists = await fs
+      .stat(failedDir)
+      .then(() => true)
+      .catch(() => false);
+    expect(exists).toBe(false);
+
+    // And no hook log output should appear on import
+    expect(proc.stderr.toString()).not.toContain("[litopys/session-end]");
+  });
 });

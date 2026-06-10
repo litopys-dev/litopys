@@ -15,9 +15,12 @@ import {
   expandTilde,
   loadSourceConfigs,
   loadState,
+  runEpisodesCatchup,
   runTick,
   saveState,
 } from "@litopys/daemon";
+import { createAdapter, defaultEpisodesDir } from "@litopys/extractor";
+import type { AdapterName } from "@litopys/extractor";
 
 // ---------------------------------------------------------------------------
 // tick
@@ -53,7 +56,30 @@ export async function cmdDaemonTick(args: string[], graphPath: string): Promise<
     process.exit(1);
   }
 
+  // Episodes catch-up pass — runs AFTER runTick, sequentially (single-writer
+  // contract: appendEpisodes and markClustered must never run concurrently
+  // against the same episodesDir — see JSDoc on markClustered in episode-store.ts).
+  let catchupResult: { filesProcessed: number; episodesFound: number } = {
+    filesProcessed: 0,
+    episodesFound: 0,
+  };
+  try {
+    const episodesAdapter = createAdapter((provider ?? process.env.LITOPYS_EXTRACTOR_PROVIDER ?? "anthropic") as AdapterName);
+    catchupResult = await runEpisodesCatchup(
+      {
+        sources,
+        adapter: episodesAdapter,
+        episodesDir: defaultEpisodesDir(),
+      },
+      state,
+    );
+  } catch (err) {
+    process.stderr.write(`[litopys/episodes] Catch-up pass failed: ${String(err)}\n`);
+    // Catch-up errors do not abort the tick
+  }
+
   // Persist state (even in dry-run — offsets are still advanced so we don't re-process)
+  // episodesState is part of state and is persisted by the same mechanism.
   await saveState(statePath, state);
 
   process.stdout.write(
@@ -63,6 +89,12 @@ export async function cmdDaemonTick(args: string[], graphPath: string): Promise<
   if (result.candidatesTotal > 0 || result.relationsTotal > 0) {
     process.stdout.write(
       `Found ${result.candidatesTotal} candidate(s), ${result.relationsTotal} relation(s)\n`,
+    );
+  }
+
+  if (catchupResult.filesProcessed > 0 || catchupResult.episodesFound > 0) {
+    process.stdout.write(
+      `Episodes catch-up: processed ${catchupResult.filesProcessed} file(s), found ${catchupResult.episodesFound} episode(s)\n`,
     );
   }
 

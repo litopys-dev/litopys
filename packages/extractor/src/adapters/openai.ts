@@ -1,6 +1,8 @@
 import OpenAI from "openai";
 import { buildSystemPrompt, buildUserPrompt } from "../prompt.ts";
 import {
+  type CompleteInput,
+  type CompleteOutput,
   type ExtractorAdapter,
   type ExtractorInput,
   type ExtractorOutput,
@@ -88,6 +90,32 @@ export class OpenAIAdapter implements ExtractorAdapter {
     }
 
     return parseOutput(rawText, this.model, inputTokens, outputTokens, sessionId);
+  }
+
+  async complete(input: CompleteInput): Promise<CompleteOutput> {
+    let text = "";
+    let inputTokens = 0;
+    let outputTokens = 0;
+
+    try {
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        messages: [{ role: "user", content: input.prompt }],
+        max_tokens: input.maxTokens ?? 2048,
+      });
+
+      inputTokens = response.usage?.prompt_tokens ?? 0;
+      outputTokens = response.usage?.completion_tokens ?? 0;
+
+      const choice = response.choices[0];
+      if (choice?.message?.content) {
+        text = choice.message.content;
+      }
+    } catch (err) {
+      process.stderr.write(`[litopys/extractor] OpenAI complete() error: ${String(err)}\n`);
+    }
+
+    return { text, usage: { inputTokens, outputTokens } };
   }
 }
 

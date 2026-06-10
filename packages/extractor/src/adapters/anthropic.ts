@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { buildSystemPrompt, buildUserPrompt } from "../prompt.ts";
 import {
+  type CompleteInput,
+  type CompleteOutput,
   type ExtractorAdapter,
   type ExtractorInput,
   type ExtractorOutput,
@@ -78,6 +80,32 @@ export class AnthropicAdapter implements ExtractorAdapter {
     }
 
     return parseOutput(rawText, this.model, inputTokens, outputTokens, sessionId);
+  }
+
+  async complete(input: CompleteInput): Promise<CompleteOutput> {
+    let text = "";
+    let inputTokens = 0;
+    let outputTokens = 0;
+
+    try {
+      const response = await this.client.messages.create({
+        model: this.model,
+        max_tokens: input.maxTokens ?? 2048,
+        messages: [{ role: "user", content: input.prompt }],
+      });
+
+      inputTokens = response.usage.input_tokens;
+      outputTokens = response.usage.output_tokens;
+
+      const first = response.content[0];
+      if (first?.type === "text" && typeof first.text === "string") {
+        text = first.text;
+      }
+    } catch (err) {
+      process.stderr.write(`[litopys/extractor] Anthropic complete() error: ${String(err)}\n`);
+    }
+
+    return { text, usage: { inputTokens, outputTokens } };
   }
 }
 

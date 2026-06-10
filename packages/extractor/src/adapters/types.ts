@@ -50,10 +50,21 @@ export interface ExtractorOutput {
   modelUsed: string;
 }
 
+export interface CompleteInput {
+  prompt: string;
+  maxTokens?: number; // default 2048
+}
+
+export interface CompleteOutput {
+  text: string;
+  usage: { inputTokens: number; outputTokens: number };
+}
+
 export interface ExtractorAdapter {
   readonly name: string;
   readonly model: string;
   extract(input: ExtractorInput): Promise<ExtractorOutput>;
+  complete(input: CompleteInput): Promise<CompleteOutput>;
 }
 
 // ---------------------------------------------------------------------------

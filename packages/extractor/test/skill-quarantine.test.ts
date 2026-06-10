@@ -307,6 +307,49 @@ describe("readSkillDraft", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Name whitelist — read, promote AND reject must all refuse bad names
+// ---------------------------------------------------------------------------
+
+describe("draft name whitelist", () => {
+  const badNames = [".", "", "UPPER", "a/b", "../x", "..", "a\\b", "-leading-dash"];
+
+  for (const bad of badNames) {
+    test(`readSkillDraft(${JSON.stringify(bad)}) → throws invalid name`, async () => {
+      await expect(readSkillDraft(bad, "/tmp")).rejects.toThrow("invalid skill draft name");
+    });
+
+    test(`promoteSkillDraft(${JSON.stringify(bad)}) → throws invalid name`, async () => {
+      await expect(promoteSkillDraft(bad, "/tmp", "/tmp")).rejects.toThrow(
+        "invalid skill draft name",
+      );
+    });
+
+    test(`rejectSkillDraft(${JSON.stringify(bad)}) → throws invalid name`, async () => {
+      await expect(rejectSkillDraft(bad, "/tmp", "/tmp")).rejects.toThrow(
+        "invalid skill draft name",
+      );
+    });
+  }
+
+  test("'.' as name must NOT delete the drafts directory", async () => {
+    const { root, qsDir, graphPath } = await mkQuarantineFixture();
+    try {
+      // A real draft lives in qsDir; rejecting "." used to rm -r qsDir itself
+      await writeSkillDraft("survivor", makeSkillMd("survivor"), makeMeta("survivor"), qsDir);
+
+      await expect(rejectSkillDraft(".", qsDir, graphPath)).rejects.toThrow(
+        "invalid skill draft name",
+      );
+
+      // Drafts directory and its content intact
+      await expect(fs.access(path.join(qsDir, "survivor", "SKILL.md"))).resolves.toBeNull();
+    } finally {
+      await fs.rm(root, { recursive: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // promoteSkillDraft
 // ---------------------------------------------------------------------------
 
@@ -394,6 +437,33 @@ describe("promoteSkillDraft", () => {
 
       const installed = await fs.readFile(path.join(tmpSkills, name, "SKILL.md"), "utf-8");
       expect(installed).toBe(md);
+    } finally {
+      await fs.rm(root, { recursive: true });
+      await fs.rm(tmpSkills, { recursive: true });
+    }
+  });
+
+  test("force promote clears stale files in target dir (no orphans from old version)", async () => {
+    const { root, qsDir } = await mkQuarantineFixture();
+    const tmpSkills = await mkTmp();
+    try {
+      const name = "force-clean-skill";
+      const md = makeSkillMd(name);
+      await writeSkillDraft(name, md, makeMeta(name), qsDir);
+
+      // Pre-create target with an old-version file that the new draft doesn't have
+      await fs.mkdir(path.join(tmpSkills, name), { recursive: true });
+      await fs.writeFile(path.join(tmpSkills, name, "SKILL.md"), "stale content", "utf-8");
+      await fs.writeFile(path.join(tmpSkills, name, "old-file.md"), "orphan from v1", "utf-8");
+
+      await promoteSkillDraft(name, qsDir, tmpSkills, { force: true });
+
+      // New SKILL.md present
+      const installed = await fs.readFile(path.join(tmpSkills, name, "SKILL.md"), "utf-8");
+      expect(installed).toBe(md);
+
+      // Stale old-file.md is GONE
+      await expect(fs.access(path.join(tmpSkills, name, "old-file.md"))).rejects.toThrow();
     } finally {
       await fs.rm(root, { recursive: true });
       await fs.rm(tmpSkills, { recursive: true });
@@ -490,6 +560,65 @@ describe("rejectSkillDraft", () => {
     await expect(rejectSkillDraft("../evil", "/tmp", "/tmp")).rejects.toThrow(
       "invalid skill draft name",
     );
+  });
+
+  test("reject nonexistent draft → throws 'skill draft not found', no log entry written", async () => {
+    const { root, qsDir, graphPath } = await mkQuarantineFixture();
+    const rejectedLog = path.join(graphPath, "..", "quarantine", "rejected.jsonl");
+    try {
+      await expect(rejectSkillDraft("ghost-draft", qsDir, graphPath, "whatever")).rejects.toThrow(
+        "skill draft not found: ghost-draft",
+      );
+
+      // rejected.jsonl must not have been created
+      await expect(fs.access(rejectedLog)).rejects.toThrow();
+    } finally {
+      await fs.rm(root, { recursive: true });
+    }
+  });
+
+  test("reject nonexistent draft with pre-existing log → log unchanged", async () => {
+    const { root, qsDir, graphPath } = await mkQuarantineFixture();
+    const rejectedLog = path.join(graphPath, "..", "quarantine", "rejected.jsonl");
+    const priorContent = '{"timestamp":"2026-01-01T00:00:00.000Z","kind":"node"}\n';
+    await fs.writeFile(rejectedLog, priorContent, "utf-8");
+    try {
+      await expect(rejectSkillDraft("ghost-draft", qsDir, graphPath)).rejects.toThrow(
+        "skill draft not found: ghost-draft",
+      );
+
+      const after = await fs.readFile(rejectedLog, "utf-8");
+      expect(after).toBe(priorContent);
+    } finally {
+      await fs.rm(root, { recursive: true });
+    }
+  });
+
+  test("reject creates quarantine dir if missing (mkdir -p parity with rejectCandidate)", async () => {
+    // graphPath whose parent has NO quarantine dir yet for the log; the draft
+    // itself lives in a separate qsDir.
+    const { root, qsDir } = await mkQuarantineFixture();
+    const isolatedRoot = await mkTmp();
+    const isolatedGraph = path.join(isolatedRoot, "graph");
+    await fs.mkdir(isolatedGraph, { recursive: true });
+    try {
+      const name = "mkdir-reject";
+      await writeSkillDraft(name, makeSkillMd(name), makeMeta(name), qsDir);
+
+      // No quarantine/ dir exists under isolatedRoot — must be created
+      await rejectSkillDraft(name, qsDir, isolatedGraph, "test mkdir");
+
+      const log = path.join(isolatedRoot, "quarantine", "rejected.jsonl");
+      const entry = JSON.parse((await fs.readFile(log, "utf-8")).trim()) as Record<string, unknown>;
+      expect(entry.kind).toBe("skill");
+      expect(entry.name).toBe(name);
+
+      // Draft removed
+      await expect(fs.access(path.join(qsDir, name))).rejects.toThrow();
+    } finally {
+      await fs.rm(root, { recursive: true });
+      await fs.rm(isolatedRoot, { recursive: true });
+    }
   });
 });
 

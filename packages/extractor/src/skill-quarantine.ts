@@ -53,11 +53,20 @@ function extractDescription(skillMd: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Sanitize a draft name, rejecting path traversal attempts.
- * Throws for names containing "/", "\\", or "..".
+ * Valid draft names — what normalizeSkillName() produces: lowercase
+ * kebab-case starting with [a-z0-9]. A whitelist (not blacklist), because a
+ * blacklist let "." and "" through: path.join(qsDir, ".") resolves to qsDir
+ * itself, and rejectSkillDraft would then fs.rm -r the ENTIRE drafts
+ * directory.
+ */
+const VALID_DRAFT_NAME = /^[a-z0-9][a-z0-9-]*$/;
+
+/**
+ * Sanitize a draft name via whitelist. Throws unless the name matches
+ * VALID_DRAFT_NAME — rejects "", ".", "..", slashes, backslashes, uppercase.
  */
 function sanitizeName(name: string): string {
-  if (name.includes("/") || name.includes("\\") || name.includes("..")) {
+  if (!VALID_DRAFT_NAME.test(name)) {
     throw new Error(`invalid skill draft name: "${name}"`);
   }
   return name;
@@ -154,7 +163,7 @@ export async function listSkillDrafts(
 /**
  * Read a specific skill draft by name.
  *
- * - Rejects names with "/" , "\\" or ".." (path traversal protection).
+ * - Name must match the kebab-case whitelist (path traversal protection).
  * - Throws "skill draft not found: <name>" when the draft directory or
  *   SKILL.md does not exist.
  */
@@ -240,6 +249,12 @@ export async function promoteSkillDraft(
     throw new Error(`skill already installed: ${name} (use force)`);
   }
 
+  // Force overwrite: clear the existing target first so stale files from the
+  // old skill version don't survive as orphans.
+  if (targetExists) {
+    await fs.rm(installDir, { recursive: true });
+  }
+
   // Prepare target directory
   await fs.mkdir(installDir, { recursive: true });
 
@@ -282,8 +297,11 @@ export async function promoteSkillDraft(
  * Reject a skill draft — logs to quarantine/rejected.jsonl and removes the
  * draft directory.
  *
- * The rejected.jsonl path is derived from graphPath (not qsDir), matching the
- * convention in quarantine.ts: path.join(graphPath, "..", "quarantine", "rejected.jsonl").
+ * - Throws "skill draft not found: <name>" if the draft directory does not
+ *   exist; nothing is logged in that case.
+ * - The rejected.jsonl path is derived from graphPath (not qsDir), matching
+ *   the convention in quarantine.ts:
+ *   path.join(graphPath, "..", "quarantine", "rejected.jsonl").
  */
 export async function rejectSkillDraft(
   name: string,
@@ -295,6 +313,18 @@ export async function rejectSkillDraft(
 
   const draftDir = path.join(qsDir, name);
 
+  // Existence check BEFORE doing anything — missing draft must not produce a
+  // rejection log entry or any FS mutation.
+  let draftStat: Awaited<ReturnType<typeof fs.stat>>;
+  try {
+    draftStat = await fs.stat(draftDir);
+  } catch {
+    throw new Error(`skill draft not found: ${name}`);
+  }
+  if (!draftStat.isDirectory()) {
+    throw new Error(`skill draft not found: ${name}`);
+  }
+
   // Read meta to include episodeIds / sessions in the log entry
   const metaPath = path.join(draftDir, "meta.json");
   let meta: SkillDraftMeta | null = null;
@@ -302,11 +332,14 @@ export async function rejectSkillDraft(
     const raw = await fs.readFile(metaPath, "utf-8");
     meta = JSON.parse(raw) as SkillDraftMeta;
   } catch {
-    // draft may not exist or meta may be broken — still try to clean up
+    // meta may be broken — still log the rejection and clean up
   }
 
-  // Append to rejected.jsonl (existing file required by spec)
-  const rejectedLog = path.join(graphPath, "..", "quarantine", "rejected.jsonl");
+  // Append to rejected.jsonl (mkdir -p the quarantine dir first — parity
+  // with rejectCandidate in quarantine.ts)
+  const quarantineDir = path.join(graphPath, "..", "quarantine");
+  await fs.mkdir(quarantineDir, { recursive: true });
+  const rejectedLog = path.join(quarantineDir, "rejected.jsonl");
   const rejectedEntry = JSON.stringify({
     timestamp: new Date().toISOString(),
     kind: "skill",
@@ -318,9 +351,5 @@ export async function rejectSkillDraft(
   await fs.appendFile(rejectedLog, `${rejectedEntry}\n`, "utf-8");
 
   // Remove draft directory
-  try {
-    await fs.rm(draftDir, { recursive: true });
-  } catch {
-    // already gone — that's fine
-  }
+  await fs.rm(draftDir, { recursive: true });
 }

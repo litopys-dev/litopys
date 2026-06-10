@@ -116,6 +116,66 @@ describe("extractEpisodes", () => {
     expect(adapter.completeCalls).toBe(2);
   });
 
+  test("valid JSON with wrong shape → one retry → good response parsed, completeCalls === 2", async () => {
+    const goodResponse = JSON.stringify({
+      episodes: [
+        {
+          goal: "восстановленный эпизод",
+          steps: ["шаг один", "шаг два", "шаг три"],
+          toolOps: 5,
+          errorRecovery: false,
+          project: null,
+          tags: ["retry"],
+        },
+      ],
+    });
+    const adapter = new MockAdapter({ completions: ['{"foo":1}', goodResponse] });
+    const transcript = makeTranscript("ASSISTANT: some work done");
+
+    const episodes = await extractEpisodes(transcript, SESSION_ID, SESSION_DATE, adapter, {
+      minToolOps: 3,
+    });
+
+    expect(episodes).toHaveLength(1);
+    expect(episodes[0]!.goal).toBe("восстановленный эпизод");
+    expect(adapter.completeCalls).toBe(2);
+  });
+
+  test("two episodes with the same goal → deduped by id, higher-toolOps one survives", async () => {
+    const goal = "повторяющаяся цель";
+    const mockResponse = JSON.stringify({
+      episodes: [
+        {
+          goal,
+          steps: ["шаг один", "шаг два", "шаг три"],
+          toolOps: 4,
+          errorRecovery: false,
+          project: null,
+          tags: ["first"],
+        },
+        {
+          goal,
+          steps: ["другой шаг", "ещё шаг", "финальный шаг"],
+          toolOps: 9,
+          errorRecovery: false,
+          project: "dup-project",
+          tags: ["second"],
+        },
+      ],
+    });
+    const adapter = new MockAdapter({ completions: [mockResponse] });
+    const transcript = makeTranscript("ASSISTANT: duplicated work");
+
+    const episodes = await extractEpisodes(transcript, SESSION_ID, SESSION_DATE, adapter, {
+      minToolOps: 3,
+    });
+
+    expect(episodes).toHaveLength(1);
+    expect(episodes[0]!.id).toBe(makeEpisodeId(SESSION_ID, goal));
+    expect(episodes[0]!.toolOps).toBe(9);
+    expect(episodes[0]!.tags).toEqual(["second"]);
+  });
+
   test("broken JSON on both attempts → empty array, no exception", async () => {
     const adapter = new MockAdapter({ completions: ["not json at all"] });
     const transcript = makeTranscript("ASSISTANT: some work done");

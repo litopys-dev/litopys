@@ -21,7 +21,8 @@ import type { ParsedTranscript } from "./transcript-tools.ts";
 export const EPISODE_EXTRACTION_PROMPT = `You analyze a work-session transcript of a coding agent. Identify completed work EPISODES — coherent units of work with a clear goal (e.g. "restart service X and verify logs", "fix failing test Y").
 For each episode output: goal (short, in Russian), steps (3-10 generalized imperative steps, Russian), toolOps (count of TOOL: lines belonging to the episode), errorRecovery (true if the solution was found after 2+ failed attempts — look for "→ error" followed by retries), project (best guess from paths/names, else null), tags (2-5 lowercase english).
 Skip: trivial Q&A, episodes with toolOps < {minToolOps} unless errorRecovery is true, unfinished work.
-Respond with JSON only: {"episodes":[{...}]}
+If no episodes qualify, return {"episodes":[]}
+Respond with JSON only, exactly this shape: {"episodes":[{"goal":"...","steps":["..."],"toolOps":3,"errorRecovery":false,"project":null,"tags":["..."]}]}
 TRANSCRIPT:
 {transcript}`;
 
@@ -77,11 +78,16 @@ function parseEpisodesResponse(text: string): unknown[] | null {
  *   returns [] without throwing.
  * - Each raw episode is validated with EpisodeSchema.safeParse; invalid items
  *   are skipped (stderr warning) without aborting the batch.
+ * - In-batch dedup by id (same goal → same makeEpisodeId): the episode with
+ *   the higher toolOps wins (tie: first one).
  * - Post-filter: keeps only episodes where toolOps >= minToolOps OR
  *   errorRecovery === true.
  * - Returns [] immediately (no LLM call) when transcript.text is empty.
  *
- * @param transcript   Parsed transcript from parseClaudeCodeTranscript().
+ * @param transcript   Parsed transcript from parseClaudeCodeTranscript(). MUST be
+ *                     parsed with `{ includeTools: "summary" }` — the prompt relies
+ *                     on TOOL: lines for toolOps counting and "→ error" markers for
+ *                     errorRecovery detection.
  * @param sessionId    Stable session identifier used for episode id generation.
  * @param sessionDate  YYYY-MM-DD date derived deterministically from the session
  *                     (NOT from today's date — the same session re-processed in a
@@ -116,20 +122,26 @@ export async function extractEpisodes(
 
   // Retry once on parse failure
   if (rawEpisodes === null) {
+    process.stderr.write(
+      `[litopys/episodes] Failed to parse episode response, retrying once: ${firstResult.text.slice(0, 200)}\n`,
+    );
     const retryResult = await adapter.complete({ prompt, maxTokens: 4096 });
     rawEpisodes = parseEpisodesResponse(retryResult.text);
-  }
 
-  // If still unparseable after retry, return empty
-  if (rawEpisodes === null) {
-    return [];
+    // If still unparseable after retry, give up and return empty
+    if (rawEpisodes === null) {
+      process.stderr.write(
+        `[litopys/episodes] Retry also failed to parse, giving up: ${retryResult.text.slice(0, 200)}\n`,
+      );
+      return [];
+    }
   }
 
   // Validate each episode element individually
   const episodes: Episode[] = [];
   for (const raw of rawEpisodes) {
     if (raw === null || typeof raw !== "object") {
-      process.stderr.write(`[episodes] skipping non-object episode item\n`);
+      process.stderr.write(`[litopys/episodes] skipping non-object episode item\n`);
       continue;
     }
 
@@ -151,7 +163,7 @@ export async function extractEpisodes(
     const result = EpisodeSchema.safeParse(candidate);
     if (!result.success) {
       process.stderr.write(
-        `[episodes] skipping invalid episode (goal="${rawObj.goal}"): ${result.error.message}\n`,
+        `[litopys/episodes] skipping invalid episode (goal="${rawObj.goal}"): ${result.error.message}\n`,
       );
       continue;
     }
@@ -159,8 +171,18 @@ export async function extractEpisodes(
     episodes.push(result.data);
   }
 
+  // In-batch dedup by id: two episodes with the same goal yield the same
+  // makeEpisodeId — keep the one with higher toolOps (tie: first wins).
+  const byId = new Map<string, Episode>();
+  for (const ep of episodes) {
+    const existing = byId.get(ep.id);
+    if (existing === undefined || ep.toolOps > existing.toolOps) {
+      byId.set(ep.id, ep);
+    }
+  }
+
   // Post-filter: keep if toolOps >= minToolOps OR errorRecovery
-  return episodes.filter(
+  return [...byId.values()].filter(
     (ep) => ep.toolOps >= opts.minToolOps || ep.errorRecovery,
   );
 }

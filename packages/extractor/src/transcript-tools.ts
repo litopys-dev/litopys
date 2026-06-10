@@ -64,18 +64,17 @@ interface ClaudeCodeEvent {
  */
 export function parseClaudeCodeTranscript(
   raw: string,
-  opts: ParseOptions,
+  opts: ParseOptions = {},
 ): ParsedTranscript {
   const includeTools = opts.includeTools === "summary";
 
   // Parse lines into events, skipping broken JSON.
-  // When the raw string ends with a newline, the last line after it is empty
-  // and harmless. When it does NOT end with a newline the last token is either
-  // a complete JSON object (pass-through from daemon with no trailing newline)
-  // or a partial write in progress. We try to parse it; if it fails we skip it
-  // — same behaviour as parseJsonlContent in daemon/tick.ts which only skips
-  // the truly-partial tail by slicing at lastIndexOf("\n"). For a fully in-
-  // memory string (tests, extractor reads) we want to include the last line.
+  // NOTE: this diverges from parseJsonlContent in daemon/tick.ts, which
+  // slices at lastIndexOf("\n") and therefore drops the final line even when
+  // it is complete JSON (its input is an incrementally-tailed file where the
+  // last line may still be mid-write). This module receives complete
+  // in-memory transcripts, so we try-parse every line including the tail;
+  // a genuinely partial tail simply fails JSON.parse and is skipped.
   const events: ClaudeCodeEvent[] = [];
   for (const line of raw.split("\n")) {
     const trimmed = line.trim();
@@ -175,7 +174,7 @@ function normalizeContent(
   return content;
 }
 
-/** Extract a short gist from tool_use input. */
+/** Extract a short, one-line gist from tool_use input. */
 function inputGist(input: Record<string, unknown>): string {
   let gist: string;
   if (typeof input.command === "string") {
@@ -185,7 +184,8 @@ function inputGist(input: Record<string, unknown>): string {
   } else {
     gist = JSON.stringify(input).slice(0, 60);
   }
-  return gist.slice(0, 80);
+  // Collapse newlines/runs of whitespace so multi-line commands stay one line.
+  return gist.replace(/\s+/g, " ").trim().slice(0, 80);
 }
 
 /** Determine whether a tool_result block represents an error. */

@@ -49,6 +49,23 @@ function extractDescription(skillMd: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Domain errors
+// ---------------------------------------------------------------------------
+
+/**
+ * Machine-readable error codes attached to every domain throw site:
+ * - EINVALIDNAME — name failed the kebab-case whitelist
+ * - ENOTFOUND    — draft directory / SKILL.md missing
+ * - ECORRUPT     — draft dir exists but meta.json is missing or unparseable
+ * - ECONFLICT    — skill already installed and force not given
+ */
+export type SkillDraftErrorCode = "EINVALIDNAME" | "ENOTFOUND" | "ECORRUPT" | "ECONFLICT";
+
+function draftError(code: SkillDraftErrorCode, message: string): Error {
+  return Object.assign(new Error(message), { code });
+}
+
+// ---------------------------------------------------------------------------
 // Traversal protection
 // ---------------------------------------------------------------------------
 
@@ -67,7 +84,7 @@ const VALID_DRAFT_NAME = /^[a-z0-9][a-z0-9-]*$/;
  */
 function sanitizeName(name: string): string {
   if (!VALID_DRAFT_NAME.test(name)) {
-    throw new Error(`invalid skill draft name: "${name}"`);
+    throw draftError("EINVALIDNAME", `invalid skill draft name: "${name}"`);
   }
   return name;
 }
@@ -146,10 +163,12 @@ export async function listSkillDrafts(
     results.push({ meta, description });
   }
 
-  // Sort by createdAt (oldest first)
+  // Sort by createdAt (oldest first). NaN guard: invalid/missing createdAt
+  // falls back to 0 so such drafts sort to the FRONT instead of poisoning
+  // the comparator (NaN comparisons make sort order undefined).
   results.sort((a, b) => {
-    const ta = new Date(a.meta.createdAt).getTime();
-    const tb = new Date(b.meta.createdAt).getTime();
+    const ta = new Date(a.meta.createdAt).getTime() || 0;
+    const tb = new Date(b.meta.createdAt).getTime() || 0;
     return ta - tb;
   });
 
@@ -163,9 +182,11 @@ export async function listSkillDrafts(
 /**
  * Read a specific skill draft by name.
  *
- * - Name must match the kebab-case whitelist (path traversal protection).
- * - Throws "skill draft not found: <name>" when the draft directory or
- *   SKILL.md does not exist.
+ * - Name must match the kebab-case whitelist (EINVALIDNAME).
+ * - Throws "skill draft not found: <name>" (ENOTFOUND) when the draft
+ *   directory or SKILL.md does not exist.
+ * - Throws "skill draft corrupt: <name>" (ECORRUPT) when the draft dir
+ *   exists but meta.json is missing or unparseable.
  */
 export async function readSkillDraft(
   name: string,
@@ -181,21 +202,27 @@ export async function readSkillDraft(
   try {
     await fs.access(draftDir);
   } catch {
-    throw new Error(`skill draft not found: ${name}`);
+    throw draftError("ENOTFOUND", `skill draft not found: ${name}`);
   }
 
   try {
     await fs.access(skillMdPath);
   } catch {
-    throw new Error(`skill draft not found: ${name}`);
+    throw draftError("ENOTFOUND", `skill draft not found: ${name}`);
   }
 
-  const [metaRaw, skillMd] = await Promise.all([
-    fs.readFile(metaPath, "utf-8"),
-    fs.readFile(skillMdPath, "utf-8"),
-  ]);
+  const skillMd = await fs.readFile(skillMdPath, "utf-8");
 
-  const meta = JSON.parse(metaRaw) as SkillDraftMeta;
+  // Draft dir exists — a missing or unparseable meta.json is a corrupt
+  // draft, not a missing one. Don't leak raw ENOENT / SyntaxError.
+  let meta: SkillDraftMeta;
+  try {
+    const metaRaw = await fs.readFile(metaPath, "utf-8");
+    meta = JSON.parse(metaRaw) as SkillDraftMeta;
+  } catch {
+    throw draftError("ECORRUPT", `skill draft corrupt: ${name}`);
+  }
+
   return { meta, skillMd };
 }
 
@@ -209,12 +236,20 @@ export async function readSkillDraft(
  * Copies all files EXCEPT meta.json to <skillsDir>/<name>/.
  * If the target directory already exists:
  *   - without force → throws "skill already installed: <name> (use force)"
- *   - with force    → overwrites
+ *     (ECONFLICT)
+ *   - with force    → overwrites (target cleared first, no orphan files)
  *
  * On success:
  *   1. Copies files (SKILL.md + any auxiliary files, NO meta.json)
  *   2. Appends a line to <qsDir>/../promoted.jsonl
  *   3. Removes the draft directory
+ *
+ * Note: promoted.jsonl is anchored to qsDir — callers passing a custom qsDir
+ * get promoted.jsonl next to it, which is asymmetric with rejected.jsonl
+ * (anchored to graphPath in rejectSkillDraft).
+ *
+ * A crash between steps leaves the draft in place — promote never loses
+ * data and is re-runnable (with force if the copy completed).
  *
  * Returns the installed path (<skillsDir>/<name>).
  */
@@ -229,12 +264,27 @@ export async function promoteSkillDraft(
   const draftDir = path.join(qsDir, name);
   const installDir = path.join(skillsDir, name);
 
-  // Read meta before touching the FS (ensures draft exists)
+  // Existence check: missing draft dir → ENOTFOUND.
+  let draftStat: Awaited<ReturnType<typeof fs.stat>>;
+  try {
+    draftStat = await fs.stat(draftDir);
+  } catch {
+    throw draftError("ENOTFOUND", `skill draft not found: ${name}`);
+  }
+  if (!draftStat.isDirectory()) {
+    throw draftError("ENOTFOUND", `skill draft not found: ${name}`);
+  }
+
+  // Draft dir exists — missing or unparseable meta.json is a corrupt draft.
+  // Don't leak raw ENOENT / SyntaxError.
   const metaPath = path.join(draftDir, "meta.json");
-  const metaRaw = await fs.readFile(metaPath, "utf-8").catch(() => {
-    throw new Error(`skill draft not found: ${name}`);
-  });
-  const meta = JSON.parse(metaRaw) as SkillDraftMeta;
+  let meta: SkillDraftMeta;
+  try {
+    const metaRaw = await fs.readFile(metaPath, "utf-8");
+    meta = JSON.parse(metaRaw) as SkillDraftMeta;
+  } catch {
+    throw draftError("ECORRUPT", `skill draft corrupt: ${name}`);
+  }
 
   // Check for existing install
   let targetExists = false;
@@ -246,7 +296,7 @@ export async function promoteSkillDraft(
   }
 
   if (targetExists && !opts?.force) {
-    throw new Error(`skill already installed: ${name} (use force)`);
+    throw draftError("ECONFLICT", `skill already installed: ${name} (use force)`);
   }
 
   // Force overwrite: clear the existing target first so stale files from the
@@ -319,10 +369,10 @@ export async function rejectSkillDraft(
   try {
     draftStat = await fs.stat(draftDir);
   } catch {
-    throw new Error(`skill draft not found: ${name}`);
+    throw draftError("ENOTFOUND", `skill draft not found: ${name}`);
   }
   if (!draftStat.isDirectory()) {
-    throw new Error(`skill draft not found: ${name}`);
+    throw draftError("ENOTFOUND", `skill draft not found: ${name}`);
   }
 
   // Read meta to include episodeIds / sessions in the log entry

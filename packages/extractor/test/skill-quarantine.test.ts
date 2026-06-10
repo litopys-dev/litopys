@@ -85,6 +85,16 @@ async function mkTmp(): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), "litopys-sq-test-"));
 }
 
+/** Await a promise expected to reject; return the error (with optional code). */
+async function errOf(p: Promise<unknown>): Promise<Error & { code?: string }> {
+  try {
+    await p;
+  } catch (e) {
+    return e as Error & { code?: string };
+  }
+  throw new Error("expected promise to reject, but it resolved");
+}
+
 // ---------------------------------------------------------------------------
 // defaultQuarantineSkillsDir
 // ---------------------------------------------------------------------------
@@ -201,6 +211,39 @@ name: ${name}
     }
   });
 
+  test("missing createdAt in meta → sorts to the FRONT (NaN guard)", async () => {
+    const tmpDir = await mkTmp();
+    try {
+      // Valid draft with a normal createdAt
+      await writeSkillDraft(
+        "dated-skill",
+        makeSkillMd("dated-skill"),
+        makeMeta("dated-skill", { createdAt: "2026-06-10T12:00:00.000Z" }),
+        tmpDir,
+      );
+
+      // Draft whose meta.json lacks createdAt entirely (hand-written/legacy)
+      const undatedDir = path.join(tmpDir, "undated-skill");
+      await fs.mkdir(undatedDir);
+      await fs.writeFile(path.join(undatedDir, "SKILL.md"), makeSkillMd("undated-skill"), "utf-8");
+      const metaNoDate = { ...makeMeta("undated-skill") } as Record<string, unknown>;
+      delete metaNoDate.createdAt;
+      await fs.writeFile(
+        path.join(undatedDir, "meta.json"),
+        JSON.stringify(metaNoDate, null, 2),
+        "utf-8",
+      );
+
+      const results = await listSkillDrafts(tmpDir);
+      expect(results).toHaveLength(2);
+      // Missing createdAt → timestamp falls back to 0 → first in the list
+      expect(results[0]!.meta.name).toBe("undated-skill");
+      expect(results[1]!.meta.name).toBe("dated-skill");
+    } finally {
+      await fs.rm(tmpDir, { recursive: true });
+    }
+  });
+
   test("broken meta.json → draft skipped with warning, valid neighbor survives", async () => {
     const tmpDir = await mkTmp();
     const stderrLines: string[] = [];
@@ -282,19 +325,54 @@ describe("readSkillDraft", () => {
     }
   });
 
-  test("non-existent name → throws 'skill draft not found: <name>'", async () => {
+  test("non-existent name → throws 'skill draft not found: <name>' with code ENOTFOUND", async () => {
     const tmpDir = await mkTmp();
     try {
-      await expect(readSkillDraft("ghost-skill", tmpDir)).rejects.toThrow(
-        "skill draft not found: ghost-skill",
-      );
+      const err = await errOf(readSkillDraft("ghost-skill", tmpDir));
+      expect(err.message).toBe("skill draft not found: ghost-skill");
+      expect(err.code).toBe("ENOTFOUND");
     } finally {
       await fs.rm(tmpDir, { recursive: true });
     }
   });
 
-  test("traversal name '../x' → throws invalid skill draft name", async () => {
-    await expect(readSkillDraft("../x", "/tmp")).rejects.toThrow("invalid skill draft name");
+  test("missing meta.json (SKILL.md present) → 'skill draft corrupt' with code ECORRUPT", async () => {
+    const tmpDir = await mkTmp();
+    try {
+      const name = "half-broken";
+      const draftDir = path.join(tmpDir, name);
+      await fs.mkdir(draftDir);
+      await fs.writeFile(path.join(draftDir, "SKILL.md"), makeSkillMd(name), "utf-8");
+
+      const err = await errOf(readSkillDraft(name, tmpDir));
+      expect(err.message).toBe(`skill draft corrupt: ${name}`);
+      expect(err.code).toBe("ECORRUPT");
+    } finally {
+      await fs.rm(tmpDir, { recursive: true });
+    }
+  });
+
+  test("corrupt JSON in meta.json → 'skill draft corrupt' with code ECORRUPT", async () => {
+    const tmpDir = await mkTmp();
+    try {
+      const name = "bad-meta";
+      const draftDir = path.join(tmpDir, name);
+      await fs.mkdir(draftDir);
+      await fs.writeFile(path.join(draftDir, "SKILL.md"), makeSkillMd(name), "utf-8");
+      await fs.writeFile(path.join(draftDir, "meta.json"), "{ not json !!", "utf-8");
+
+      const err = await errOf(readSkillDraft(name, tmpDir));
+      expect(err.message).toBe(`skill draft corrupt: ${name}`);
+      expect(err.code).toBe("ECORRUPT");
+    } finally {
+      await fs.rm(tmpDir, { recursive: true });
+    }
+  });
+
+  test("traversal name '../x' → throws invalid skill draft name with code EINVALIDNAME", async () => {
+    const err = await errOf(readSkillDraft("../x", "/tmp"));
+    expect(err.message).toContain("invalid skill draft name");
+    expect(err.code).toBe("EINVALIDNAME");
   });
 
   test("traversal name 'a/b' → throws invalid skill draft name", async () => {
@@ -404,9 +482,9 @@ describe("promoteSkillDraft", () => {
       await fs.mkdir(path.join(tmpSkills, name), { recursive: true });
       await fs.writeFile(path.join(tmpSkills, name, "SKILL.md"), "existing content", "utf-8");
 
-      await expect(promoteSkillDraft(name, qsDir, tmpSkills)).rejects.toThrow(
-        `skill already installed: ${name} (use force)`,
-      );
+      const err = await errOf(promoteSkillDraft(name, qsDir, tmpSkills));
+      expect(err.message).toBe(`skill already installed: ${name} (use force)`);
+      expect(err.code).toBe("ECONFLICT");
 
       // Draft still exists (access resolves to null in Bun, doesn't throw)
       await expect(fs.access(path.join(qsDir, name))).resolves.toBeNull();
@@ -500,6 +578,60 @@ describe("promoteSkillDraft", () => {
     await expect(promoteSkillDraft("../evil", "/tmp", "/tmp")).rejects.toThrow(
       "invalid skill draft name",
     );
+  });
+
+  test("promote nonexistent draft → 'skill draft not found' with code ENOTFOUND", async () => {
+    const { root, qsDir } = await mkQuarantineFixture();
+    const tmpSkills = await mkTmp();
+    try {
+      const err = await errOf(promoteSkillDraft("ghost-promote", qsDir, tmpSkills));
+      expect(err.message).toBe("skill draft not found: ghost-promote");
+      expect(err.code).toBe("ENOTFOUND");
+    } finally {
+      await fs.rm(root, { recursive: true });
+      await fs.rm(tmpSkills, { recursive: true });
+    }
+  });
+
+  test("promote draft with missing meta.json → 'skill draft corrupt' with code ECORRUPT", async () => {
+    const { root, qsDir } = await mkQuarantineFixture();
+    const tmpSkills = await mkTmp();
+    try {
+      const name = "promote-half-broken";
+      const draftDir = path.join(qsDir, name);
+      await fs.mkdir(draftDir);
+      await fs.writeFile(path.join(draftDir, "SKILL.md"), makeSkillMd(name), "utf-8");
+
+      const err = await errOf(promoteSkillDraft(name, qsDir, tmpSkills));
+      expect(err.message).toBe(`skill draft corrupt: ${name}`);
+      expect(err.code).toBe("ECORRUPT");
+
+      // Draft untouched, nothing installed
+      await expect(fs.access(path.join(draftDir, "SKILL.md"))).resolves.toBeNull();
+      await expect(fs.access(path.join(tmpSkills, name))).rejects.toThrow();
+    } finally {
+      await fs.rm(root, { recursive: true });
+      await fs.rm(tmpSkills, { recursive: true });
+    }
+  });
+
+  test("promote draft with corrupt JSON meta → 'skill draft corrupt' with code ECORRUPT", async () => {
+    const { root, qsDir } = await mkQuarantineFixture();
+    const tmpSkills = await mkTmp();
+    try {
+      const name = "promote-bad-meta";
+      const draftDir = path.join(qsDir, name);
+      await fs.mkdir(draftDir);
+      await fs.writeFile(path.join(draftDir, "SKILL.md"), makeSkillMd(name), "utf-8");
+      await fs.writeFile(path.join(draftDir, "meta.json"), "%%% not json", "utf-8");
+
+      const err = await errOf(promoteSkillDraft(name, qsDir, tmpSkills));
+      expect(err.message).toBe(`skill draft corrupt: ${name}`);
+      expect(err.code).toBe("ECORRUPT");
+    } finally {
+      await fs.rm(root, { recursive: true });
+      await fs.rm(tmpSkills, { recursive: true });
+    }
   });
 });
 

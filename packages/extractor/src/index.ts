@@ -127,3 +127,4 @@ export {
   promoteSkillDraft,
   rejectSkillDraft,
 } from "./skill-quarantine.ts";
+export type { SkillDraftErrorCode } from "./skill-quarantine.ts";

@@ -33,6 +33,47 @@ interface SessionEndPayload {
 
 const TIMEOUT_MS = 60_000;
 
+/** Mutable context shared between run() and doExtract() across the timeout race. */
+interface ExtractContext {
+  quarantineWritten: boolean;
+}
+
+/**
+ * Decide whether a run() failure should produce a failed stub.
+ *
+ * Stub contract: a failed stub means "the main extraction was NOT persisted to
+ * quarantine" (so the daemon re-processes the session). If quarantine was
+ * already written, the failure happened in the best-effort episode stage (or
+ * later) — writing a stub would falsely mark a successful extraction as
+ * failed. In that case we only log; the daemon catches up on episodes.
+ *
+ * Pure helper, exported for unit tests.
+ *
+ * @param quarantineWritten  Whether writeQuarantine already succeeded.
+ * @param reason             Failure reason ("timeout" or an error message).
+ * @returns writeStub flag + the stderr line to emit (null when the timeout
+ *          timer callback already logged).
+ */
+export function decideFailedStub(
+  quarantineWritten: boolean,
+  reason: string,
+): { writeStub: boolean; logLine: string | null } {
+  if (quarantineWritten) {
+    return {
+      writeStub: false,
+      logLine:
+        `[litopys/session-end] ${reason} after quarantine write — ` +
+        `episode stage incomplete, daemon will catch up\n`,
+    };
+  }
+  return {
+    writeStub: true,
+    // The timeout timer callback already logged its own message
+    logLine:
+      reason === "timeout" ? null : `[litopys/session-end] Extraction failed: ${reason}\n`,
+  };
+}
+
 async function run(): Promise<void> {
   // Read JSON from stdin (Claude Code sends the hook payload here)
   let raw = "";
@@ -58,15 +99,18 @@ async function run(): Promise<void> {
   // Wrapped in a timeout so we don't block session close
   const timeoutController = new AbortController();
   const timeoutHandle = setTimeout(() => {
-    process.stderr.write(
-      `[litopys/session-end] Timeout after ${TIMEOUT_MS}ms — writing failed stub\n`,
-    );
+    process.stderr.write(`[litopys/session-end] Timeout after ${TIMEOUT_MS}ms\n`);
     timeoutController.abort();
   }, TIMEOUT_MS);
 
+  // doExtract flips quarantineWritten as soon as writeQuarantine succeeds, so
+  // a later failure (e.g. timeout during the episode stage) does not produce
+  // a failed stub for an extraction that was in fact persisted.
+  const ctx: ExtractContext = { quarantineWritten: false };
+
   try {
     await Promise.race([
-      doExtract(sessionId, transcriptPath, graphPath),
+      doExtract(sessionId, transcriptPath, graphPath, ctx),
       new Promise<never>((_, reject) => {
         timeoutController.signal.addEventListener("abort", () => {
           reject(new Error("timeout"));
@@ -75,10 +119,11 @@ async function run(): Promise<void> {
     ]);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (message === "timeout") {
-      await writeFailedStub(graphPath, sessionId, "timeout");
-    } else {
-      process.stderr.write(`[litopys/session-end] Extraction failed: ${message}\n`);
+    const decision = decideFailedStub(ctx.quarantineWritten, message);
+    if (decision.logLine !== null) {
+      process.stderr.write(decision.logLine);
+    }
+    if (decision.writeStub) {
       await writeFailedStub(graphPath, sessionId, message);
     }
   } finally {
@@ -90,6 +135,7 @@ async function doExtract(
   sessionId: string,
   transcriptPath: string | undefined,
   graphPath: string,
+  ctx: ExtractContext,
 ): Promise<void> {
   // Read transcript
   let transcript = "";
@@ -130,6 +176,9 @@ async function doExtract(
     timestamp,
     adapterName: adapter.name,
   });
+  // Main extraction persisted — any failure from here on (episode stage,
+  // logging) must NOT produce a failed stub.
+  ctx.quarantineWritten = true;
 
   // Episode extraction stage — best-effort, never throws
   try {

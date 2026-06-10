@@ -204,4 +204,29 @@ describe("sessionDateFromTranscript", () => {
     const date = sessionDateFromTranscript(raw);
     expect(date).toBe("2026-07-04");
   });
+
+  test("non-ISO but Date-parseable timestamp (06/10/2026) is rejected → undefined", () => {
+    const raw = JSON.stringify({
+      type: "user",
+      timestamp: "06/10/2026",
+      message: { role: "user", content: "hi" },
+    });
+
+    expect(sessionDateFromTranscript(raw)).toBeUndefined();
+  });
+
+  test("non-ISO timestamps are skipped in favour of a later ISO one", () => {
+    const raw = [
+      JSON.stringify({ type: "user", timestamp: "06/10/2026" }),
+      JSON.stringify({ type: "user", timestamp: "Mon, 26 May 2026 05:58:16 GMT" }),
+      JSON.stringify({ type: "user", timestamp: "2026-05-26T05:58:16.581Z" }),
+    ].join("\n");
+
+    expect(sessionDateFromTranscript(raw)).toBe("2026-05-26");
+  });
+
+  test("ISO-prefixed but impossible calendar date (2026-13-45) is rejected", () => {
+    const raw = JSON.stringify({ type: "user", timestamp: "2026-13-45T00:00:00.000Z" });
+    expect(sessionDateFromTranscript(raw)).toBeUndefined();
+  });
 });

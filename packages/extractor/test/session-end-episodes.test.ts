@@ -5,7 +5,7 @@ import * as path from "node:path";
 import { MockAdapter } from "../src/adapters/mock.ts";
 import type { ExtractorAdapter } from "../src/adapters/types.ts";
 import { makeEpisodeId } from "../src/episode-store.ts";
-import { runEpisodeStage } from "../src/session-end.ts";
+import { decideFailedStub, runEpisodeStage } from "../src/session-end.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -235,6 +235,57 @@ describe("runEpisodeStage", () => {
   });
 
   // -------------------------------------------------------------------------
+  // sessionDate fallback (timestamp-less transcript)
+  // -------------------------------------------------------------------------
+
+  test("timestamp-less transcript → episode written to current month file + determinism warning", async () => {
+    const goal = "работа без таймстампов";
+    // Build a transcript with NO timestamp fields anywhere
+    const transcript = makeFixtureTranscript(6)
+      .split("\n")
+      .map((line) => {
+        const ev = JSON.parse(line) as Record<string, unknown>;
+        delete ev.timestamp;
+        return JSON.stringify(ev);
+      })
+      .join("\n");
+
+    // Capture stderr to assert the determinism warning
+    const stderrChunks: string[] = [];
+    const originalWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((chunk: string | Uint8Array) => {
+      stderrChunks.push(typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk));
+      return true;
+    }) as typeof process.stderr.write;
+
+    let written: number;
+    try {
+      written = await runEpisodeStage(transcript, SESSION_ID, makeEpisodeAdapter(goal), {
+        minToolOps: 5,
+        episodesDir,
+      });
+    } finally {
+      process.stderr.write = originalWrite;
+    }
+
+    expect(written).toBe(1);
+
+    // Episode lands in the CURRENT month file (today fallback)
+    const today = new Date().toISOString().slice(0, 10);
+    const currentMonthFile = path.join(episodesDir, `${today.slice(0, 7)}.jsonl`);
+    const content = await fs.readFile(currentMonthFile, "utf-8");
+    const ep = JSON.parse(content.trim()) as { date: string; goal: string };
+    expect(ep.date).toBe(today);
+    expect(ep.goal).toBe(goal);
+
+    // Determinism warning emitted with the episodes prefix
+    const stderr = stderrChunks.join("");
+    expect(stderr).toContain("[litopys/episodes]");
+    expect(stderr).toContain("No timestamp found in transcript");
+    expect(stderr).toContain("determinism broken");
+  });
+
+  // -------------------------------------------------------------------------
   // Import side-effect regression (entrypoint guard)
   // -------------------------------------------------------------------------
 
@@ -255,7 +306,11 @@ describe("runEpisodeStage", () => {
     env.LITOPYS_GRAPH_PATH = graphDir;
 
     const proc = Bun.spawnSync({
-      cmd: ["bun", "-e", `import ${JSON.stringify(sessionEndPath)}; console.log("imported-ok");`],
+      cmd: [
+        process.execPath,
+        "-e",
+        `import ${JSON.stringify(sessionEndPath)}; console.log("imported-ok");`,
+      ],
       env,
       stdin: "ignore",
       stdout: "pipe",
@@ -275,5 +330,37 @@ describe("runEpisodeStage", () => {
 
     // And no hook log output should appear on import
     expect(proc.stderr.toString()).not.toContain("[litopys/session-end]");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// decideFailedStub — failed-stub semantics: stub ⇔ main extraction NOT persisted
+// ---------------------------------------------------------------------------
+
+describe("decideFailedStub", () => {
+  test("quarantine NOT written + generic error → write stub, log extraction failure", () => {
+    const d = decideFailedStub(false, "API rate limit exceeded");
+    expect(d.writeStub).toBe(true);
+    expect(d.logLine).toContain("Extraction failed: API rate limit exceeded");
+  });
+
+  test("quarantine NOT written + timeout → write stub, no extra log (timer already logged)", () => {
+    const d = decideFailedStub(false, "timeout");
+    expect(d.writeStub).toBe(true);
+    expect(d.logLine).toBeNull();
+  });
+
+  test("quarantine written + timeout (episode stage overran) → NO stub, catch-up log", () => {
+    const d = decideFailedStub(true, "timeout");
+    expect(d.writeStub).toBe(false);
+    expect(d.logLine).toContain("after quarantine write");
+    expect(d.logLine).toContain("daemon will catch up");
+  });
+
+  test("quarantine written + generic error → NO stub", () => {
+    const d = decideFailedStub(true, "disk full");
+    expect(d.writeStub).toBe(false);
+    expect(d.logLine).toContain("disk full");
+    expect(d.logLine).toContain("after quarantine write");
   });
 });

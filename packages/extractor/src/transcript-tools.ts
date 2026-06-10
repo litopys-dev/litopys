@@ -176,11 +176,16 @@ export function parseClaudeCodeTranscript(
  *
  * Implementation: scan JSONL lines in order and return `.slice(0,10)` of the
  * first parseable event that carries a `timestamp` field containing a valid
- * ISO date string. Returns `undefined` when no such event is found (e.g. very
+ * ISO date string. The timestamp MUST start with `YYYY-MM-DD` — non-ISO
+ * formats that Date can still parse (e.g. "06/10/2026") are rejected, because
+ * slicing them would yield a garbage "date" that poisons every episode
+ * downstream. Returns `undefined` when no such event is found (e.g. very
  * short synthetic transcripts without timestamps).
  *
  * @param raw - Full JSONL content of the session transcript.
  */
+const ISO_DATE_PREFIX_RE = /^\d{4}-\d{2}-\d{2}/;
+
 export function sessionDateFromTranscript(raw: string): string | undefined {
   for (const line of raw.split("\n")) {
     const trimmed = line.trim();
@@ -194,7 +199,9 @@ export function sessionDateFromTranscript(raw: string): string | undefined {
     if (ev === null || typeof ev !== "object") continue;
     const ts = (ev as Record<string, unknown>).timestamp;
     if (typeof ts !== "string") continue;
-    // Validate: must be parseable and produce a real date
+    // Must start with an ISO date so slice(0,10) is meaningful…
+    if (!ISO_DATE_PREFIX_RE.test(ts)) continue;
+    // …and be a real calendar date (rejects e.g. "2026-13-45T…")
     const d = new Date(ts);
     if (isNaN(d.getTime())) continue;
     return ts.slice(0, 10);

@@ -100,3 +100,18 @@ export { runEpisodeStage } from "./session-end.ts";
 
 export { loadSkillConfig } from "./skill-config.ts";
 export type { SkillDetectorConfig } from "./skill-config.ts";
+
+// ---------------------------------------------------------------------------
+// Stage B — episode clustering and SKILL.md drafting
+// ---------------------------------------------------------------------------
+
+export {
+  clusterEpisodes,
+  selectDraftable,
+  draftSkill,
+  normalizeSkillName,
+  writeSkillDraft,
+  CLUSTER_PROMPT,
+  DRAFT_PROMPT,
+} from "./skill-draft.ts";
+export type { EpisodeGroup, SkillDraftMeta } from "./skill-draft.ts";

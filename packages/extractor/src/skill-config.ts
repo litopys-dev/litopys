@@ -89,14 +89,14 @@ export function loadSkillConfig(
   // --- minToolOps ---
   let minToolOps = DEFAULT_MIN_TOOL_OPS;
   const rawMinToolOps = env.LITOPYS_SKILLS_MIN_TOOL_OPS;
-  if (rawMinToolOps !== undefined) {
+  if (rawMinToolOps !== undefined && rawMinToolOps !== "") {
     minToolOps = parsePositiveInt(rawMinToolOps, "LITOPYS_SKILLS_MIN_TOOL_OPS", DEFAULT_MIN_TOOL_OPS);
   }
 
   // --- minSessions ---
   let minSessions = DEFAULT_MIN_SESSIONS;
   const rawMinSessions = env.LITOPYS_SKILLS_MIN_SESSIONS;
-  if (rawMinSessions !== undefined) {
+  if (rawMinSessions !== undefined && rawMinSessions !== "") {
     minSessions = parsePositiveInt(rawMinSessions, "LITOPYS_SKILLS_MIN_SESSIONS", DEFAULT_MIN_SESSIONS);
   }
 

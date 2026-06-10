@@ -132,6 +132,7 @@ describe("loadSkillConfig — invalid minToolOps", () => {
     });
     expect(cfg!.minToolOps).toBe(5);
     expect(stderr).toContain("[litopys/skills]");
+    expect(stderr).toContain("LITOPYS_SKILLS_MIN_TOOL_OPS");
   });
 });
 
@@ -164,6 +165,26 @@ describe("loadSkillConfig — invalid minSessions", () => {
     expect(cfg!.minSessions).toBe(2);
     expect(stderr).toContain("[litopys/skills]");
     expect(stderr).toContain("LITOPYS_SKILLS_MIN_SESSIONS");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Empty string for numeric env vars → treated as unset (no warning)
+// ---------------------------------------------------------------------------
+
+describe("loadSkillConfig — empty string numeric env vars", () => {
+  test("LITOPYS_SKILLS_DIR: '~' → expands to os.homedir()", () => {
+    const cfg = loadSkillConfig({ LITOPYS_SKILLS_DIR: "~" });
+    expect(cfg.skillsDir).toBe(os.homedir());
+  });
+
+  test("empty string LITOPYS_SKILLS_MIN_TOOL_OPS → uses default without warning", async () => {
+    let cfg;
+    const stderr = await captureStderr(() => {
+      cfg = loadSkillConfig({ LITOPYS_SKILLS_MIN_TOOL_OPS: "" });
+    });
+    expect(cfg!.minToolOps).toBe(5);
+    expect(stderr).not.toContain("LITOPYS_SKILLS_MIN_TOOL_OPS");
   });
 });
 

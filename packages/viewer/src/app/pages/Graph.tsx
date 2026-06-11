@@ -3,15 +3,7 @@ import cytoscape, { type Core, type ElementDefinition } from "cytoscape";
 // @ts-expect-error — no types for fcose
 import fcose from "cytoscape-fcose";
 import { ExternalLink, Maximize2, Search, X } from "lucide-solid";
-import {
-  For,
-  Show,
-  createMemo,
-  createResource,
-  createSignal,
-  onCleanup,
-  onMount,
-} from "solid-js";
+import { For, Show, createMemo, createResource, createSignal, onCleanup, onMount } from "solid-js";
 import { type NodeType, type RelationName, api } from "../api.ts";
 import { nodeTypeLabel, nodesWord, relationLabel, relationsWord, t } from "../i18n.ts";
 
@@ -77,10 +69,7 @@ export default function Graph() {
     const q = query().trim().toLowerCase();
     if (!q) return [];
     return nodeList()
-      .filter(
-        (n) =>
-          n.id.toLowerCase().includes(q) || (n.summary ?? "").toLowerCase().includes(q),
-      )
+      .filter((n) => n.id.toLowerCase().includes(q) || (n.summary ?? "").toLowerCase().includes(q))
       .slice(0, 8);
   });
 

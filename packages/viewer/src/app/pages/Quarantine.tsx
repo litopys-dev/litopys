@@ -1,12 +1,5 @@
 import { A } from "@solidjs/router";
-import {
-  CheckCircle,
-  ChevronDown,
-  ChevronRight,
-  GitMerge,
-  HelpCircle,
-  X,
-} from "lucide-solid";
+import { CheckCircle, ChevronDown, ChevronRight, GitMerge, HelpCircle, X } from "lucide-solid";
 import { For, type Setter, Show, createResource, createSignal } from "solid-js";
 import {
   type MergeConflictPayload,
@@ -307,10 +300,15 @@ function RefChip(props: { node: QuarantineRef }) {
           <span class="chip bg-elevated text-text-tertiary text-[10px] px-1.5 py-0.5">?</span>
         }
       >
-        <TypeChip type={n.type as NonNullable<QuarantineRef["type"]>} label={nodeTypeLabel[n.type as NonNullable<QuarantineRef["type"]>]} />
+        <TypeChip
+          type={n.type as NonNullable<QuarantineRef["type"]>}
+          label={nodeTypeLabel[n.type as NonNullable<QuarantineRef["type"]>]}
+        />
       </Show>
       <span class="font-mono text-xs text-text-primary">{n.id}</span>
-      <span class={`text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap ${originBadgeClass(n.origin)}`}>
+      <span
+        class={`text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap ${originBadgeClass(n.origin)}`}
+      >
         {originLabel[n.origin]}
       </span>
     </span>
@@ -383,11 +381,7 @@ function MergeCard(props: {
   const [busy, setBusy] = createSignal(false);
 
   const accept = async () => {
-    if (
-      !confirm(
-        t("merge.confirm", { loser: p.result.loserId, winner: p.result.winnerId }),
-      )
-    )
+    if (!confirm(t("merge.confirm", { loser: p.result.loserId, winner: p.result.winnerId })))
       return;
     setBusy(true);
     props.setError(null);
@@ -511,7 +505,9 @@ function MergedPreview(props: { proposal: MergeProposalPayload }) {
 
   return (
     <div class="border border-border rounded-card p-3 bg-ink/20">
-      <div class="text-text-tertiary text-xs uppercase tracking-wide mb-2">{t("merge.preview")}</div>
+      <div class="text-text-tertiary text-xs uppercase tracking-wide mb-2">
+        {t("merge.preview")}
+      </div>
       <div class="space-y-1.5 text-sm">
         <Show when={r.summary}>
           <div class="text-text-secondary">{r.summary}</div>
@@ -535,7 +531,9 @@ function MergedPreview(props: { proposal: MergeProposalPayload }) {
             <span class="text-text-tertiary text-xs">теги:</span>
             <For each={r.tags}>
               {(tag) => (
-                <span class="chip bg-elevated text-text-secondary font-mono text-[10px]">{tag}</span>
+                <span class="chip bg-elevated text-text-secondary font-mono text-[10px]">
+                  {tag}
+                </span>
               )}
             </For>
           </div>

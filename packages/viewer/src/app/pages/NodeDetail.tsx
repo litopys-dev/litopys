@@ -135,7 +135,10 @@ export default function NodeDetail() {
                     mono
                   />
                   <Show when={data().node.tags?.length}>
-                    <MetaCard label={t("node.metaTags")} value={(data().node.tags ?? []).join(", ")} />
+                    <MetaCard
+                      label={t("node.metaTags")}
+                      value={(data().node.tags ?? []).join(", ")}
+                    />
                   </Show>
                   <Show when={data().node.aliases?.length}>
                     <MetaCard

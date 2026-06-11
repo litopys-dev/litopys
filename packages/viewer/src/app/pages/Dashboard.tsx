@@ -13,7 +13,9 @@ export default function Dashboard() {
   return (
     <div class="p-8 max-w-4xl">
       <header class="mb-8">
-        <h1 class="font-heading font-semibold text-text-primary text-2xl mb-1">{t("dash.title")}</h1>
+        <h1 class="font-heading font-semibold text-text-primary text-2xl mb-1">
+          {t("dash.title")}
+        </h1>
         <p class="text-text-secondary text-sm">{t("dash.subtitle")}</p>
       </header>
 

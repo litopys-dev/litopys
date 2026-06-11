@@ -82,7 +82,9 @@ export function Layout(props: ParentProps) {
 
       {/* Main content */}
       <main class="flex-1 ml-52 min-h-dvh">
-        <Suspense fallback={<div class="p-8 text-text-secondary text-sm">{t("common.loading")}</div>}>
+        <Suspense
+          fallback={<div class="p-8 text-text-secondary text-sm">{t("common.loading")}</div>}
+        >
           {props.children}
         </Suspense>
       </main>

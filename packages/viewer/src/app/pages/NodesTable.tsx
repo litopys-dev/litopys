@@ -38,7 +38,9 @@ export default function NodesTable() {
   return (
     <div class="p-8 max-w-6xl">
       <header class="mb-6">
-        <h1 class="font-heading font-semibold text-text-primary text-2xl mb-1">{t("nodes.title")}</h1>
+        <h1 class="font-heading font-semibold text-text-primary text-2xl mb-1">
+          {t("nodes.title")}
+        </h1>
         <p class="text-text-secondary text-sm">
           <Show when={!nodes.loading} fallback={t("common.loading")}>
             {t("nodes.count", {

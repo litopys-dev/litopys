@@ -58,8 +58,18 @@ describe("resolveRelation", () => {
     };
     expect(resolveRelation(rel, candidates, graphNodes)).toEqual({
       type: "applies_to",
-      source: { id: "litopys-extractor", origin: "new", type: "system", summary: "Extractor subsystem" },
-      target: { id: "litopys", origin: "existing", type: "project", summary: "Graph memory project" },
+      source: {
+        id: "litopys-extractor",
+        origin: "new",
+        type: "system",
+        summary: "Extractor subsystem",
+      },
+      target: {
+        id: "litopys",
+        origin: "existing",
+        type: "project",
+        summary: "Graph memory project",
+      },
       confidence: 0.83,
       reasoning: "extractor feeds the project graph",
     });

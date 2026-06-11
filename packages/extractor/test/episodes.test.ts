@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { MockAdapter } from "../src/adapters/mock.ts";
+import { AdapterCompleteError } from "../src/adapters/types.ts";
 import type { ExtractorAdapter } from "../src/adapters/types.ts";
 import { makeEpisodeId } from "../src/episode-store.ts";
 import { extractEpisodes } from "../src/episodes.ts";
@@ -413,8 +414,8 @@ describe("extractEpisodes", () => {
     expect(prompt).not.toContain("{transcript}");
   });
 
-  test("API error (empty text from adapter) → triggers retry → returns []", async () => {
-    // Simulates adapter returning "" (error path) on both calls
+  test("empty text from adapter (parse failure) → triggers retry → returns [] on second parse failure", async () => {
+    // Simulates adapter returning "" on both calls (not an API error — just unparseable response)
     const adapter = new MockAdapter({ completions: [""] });
     const transcript = makeTranscript("ASSISTANT: doing work");
 
@@ -424,5 +425,50 @@ describe("extractEpisodes", () => {
 
     expect(episodes).toEqual([]);
     expect(adapter.completeCalls).toBe(2);
+  });
+
+  test("AdapterCompleteError from complete() propagates out of extractEpisodes (no retry)", async () => {
+    const adapter = new MockAdapter({ failWith: new Error("HTTP 429 Too Many Requests") });
+    const transcript = makeTranscript("ASSISTANT: doing work");
+
+    let threw: unknown;
+    try {
+      await extractEpisodes(transcript, SESSION_ID, SESSION_DATE, adapter, { minToolOps: 3 });
+    } catch (err) {
+      threw = err;
+    }
+
+    expect(threw).toBeInstanceOf(AdapterCompleteError);
+    // Only ONE complete() call — no retry on API errors
+    expect(adapter.completeCalls).toBe(1);
+  });
+
+  test("AdapterCompleteError on retry attempt propagates out (not swallowed)", async () => {
+    // First call: returns unparseable text (triggers retry)
+    // Second call: throws AdapterCompleteError
+    const inner = new MockAdapter({ completions: ["not json"] });
+    let callCount = 0;
+    const adapter: ExtractorAdapter = {
+      name: "mixed-failure",
+      model: "test",
+      extract: (input) => inner.extract(input),
+      complete: async (input) => {
+        callCount += 1;
+        if (callCount === 1) return inner.complete(input);
+        throw new AdapterCompleteError("429 on retry");
+      },
+    };
+
+    const transcript = makeTranscript("ASSISTANT: doing work");
+
+    let threw: unknown;
+    try {
+      await extractEpisodes(transcript, SESSION_ID, SESSION_DATE, adapter, { minToolOps: 3 });
+    } catch (err) {
+      threw = err;
+    }
+
+    expect(threw).toBeInstanceOf(AdapterCompleteError);
+    expect(callCount).toBe(2);
   });
 });

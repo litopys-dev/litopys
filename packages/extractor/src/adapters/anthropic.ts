@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { buildSystemPrompt, buildUserPrompt } from "../prompt.ts";
 import {
+  AdapterCompleteError,
   type CompleteInput,
   type CompleteOutput,
   type ExtractorAdapter,
@@ -103,6 +104,7 @@ export class AnthropicAdapter implements ExtractorAdapter {
       }
     } catch (err) {
       process.stderr.write(`[litopys/extractor] Anthropic complete() error: ${String(err)}\n`);
+      throw new AdapterCompleteError(`Anthropic complete() failed: ${String(err)}`, err);
     }
 
     return { text, usage: { inputTokens, outputTokens } };

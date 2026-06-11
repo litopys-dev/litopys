@@ -73,6 +73,31 @@ export interface ExtractorAdapter {
 }
 
 // ---------------------------------------------------------------------------
+// Domain error — thrown by complete() on API/transport failures
+// ---------------------------------------------------------------------------
+
+/**
+ * Thrown by adapter.complete() when the underlying API call fails due to a
+ * transport error, HTTP error (e.g. 429), or network issue.
+ *
+ * Callers that need LLM output MUST propagate this (do NOT swallow) so that
+ * upstream orchestrators (e.g. runEpisodesCatchup) can distinguish a true API
+ * failure from "LLM returned valid empty/unparseable response" and take the
+ * correct action (abort pass / skip file for retry next tick).
+ */
+export class AdapterCompleteError extends Error {
+  readonly code = "adapter_complete_error";
+
+  constructor(
+    message: string,
+    public override readonly cause?: unknown,
+  ) {
+    super(message);
+    this.name = "AdapterCompleteError";
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Zod schemas for LLM JSON output validation
 // ---------------------------------------------------------------------------
 

@@ -61,7 +61,7 @@ afterAll(() => {
 
 // Lazy imports after mocking — order matters
 const { runEpisodesCatchup } = await import("../src/tick.ts");
-const { MockAdapter } = await import("@litopys/extractor");
+const { MockAdapter, AdapterCompleteError } = await import("@litopys/extractor");
 import type { ExtractorAdapter } from "@litopys/extractor";
 import type { DaemonState } from "../src/state.ts";
 
@@ -84,9 +84,9 @@ function makeFixtureTranscript(
   toolOpsCount: number,
   date = "2026-03-15",
   errorResults = 0,
+  sessionId = FIXTURE_SESSION_ID,
 ): string {
   const ts = `${date}T10:00:00.000Z`;
-  const sessionId = FIXTURE_SESSION_ID;
 
   const events: object[] = [
     {
@@ -620,6 +620,214 @@ describe("runEpisodesCatchup", () => {
     );
     expect(realResult.filesProcessed).toBe(1);
     expect(realResult.episodesFound).toBe(1);
+  });
+
+  // -------------------------------------------------------------------------
+  // Circuit breaker: AdapterCompleteError → pass aborted, file NOT marked
+  // -------------------------------------------------------------------------
+
+  test("AdapterCompleteError on first file → pass aborted (break), both files NOT marked, function does not throw", async () => {
+    // Two files — the first one causes an AdapterCompleteError.
+    // Expected: pass aborts after first file, NEITHER file is marked processed.
+    const file1 = path.join(tmpDir, "session1.jsonl");
+    const file2 = path.join(tmpDir, "session2.jsonl");
+    // Use distinct session IDs to prevent the sessionId guard from skipping file2
+    await fs.writeFile(file1, makeFixtureTranscript(6, "2026-03-15", 0, "sess-cb-001"), "utf-8");
+    await fs.writeFile(file2, makeFixtureTranscript(6, "2026-03-16", 0, "sess-cb-002"), "utf-8");
+    await setMtimeAgo(file1, 2 * 60 * 60 * 1000);
+    await setMtimeAgo(file2, 2 * 60 * 60 * 1000);
+
+    const apiErrorAdapter = new MockAdapter({
+      failWith: new Error("HTTP 429 Too Many Requests"),
+    });
+
+    const state = freshState();
+    let threw = false;
+    let result: { filesProcessed: number; episodesFound: number } | undefined;
+    try {
+      result = await runEpisodesCatchup(
+        {
+          sources: [
+            { adapter: "claude-code", glob: file1 },
+            { adapter: "claude-code", glob: file2 },
+          ],
+          adapter: apiErrorAdapter,
+          episodesDir,
+          minAgeMs: 60_000,
+          minToolOps: 5,
+        },
+        state,
+      );
+    } catch {
+      threw = true;
+    }
+
+    expect(threw).toBe(false); // runEpisodesCatchup never throws
+    expect(result?.filesProcessed).toBe(0); // neither file marked
+    expect(result?.episodesFound).toBe(0);
+
+    // Neither file must be in episodesState (both get retried next tick)
+    expect(state.episodesState?.[file1]).toBeUndefined();
+    expect(state.episodesState?.[file2]).toBeUndefined();
+
+    // Only 1 complete() call — circuit break after first file
+    expect(apiErrorAdapter.completeCalls).toBe(1);
+  });
+
+  test("non-AdapterCompleteError → file skipped but pass continues to next file", async () => {
+    // File 1 will fail with a non-API error (parse error from transcript)
+    // File 2 should still be processed.
+    // We simulate this by making file1 unparseable as a transcript.
+    const file1 = path.join(tmpDir, "corrupt.jsonl");
+    const file2 = path.join(tmpDir, "valid.jsonl");
+
+    // File 1 has valid toolOps but the adapter for file1 fails with a non-API error.
+    // We'll use an adapter that throws a regular Error on first call, succeeds on second.
+    // Use distinct session IDs so the sessionId guard doesn't affect test outcome.
+    await fs.writeFile(file1, makeFixtureTranscript(6, "2026-03-15", 0, "sess-nc-001"), "utf-8");
+    await fs.writeFile(file2, makeFixtureTranscript(6, "2026-03-16", 0, "sess-nc-002"), "utf-8");
+    await setMtimeAgo(file1, 2 * 60 * 60 * 1000);
+    await setMtimeAgo(file2, 2 * 60 * 60 * 1000);
+
+    let callCount = 0;
+    const goodResponse = JSON.stringify({
+      episodes: [
+        {
+          goal: "второй файл",
+          steps: ["шаг один", "шаг два", "шаг три"],
+          toolOps: 6,
+          errorRecovery: false,
+          project: null,
+          tags: [],
+        },
+      ],
+    });
+    const mixedAdapter: ExtractorAdapter = {
+      name: "mixed",
+      model: "test",
+      extract: async () => ({
+        candidateNodes: [],
+        candidateRelations: [],
+        usage: { inputTokens: 0, outputTokens: 0 },
+        modelUsed: "test",
+      }),
+      complete: async (input) => {
+        callCount += 1;
+        if (callCount === 1) {
+          throw new Error("generic parse error"); // NOT AdapterCompleteError
+        }
+        return { text: goodResponse, usage: { inputTokens: 0, outputTokens: 0 } };
+      },
+    };
+
+    const state = freshState();
+    const result = await runEpisodesCatchup(
+      {
+        sources: [
+          { adapter: "claude-code", glob: file1 },
+          { adapter: "claude-code", glob: file2 },
+        ],
+        adapter: mixedAdapter,
+        episodesDir,
+        minAgeMs: 60_000,
+        minToolOps: 5,
+      },
+      state,
+    );
+
+    // File1 errored (non-API) → skipped but pass continued
+    // File2 succeeded → marked processed, 1 episode found
+    expect(result.filesProcessed).toBe(1); // only file2
+    expect(result.episodesFound).toBe(1);
+    expect(state.episodesState?.[file1]).toBeUndefined(); // not marked (error)
+    expect(state.episodesState?.[file2]).toBeDefined(); // marked
+    expect(callCount).toBe(2); // both files attempted
+  });
+
+  // -------------------------------------------------------------------------
+  // LLM budget: maxLlmFilesPerTick limits how many files get LLM calls
+  // -------------------------------------------------------------------------
+
+  test("maxLlmFilesPerTick=1 with 2 LLM-worthy files → only 1 processed, 1 deferred", async () => {
+    const file1 = path.join(tmpDir, "budget1.jsonl");
+    const file2 = path.join(tmpDir, "budget2.jsonl");
+    // Use distinct session IDs so the session guard does not fire on file2
+    await fs.writeFile(
+      file1,
+      makeFixtureTranscript(6, "2026-03-15", 0, "sess-budget-001"),
+      "utf-8",
+    );
+    await fs.writeFile(
+      file2,
+      makeFixtureTranscript(6, "2026-03-16", 0, "sess-budget-002"),
+      "utf-8",
+    );
+    await setMtimeAgo(file1, 2 * 60 * 60 * 1000);
+    await setMtimeAgo(file2, 2 * 60 * 60 * 1000);
+
+    const adapter = makeEpisodeAdapter("эпизод бюджета");
+    const state = freshState();
+
+    const result = await runEpisodesCatchup(
+      {
+        sources: [
+          { adapter: "claude-code", glob: file1 },
+          { adapter: "claude-code", glob: file2 },
+        ],
+        adapter,
+        episodesDir,
+        minAgeMs: 60_000,
+        minToolOps: 5,
+        maxLlmFilesPerTick: 1,
+      },
+      state,
+    );
+
+    // Only 1 file processed (budget = 1)
+    expect(result.filesProcessed).toBe(1);
+    expect(adapter.completeCalls).toBe(1); // only 1 LLM call
+
+    // Exactly one of the two files is marked; the other is deferred
+    const marked1 = state.episodesState?.[file1] !== undefined;
+    const marked2 = state.episodesState?.[file2] !== undefined;
+    expect(marked1 || marked2).toBe(true); // at least one marked
+    expect(marked1 && marked2).toBe(false); // not both marked (budget enforced)
+  });
+
+  test("cheap pre-filters (toolOps < min) do NOT count against LLM budget", async () => {
+    // File 1: low toolOps (cheap skip) → does NOT count against budget
+    // File 2: high toolOps → reaches LLM (budget not yet exceeded)
+    const file1 = path.join(tmpDir, "cheap.jsonl");
+    const file2 = path.join(tmpDir, "llm.jsonl");
+    // Use distinct session IDs to prevent session guard interactions
+    await fs.writeFile(file1, makeFixtureTranscript(2, "2026-03-15", 0, "sess-cheap-001"), "utf-8"); // toolOps=2 < 5
+    await fs.writeFile(file2, makeFixtureTranscript(6, "2026-03-16", 0, "sess-cheap-002"), "utf-8"); // toolOps=6 >= 5
+    await setMtimeAgo(file1, 2 * 60 * 60 * 1000);
+    await setMtimeAgo(file2, 2 * 60 * 60 * 1000);
+
+    const adapter = makeEpisodeAdapter("основной эпизод");
+    const state = freshState();
+
+    const result = await runEpisodesCatchup(
+      {
+        sources: [
+          { adapter: "claude-code", glob: file1 },
+          { adapter: "claude-code", glob: file2 },
+        ],
+        adapter,
+        episodesDir,
+        minAgeMs: 60_000,
+        minToolOps: 5,
+        maxLlmFilesPerTick: 1, // only 1 LLM call allowed
+      },
+      state,
+    );
+
+    // Both files processed: file1 via cheap path, file2 via LLM
+    expect(result.filesProcessed).toBe(2);
+    expect(adapter.completeCalls).toBe(1); // only file2 calls LLM
+    expect(state.episodesState?.[file1]).toBeDefined(); // cheap-marked
+    expect(state.episodesState?.[file2]).toBeDefined(); // LLM-marked
   });
 
   // -------------------------------------------------------------------------

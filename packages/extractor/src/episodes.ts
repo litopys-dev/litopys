@@ -91,15 +91,17 @@ export async function extractEpisodes(
     transcript.text,
   );
 
-  // First attempt
+  // First attempt — AdapterCompleteError propagates immediately (no retry for API failures)
   const firstResult = await adapter.complete({ prompt, maxTokens: 4096 });
   let rawEpisodes = parseEpisodesResponse(firstResult.text);
 
-  // Retry once on parse failure
+  // Retry once on parse failure (response received but not parseable as JSON episodes)
   if (rawEpisodes === null) {
     process.stderr.write(
       `[litopys/episodes] Failed to parse episode response, retrying once: ${firstResult.text.slice(0, 200)}\n`,
     );
+    // Second call: if the API is down this throws AdapterCompleteError — propagate,
+    // don't waste quota on further retries
     const retryResult = await adapter.complete({ prompt, maxTokens: 4096 });
     rawEpisodes = parseEpisodesResponse(retryResult.text);
 

@@ -1,5 +1,6 @@
 import { buildSystemPrompt, buildUserPrompt } from "../prompt.ts";
 import {
+  AdapterCompleteError,
   type CompleteInput,
   type CompleteOutput,
   type ExtractorAdapter,
@@ -132,6 +133,7 @@ export class OllamaAdapter implements ExtractorAdapter {
       } else {
         process.stderr.write(`[litopys/extractor] Ollama complete() error: ${message}\n`);
       }
+      throw new AdapterCompleteError(`Ollama complete() failed: ${message}`, err);
     }
 
     return { text, usage: { inputTokens: 0, outputTokens: 0 } };

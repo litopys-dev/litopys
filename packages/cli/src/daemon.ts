@@ -67,12 +67,16 @@ export async function cmdDaemonTick(args: string[], graphPath: string): Promise<
   try {
     // createAdapter owns the provider fallback (env var → "anthropic" default)
     const episodesAdapter = createAdapter(provider);
+    const maxLlmFilesPerTick = process.env.LITOPYS_EPISODES_MAX_LLM_FILES
+      ? Number(process.env.LITOPYS_EPISODES_MAX_LLM_FILES)
+      : undefined; // falls back to default (10) in runEpisodesCatchup
     catchupResult = await runEpisodesCatchup(
       {
         sources,
         adapter: episodesAdapter,
         episodesDir: defaultEpisodesDir(),
         dryRun,
+        maxLlmFilesPerTick,
       },
       state,
     );

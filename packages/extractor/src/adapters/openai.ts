@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { buildSystemPrompt, buildUserPrompt } from "../prompt.ts";
 import {
+  AdapterCompleteError,
   type CompleteInput,
   type CompleteOutput,
   type ExtractorAdapter,
@@ -113,6 +114,7 @@ export class OpenAIAdapter implements ExtractorAdapter {
       }
     } catch (err) {
       process.stderr.write(`[litopys/extractor] OpenAI complete() error: ${String(err)}\n`);
+      throw new AdapterCompleteError(`OpenAI complete() failed: ${String(err)}`, err);
     }
 
     return { text, usage: { inputTokens, outputTokens } };

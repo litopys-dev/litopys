@@ -8,6 +8,7 @@ import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import { loadGraph } from "@litopys/core";
 import {
+  AdapterCompleteError,
   appendEpisodes,
   createAdapter,
   extractEpisodes,
@@ -97,6 +98,14 @@ export interface EpisodesCatchupOptions {
    * Returns zero counts. Default: false.
    */
   dryRun?: boolean;
+  /**
+   * Maximum number of files that may trigger an LLM call in a single catch-up
+   * pass. Cheap pre-filtered skips (toolOps < min, sessionId guard) do NOT
+   * count. When the budget is exhausted the pass stops, leaving remaining
+   * files unmarked for the next tick.
+   * Default: 10. Override via env LITOPYS_EPISODES_MAX_LLM_FILES.
+   */
+  maxLlmFilesPerTick?: number;
 }
 
 export interface EpisodesCatchupResult {
@@ -127,8 +136,12 @@ export interface EpisodesCatchupResult {
  * - Session date is derived deterministically from transcript timestamps.
  *   Falls back to the file's mtime date (more deterministic than "today" for
  *   cooled-down files).
- * - Per-file errors are logged to stderr with the [litopys/episodes] prefix.
- *   The file is NOT marked processed on error (retry on next tick).
+ * - Per-file errors: AdapterCompleteError → STOP the entire pass immediately
+ *   (circuit breaker), log one line, leave remaining files unmarked for next
+ *   tick. Other unexpected errors → skip file, continue pass.
+ * - LLM budget: only files that actually call the LLM count against
+ *   maxLlmFilesPerTick (default 10, env LITOPYS_EPISODES_MAX_LLM_FILES).
+ *   When exhausted, the pass stops and remaining files are left for next tick.
  * - Dry-run: returns zero counts with no LLM calls, no writes and no
  *   episodesState mutation.
  * - This function never throws.
@@ -150,6 +163,12 @@ export async function runEpisodesCatchup(
   const minAgeMs = opts.minAgeMs ?? 3_600_000;
   const minToolOps = opts.minToolOps ?? 5;
   const now = Date.now();
+  const maxLlmFilesPerTick =
+    opts.maxLlmFilesPerTick ??
+    (process.env.LITOPYS_EPISODES_MAX_LLM_FILES
+      ? Number(process.env.LITOPYS_EPISODES_MAX_LLM_FILES)
+      : 10);
+  let llmFilesThisTick = 0;
 
   // Ensure episodesState is initialised
   if (!state.episodesState) {
@@ -237,7 +256,16 @@ export async function runEpisodesCatchup(
       continue;
     }
 
+    // LLM budget check — stop before calling if budget exhausted
+    if (llmFilesThisTick >= maxLlmFilesPerTick) {
+      process.stderr.write(
+        `[litopys/episodes] LLM budget exhausted (${maxLlmFilesPerTick} files/tick) — remaining files deferred to next tick\n`,
+      );
+      break;
+    }
+
     // Extract and append episodes
+    llmFilesThisTick += 1;
     try {
       const episodes = await extractEpisodes(parsed, sessionId, sessionDate, opts.adapter, {
         minToolOps,
@@ -250,6 +278,15 @@ export async function runEpisodesCatchup(
       }
       process.stderr.write(`[litopys/episodes] extracted ${written} episode(s) from ${filePath}\n`);
     } catch (err) {
+      if (err instanceof AdapterCompleteError) {
+        // Circuit breaker: API is down — abort the whole pass, leave remaining
+        // files unmarked so they are retried on the next tick.
+        process.stderr.write(
+          `[litopys/episodes] API error — aborting catch-up pass until next tick: ${String(err)}\n`,
+        );
+        // Do NOT mark processed, do NOT continue — exit the loop immediately
+        break;
+      }
       process.stderr.write(
         `[litopys/episodes] Episode extraction failed for ${filePath}: ${String(err)}\n`,
       );

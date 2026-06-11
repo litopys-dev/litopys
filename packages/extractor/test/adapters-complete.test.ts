@@ -3,6 +3,7 @@ import { AnthropicAdapter, type AnthropicClientLike } from "../src/adapters/anth
 import { MockAdapter } from "../src/adapters/mock.ts";
 import { OllamaAdapter } from "../src/adapters/ollama.ts";
 import { OpenAIAdapter, type OpenAIClientLike } from "../src/adapters/openai.ts";
+import { AdapterCompleteError } from "../src/adapters/types.ts";
 
 describe("adapter.complete", () => {
   test("mock returns queued completion and usage", async () => {
@@ -74,12 +75,12 @@ describe("OpenAIAdapter.complete", () => {
     expect(out.usage.outputTokens).toBe(7);
   });
 
-  test("returns empty text and zero usage on API error", async () => {
+  test("throws AdapterCompleteError on API error (e.g. 429)", async () => {
     const client = fakeOpenAIClient({ choices: [] }, new Error("429 Too Many Requests"));
     const adapter = new OpenAIAdapter({ client });
-    const out = await adapter.complete({ prompt: "cluster these" });
-    expect(out.text).toBe("");
-    expect(out.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
+    await expect(adapter.complete({ prompt: "cluster these" })).rejects.toBeInstanceOf(
+      AdapterCompleteError,
+    );
   });
 });
 
@@ -117,15 +118,15 @@ describe("AnthropicAdapter.complete", () => {
     expect(out.usage.outputTokens).toBe(25);
   });
 
-  test("returns empty text and zero usage on API error", async () => {
+  test("throws AdapterCompleteError on API error (e.g. rate limit)", async () => {
     const client = fakeAnthropicClient(
       { content: [], usage: { input_tokens: 0, output_tokens: 0 } },
       new Error("API rate limit exceeded"),
     );
     const adapter = new AnthropicAdapter({ client });
-    const out = await adapter.complete({ prompt: "cluster these" });
-    expect(out.text).toBe("");
-    expect(out.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
+    await expect(adapter.complete({ prompt: "cluster these" })).rejects.toBeInstanceOf(
+      AdapterCompleteError,
+    );
   });
 });
 
@@ -156,14 +157,14 @@ describe("OllamaAdapter.complete", () => {
     expect(out.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
   });
 
-  test("returns empty text and zero usage when fetch fails (ECONNREFUSED)", async () => {
+  test("throws AdapterCompleteError when fetch fails (ECONNREFUSED)", async () => {
     global.fetch = mock(async () => {
       throw new Error("fetch failed: ECONNREFUSED");
     }) as unknown as typeof global.fetch;
 
     const adapter = new OllamaAdapter({ baseUrl: "http://localhost:11434" });
-    const out = await adapter.complete({ prompt: "cluster these" });
-    expect(out.text).toBe("");
-    expect(out.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
+    await expect(adapter.complete({ prompt: "cluster these" })).rejects.toBeInstanceOf(
+      AdapterCompleteError,
+    );
   });
 });

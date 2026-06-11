@@ -332,11 +332,11 @@ listUnclustered → пусто? → `{drafts:[]}` БЕЗ LLM-вызовов → 
 
 **Files:** Create: `packages/extractor/test/skill-detector-e2e.test.ts`
 
-- [ ] **13.1 E2E на mock:** фикстура-транскрипт (две «сессии» с одинаковой рутиной) → `runEpisodeStage` ×2 → `runSkillsTick` → черновик существует, SKILL.md содержит frontmatter и 4 секции → `promoteSkillDraft` → скилл в tmp-skillsDir. Все пути — tmp.
-- [ ] **13.2** Полный прогон: `bun test` из корня — ВСЁ зелёное (включая не тронутые пакеты).
-- [ ] **13.3** `bun run` lint/typecheck если есть в scripts (проверь `package.json`; biome/tsc — выполнить).
-- [ ] **13.4 Commit:** `test(extractor): skill-detector e2e`
-- [ ] **13.5** Отметить все чекбоксы здесь, финальный коммит плана. НЕ мержить в main и НЕ пушить без команды Denis.
+- [x] **13.1 E2E на mock:** фикстура-транскрипт (две «сессии» с одинаковой рутиной) → `runEpisodeStage` ×2 → `runSkillsTick` → черновик существует, SKILL.md содержит frontmatter и 4 секции → `promoteSkillDraft` → скилл в tmp-skillsDir. Все пути — tmp.
+- [x] **13.2** Полный прогон: `bun test` из корня — ВСЁ зелёное (включая не тронутые пакеты).
+- [x] **13.3** `bun run` lint/typecheck если есть в scripts (проверь `package.json`; biome/tsc — выполнить).
+- [x] **13.4 Commit:** `test(extractor): skill-detector e2e`
+- [x] **13.5** Отметить все чекбоксы здесь, финальный коммит плана. НЕ мержить в main и НЕ пушить без команды Denis.
 
 ---
 

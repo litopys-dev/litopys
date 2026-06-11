@@ -194,9 +194,7 @@ export async function runEpisodesCatchup(
     try {
       raw = await fs.readFile(filePath, "utf-8");
     } catch (err) {
-      process.stderr.write(
-        `[litopys/episodes] Could not read file ${filePath}: ${String(err)}\n`,
-      );
+      process.stderr.write(`[litopys/episodes] Could not read file ${filePath}: ${String(err)}\n`);
       // Do NOT mark processed — retry next tick
       continue;
     }
@@ -250,9 +248,7 @@ export async function runEpisodesCatchup(
         written = await appendEpisodes(episodes, opts.episodesDir);
         episodesFound += written;
       }
-      process.stderr.write(
-        `[litopys/episodes] extracted ${written} episode(s) from ${filePath}\n`,
-      );
+      process.stderr.write(`[litopys/episodes] extracted ${written} episode(s) from ${filePath}\n`);
     } catch (err) {
       process.stderr.write(
         `[litopys/episodes] Episode extraction failed for ${filePath}: ${String(err)}\n`,

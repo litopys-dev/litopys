@@ -11,17 +11,17 @@
  *   7. If cfg.notifyCommand is set, notify for each new draft (errors → stderr, never aborts)
  */
 
-import * as path from "node:path";
 import { promises as fs } from "node:fs";
+import * as path from "node:path";
 import type { ExtractorAdapter } from "./adapters/types.ts";
 import { listUnclustered, markClustered } from "./episode-store.ts";
 import type { SkillDetectorConfig } from "./skill-config.ts";
 import {
   clusterEpisodes,
-  selectDraftable,
   draftSkill,
-  writeSkillDraft,
   normalizeSkillName,
+  selectDraftable,
+  writeSkillDraft,
 } from "./skill-draft.ts";
 import type { SkillDraftMeta } from "./skill-draft.ts";
 import { listSkillDrafts } from "./skill-quarantine.ts";
@@ -169,8 +169,7 @@ export async function runSkillsTick(opts: SkillsTickOptions): Promise<SkillsTick
 
     // Notify if configured
     if (cfg.notifyCommand) {
-      const message =
-        `Litopys: новый черновик скилла "${normalizedName}" (${group.episodeIds.length} эпизодов, ${sessions.length} сессий). Ревью: litopys skills show ${normalizedName}`;
+      const message = `Litopys: новый черновик скилла "${normalizedName}" (${group.episodeIds.length} эпизодов, ${sessions.length} сессий). Ревью: litopys skills show ${normalizedName}`;
       try {
         const proc = Bun.spawn(["sh", "-c", `${cfg.notifyCommand} "$1"`, "_", message], {
           stderr: "pipe",

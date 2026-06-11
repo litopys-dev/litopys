@@ -133,9 +133,7 @@ export async function listSkillDrafts(
     try {
       await fs.access(skillMdPath);
     } catch {
-      process.stderr.write(
-        `[litopys/skills] skipping draft "${entry}": SKILL.md not found\n`,
-      );
+      process.stderr.write(`[litopys/skills] skipping draft "${entry}": SKILL.md not found\n`);
       continue;
     }
 

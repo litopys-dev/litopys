@@ -46,11 +46,7 @@ function expandTilde(value: string): string {
  * Returns the parsed number if valid and > 0, otherwise emits a warning and
  * returns the provided default.
  */
-function parsePositiveInt(
-  raw: string,
-  varName: string,
-  defaultValue: number,
-): number {
+function parsePositiveInt(raw: string, varName: string, defaultValue: number): number {
   const n = Number(raw);
   if (!Number.isInteger(n) || n <= 0) {
     process.stderr.write(
@@ -69,9 +65,7 @@ function parsePositiveInt(
  * Load the skill-detector config from environment variables.
  * Pass a custom env object in tests instead of mutating process.env.
  */
-export function loadSkillConfig(
-  env: NodeJS.ProcessEnv = process.env,
-): SkillDetectorConfig {
+export function loadSkillConfig(env: NodeJS.ProcessEnv = process.env): SkillDetectorConfig {
   // --- skillsDir ---
   let skillsDir = DEFAULT_SKILLS_DIR;
   const rawSkillsDir = env.LITOPYS_SKILLS_DIR;
@@ -90,14 +84,22 @@ export function loadSkillConfig(
   let minToolOps = DEFAULT_MIN_TOOL_OPS;
   const rawMinToolOps = env.LITOPYS_SKILLS_MIN_TOOL_OPS;
   if (rawMinToolOps !== undefined && rawMinToolOps !== "") {
-    minToolOps = parsePositiveInt(rawMinToolOps, "LITOPYS_SKILLS_MIN_TOOL_OPS", DEFAULT_MIN_TOOL_OPS);
+    minToolOps = parsePositiveInt(
+      rawMinToolOps,
+      "LITOPYS_SKILLS_MIN_TOOL_OPS",
+      DEFAULT_MIN_TOOL_OPS,
+    );
   }
 
   // --- minSessions ---
   let minSessions = DEFAULT_MIN_SESSIONS;
   const rawMinSessions = env.LITOPYS_SKILLS_MIN_SESSIONS;
   if (rawMinSessions !== undefined && rawMinSessions !== "") {
-    minSessions = parsePositiveInt(rawMinSessions, "LITOPYS_SKILLS_MIN_SESSIONS", DEFAULT_MIN_SESSIONS);
+    minSessions = parsePositiveInt(
+      rawMinSessions,
+      "LITOPYS_SKILLS_MIN_SESSIONS",
+      DEFAULT_MIN_SESSIONS,
+    );
   }
 
   return { skillsDir, notifyCommand, minToolOps, minSessions };

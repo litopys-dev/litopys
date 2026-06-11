@@ -1,7 +1,7 @@
+import { describe, expect, test } from "bun:test";
 import * as os from "node:os";
 import * as path from "node:path";
-import { describe, expect, test } from "bun:test";
-import { loadSkillConfig } from "../src/skill-config.ts";
+import { type SkillDetectorConfig, loadSkillConfig } from "../src/skill-config.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -96,41 +96,41 @@ describe("loadSkillConfig — empty notifyCommand", () => {
 
 describe("loadSkillConfig — invalid minToolOps", () => {
   test("NaN string → default 5 + warning", async () => {
-    let cfg;
+    let cfg: SkillDetectorConfig | undefined;
     const stderr = await captureStderr(() => {
       cfg = loadSkillConfig({ LITOPYS_SKILLS_MIN_TOOL_OPS: "abc" });
     });
-    expect(cfg!.minToolOps).toBe(5);
+    expect(cfg?.minToolOps).toBe(5);
     expect(stderr).toContain("[litopys/skills]");
     expect(stderr).toContain("LITOPYS_SKILLS_MIN_TOOL_OPS");
   });
 
   test("negative number → default 5 + warning", async () => {
-    let cfg;
+    let cfg: SkillDetectorConfig | undefined;
     const stderr = await captureStderr(() => {
       cfg = loadSkillConfig({ LITOPYS_SKILLS_MIN_TOOL_OPS: "-3" });
     });
-    expect(cfg!.minToolOps).toBe(5);
+    expect(cfg?.minToolOps).toBe(5);
     expect(stderr).toContain("[litopys/skills]");
     expect(stderr).toContain("LITOPYS_SKILLS_MIN_TOOL_OPS");
   });
 
   test("zero → default 5 + warning", async () => {
-    let cfg;
+    let cfg: SkillDetectorConfig | undefined;
     const stderr = await captureStderr(() => {
       cfg = loadSkillConfig({ LITOPYS_SKILLS_MIN_TOOL_OPS: "0" });
     });
-    expect(cfg!.minToolOps).toBe(5);
+    expect(cfg?.minToolOps).toBe(5);
     expect(stderr).toContain("[litopys/skills]");
     expect(stderr).toContain("LITOPYS_SKILLS_MIN_TOOL_OPS");
   });
 
   test("float string → default 5 + warning", async () => {
-    let cfg;
+    let cfg: SkillDetectorConfig | undefined;
     const stderr = await captureStderr(() => {
       cfg = loadSkillConfig({ LITOPYS_SKILLS_MIN_TOOL_OPS: "3.5" });
     });
-    expect(cfg!.minToolOps).toBe(5);
+    expect(cfg?.minToolOps).toBe(5);
     expect(stderr).toContain("[litopys/skills]");
     expect(stderr).toContain("LITOPYS_SKILLS_MIN_TOOL_OPS");
   });
@@ -138,31 +138,31 @@ describe("loadSkillConfig — invalid minToolOps", () => {
 
 describe("loadSkillConfig — invalid minSessions", () => {
   test("NaN string → default 2 + warning", async () => {
-    let cfg;
+    let cfg: SkillDetectorConfig | undefined;
     const stderr = await captureStderr(() => {
       cfg = loadSkillConfig({ LITOPYS_SKILLS_MIN_SESSIONS: "bad" });
     });
-    expect(cfg!.minSessions).toBe(2);
+    expect(cfg?.minSessions).toBe(2);
     expect(stderr).toContain("[litopys/skills]");
     expect(stderr).toContain("LITOPYS_SKILLS_MIN_SESSIONS");
   });
 
   test("negative number → default 2 + warning", async () => {
-    let cfg;
+    let cfg: SkillDetectorConfig | undefined;
     const stderr = await captureStderr(() => {
       cfg = loadSkillConfig({ LITOPYS_SKILLS_MIN_SESSIONS: "-1" });
     });
-    expect(cfg!.minSessions).toBe(2);
+    expect(cfg?.minSessions).toBe(2);
     expect(stderr).toContain("[litopys/skills]");
     expect(stderr).toContain("LITOPYS_SKILLS_MIN_SESSIONS");
   });
 
   test("zero → default 2 + warning", async () => {
-    let cfg;
+    let cfg: SkillDetectorConfig | undefined;
     const stderr = await captureStderr(() => {
       cfg = loadSkillConfig({ LITOPYS_SKILLS_MIN_SESSIONS: "0" });
     });
-    expect(cfg!.minSessions).toBe(2);
+    expect(cfg?.minSessions).toBe(2);
     expect(stderr).toContain("[litopys/skills]");
     expect(stderr).toContain("LITOPYS_SKILLS_MIN_SESSIONS");
   });
@@ -179,11 +179,11 @@ describe("loadSkillConfig — empty string numeric env vars", () => {
   });
 
   test("empty string LITOPYS_SKILLS_MIN_TOOL_OPS → uses default without warning", async () => {
-    let cfg;
+    let cfg: SkillDetectorConfig | undefined;
     const stderr = await captureStderr(() => {
       cfg = loadSkillConfig({ LITOPYS_SKILLS_MIN_TOOL_OPS: "" });
     });
-    expect(cfg!.minToolOps).toBe(5);
+    expect(cfg?.minToolOps).toBe(5);
     expect(stderr).not.toContain("LITOPYS_SKILLS_MIN_TOOL_OPS");
   });
 });

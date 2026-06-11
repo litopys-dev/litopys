@@ -5,11 +5,11 @@
  * prompt and parse the JSON response into validated Episode objects.
  */
 
+import type { ExtractorAdapter } from "./adapters/types.ts";
 import { EpisodeSchema, makeEpisodeId } from "./episode-store.ts";
 import type { Episode } from "./episode-store.ts";
-import type { ExtractorAdapter } from "./adapters/types.ts";
-import type { ParsedTranscript } from "./transcript-tools.ts";
 import { parseKeyedArray, safeReplace } from "./llm-utils.ts";
+import type { ParsedTranscript } from "./transcript-tools.ts";
 
 // ---------------------------------------------------------------------------
 // Prompt
@@ -116,7 +116,7 @@ export async function extractEpisodes(
   const episodes: Episode[] = [];
   for (const raw of rawEpisodes) {
     if (raw === null || typeof raw !== "object") {
-      process.stderr.write(`[litopys/episodes] skipping non-object episode item\n`);
+      process.stderr.write("[litopys/episodes] skipping non-object episode item\n");
       continue;
     }
 
@@ -157,7 +157,5 @@ export async function extractEpisodes(
   }
 
   // Post-filter: keep if toolOps >= minToolOps OR errorRecovery
-  return [...byId.values()].filter(
-    (ep) => ep.toolOps >= opts.minToolOps || ep.errorRecovery,
-  );
+  return [...byId.values()].filter((ep) => ep.toolOps >= opts.minToolOps || ep.errorRecovery);
 }

@@ -3,18 +3,18 @@
  * normalizeSkillName, draftSkill, writeSkillDraft
  */
 
+import { describe, expect, test } from "bun:test";
+import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fs from "node:fs/promises";
-import { describe, expect, test } from "bun:test";
 import { MockAdapter } from "../src/adapters/mock.ts";
 import type { Episode } from "../src/episode-store.ts";
 import type { SkillDetectorConfig } from "../src/skill-config.ts";
 import {
   clusterEpisodes,
-  selectDraftable,
-  normalizeSkillName,
   draftSkill,
+  normalizeSkillName,
+  selectDraftable,
   writeSkillDraft,
 } from "../src/skill-draft.ts";
 
@@ -100,14 +100,16 @@ describe("clusterEpisodes", () => {
     const groups = await clusterEpisodes([ep1, ep2], adapter);
 
     expect(groups).toHaveLength(1);
-    expect(groups[0]!.name).toBe("restart-service");
-    expect(groups[0]!.episodeIds).toEqual([ep1.id, ep2.id]);
-    expect(groups[0]!.worthSkill).toBe(true);
+    expect(groups[0]?.name).toBe("restart-service");
+    expect(groups[0]?.episodeIds).toEqual([ep1.id, ep2.id]);
+    expect(groups[0]?.worthSkill).toBe(true);
     expect(adapter.completeCalls).toBe(1);
   });
 
   test("empty input → returns [] without any LLM call", async () => {
-    const adapter = new MockAdapter({ completions: ['{"groups":[{"name":"x","episodeIds":[],"worthSkill":true,"reason":"r"}]}'] });
+    const adapter = new MockAdapter({
+      completions: ['{"groups":[{"name":"x","episodeIds":[],"worthSkill":true,"reason":"r"}]}'],
+    });
     const groups = await clusterEpisodes([], adapter);
 
     expect(groups).toEqual([]);
@@ -141,7 +143,7 @@ describe("clusterEpisodes", () => {
     const groups = await clusterEpisodes([ep], adapter);
 
     expect(groups).toHaveLength(1);
-    expect(groups[0]!.name).toBe("fenced-skill");
+    expect(groups[0]?.name).toBe("fenced-skill");
   });
 
   test("hallucinated episodeId filtered from group — valid ids remain", async () => {
@@ -162,7 +164,7 @@ describe("clusterEpisodes", () => {
     const groups = await clusterEpisodes([ep], adapter);
 
     expect(groups).toHaveLength(1);
-    expect(groups[0]!.episodeIds).toEqual([ep.id]);
+    expect(groups[0]?.episodeIds).toEqual([ep.id]);
   });
 
   test("broken group skipped, valid group survives", async () => {
@@ -190,7 +192,7 @@ describe("clusterEpisodes", () => {
     const groups = await clusterEpisodes([ep], adapter);
 
     expect(groups).toHaveLength(1);
-    expect(groups[0]!.name).toBe("valid-group");
+    expect(groups[0]?.name).toBe("valid-group");
   });
 
   test("bad first response, good second → parsed result, completeCalls === 2", async () => {
@@ -210,7 +212,7 @@ describe("clusterEpisodes", () => {
     const groups = await clusterEpisodes([ep], adapter);
 
     expect(groups).toHaveLength(1);
-    expect(groups[0]!.name).toBe("recovered-group");
+    expect(groups[0]?.name).toBe("recovered-group");
     expect(adapter.completeCalls).toBe(2);
   });
 
@@ -254,7 +256,7 @@ describe("selectDraftable", () => {
 
     const result = selectDraftable([group], [ep1, ep2], DEFAULT_CFG);
     expect(result).toHaveLength(1);
-    expect(result[0]!.name).toBe("multi-session");
+    expect(result[0]?.name).toBe("multi-session");
   });
 
   test("2 episodes in same session → not draftable (no errorRecovery override)", () => {
@@ -356,7 +358,9 @@ describe("normalizeSkillName", () => {
   });
 
   test("collision with -2 → appends -3", () => {
-    expect(normalizeSkillName("Restart SYUT!", ["restart-syut", "restart-syut-2"])).toBe("restart-syut-3");
+    expect(normalizeSkillName("Restart SYUT!", ["restart-syut", "restart-syut-2"])).toBe(
+      "restart-syut-3",
+    );
   });
 
   test("empty string after normalization → default base 'skill'", () => {

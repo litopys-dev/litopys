@@ -2,11 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { promises as fs } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import {
-  appendEpisodes,
-  listUnclustered,
-  markClustered,
-} from "../src/episode-store.ts";
+import { appendEpisodes, listUnclustered, markClustered } from "../src/episode-store.ts";
 import type { Episode } from "../src/episode-store.ts";
 
 // ---------------------------------------------------------------------------
@@ -229,7 +225,7 @@ describe("listUnclustered", () => {
     const anotherEp = makeEpisode({ id: "ep-corrupt222", goal: "After corrupt" });
     const anotherLine = JSON.stringify(anotherEp);
 
-    await fs.writeFile(filePath, [validLine, corruptLine, anotherLine].join("\n") + "\n", "utf-8");
+    await fs.writeFile(filePath, `${[validLine, corruptLine, anotherLine].join("\n")}\n`, "utf-8");
 
     const result = await listUnclustered(tmpDir);
     // Only valid, unclustered episodes returned; corrupted line skipped
@@ -249,13 +245,13 @@ describe("listUnclustered", () => {
     // New-style stranded tmp: <monthly>.jsonl.tmp-<rand>
     await fs.writeFile(
       path.join(tmpDir, `${yyyyMM}.jsonl.tmp-x`),
-      JSON.stringify(strandedNew) + "\n",
+      `${JSON.stringify(strandedNew)}\n`,
       "utf-8",
     );
     // Old-style stranded tmp ending in .jsonl
     await fs.writeFile(
       path.join(tmpDir, ".tmp-abc.jsonl"),
-      JSON.stringify(strandedOld) + "\n",
+      `${JSON.stringify(strandedOld)}\n`,
       "utf-8",
     );
 
@@ -274,7 +270,7 @@ describe("listUnclustered", () => {
     // Manually write to the old month's file
     await fs.mkdir(tmpDir, { recursive: true });
     const oldFile = path.join(tmpDir, `${pastYYYYMM}.jsonl`);
-    await fs.appendFile(oldFile, JSON.stringify(oldEp) + "\n", "utf-8");
+    await fs.appendFile(oldFile, `${JSON.stringify(oldEp)}\n`, "utf-8");
 
     const recentEp = makeEpisode({ id: "ep-recent111" });
     await appendEpisodes([recentEp], tmpDir);
@@ -326,9 +322,7 @@ describe("markClustered", () => {
     const ep = makeEpisode({ id: "ep-ignore111" });
     await appendEpisodes([ep], tmpDir);
 
-    await expect(
-      markClustered(["ep-nonexistent"], "some-draft", tmpDir),
-    ).resolves.toBeUndefined();
+    await expect(markClustered(["ep-nonexistent"], "some-draft", tmpDir)).resolves.toBeUndefined();
 
     const unclustered = await listUnclustered(tmpDir);
     expect(unclustered).toHaveLength(1);
@@ -343,7 +337,7 @@ describe("markClustered", () => {
     const stranded = makeEpisode({ id: "ep-marktmp111", goal: "stranded copy" });
     const newStylePath = path.join(tmpDir, `${yyyyMM}.jsonl.tmp-x`);
     const oldStylePath = path.join(tmpDir, ".tmp-abc.jsonl");
-    const strandedContent = JSON.stringify(stranded) + "\n";
+    const strandedContent = `${JSON.stringify(stranded)}\n`;
     await fs.writeFile(newStylePath, strandedContent, "utf-8");
     await fs.writeFile(oldStylePath, strandedContent, "utf-8");
 

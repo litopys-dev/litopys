@@ -11,11 +11,11 @@ import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import { defaultGraphPath, loadGraph } from "@litopys/core";
 import { createAdapter } from "./adapters/factory.ts";
-import { writeQuarantine } from "./quarantine.ts";
+import type { ExtractorAdapter } from "./adapters/types.ts";
 import { appendEpisodes, defaultEpisodesDir } from "./episode-store.ts";
 import { extractEpisodes } from "./episodes.ts";
+import { writeQuarantine } from "./quarantine.ts";
 import { parseClaudeCodeTranscript, sessionDateFromTranscript } from "./transcript-tools.ts";
-import type { ExtractorAdapter } from "./adapters/types.ts";
 
 // ---------------------------------------------------------------------------
 // Claude Code SessionEnd hook payload shape
@@ -61,16 +61,13 @@ export function decideFailedStub(
   if (quarantineWritten) {
     return {
       writeStub: false,
-      logLine:
-        `[litopys/session-end] ${reason} after quarantine write — ` +
-        `episode stage incomplete, daemon will catch up\n`,
+      logLine: `[litopys/session-end] ${reason} after quarantine write — episode stage incomplete, daemon will catch up\n`,
     };
   }
   return {
     writeStub: true,
     // The timeout timer callback already logged its own message
-    logLine:
-      reason === "timeout" ? null : `[litopys/session-end] Extraction failed: ${reason}\n`,
+    logLine: reason === "timeout" ? null : `[litopys/session-end] Extraction failed: ${reason}\n`,
   };
 }
 

@@ -5,18 +5,18 @@
  * fixture helper to avoid duplicating the "write a draft" logic.
  */
 
+import { describe, expect, test } from "bun:test";
+import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fs from "node:fs/promises";
-import { describe, expect, test } from "bun:test";
 import { writeSkillDraft } from "../src/skill-draft.ts";
 import type { SkillDraftMeta } from "../src/skill-draft.ts";
 import {
-  listSkillDrafts,
-  readSkillDraft,
-  promoteSkillDraft,
-  rejectSkillDraft,
   defaultQuarantineSkillsDir,
+  listSkillDrafts,
+  promoteSkillDraft,
+  readSkillDraft,
+  rejectSkillDraft,
 } from "../src/skill-quarantine.ts";
 
 // ---------------------------------------------------------------------------
@@ -24,7 +24,10 @@ import {
 // ---------------------------------------------------------------------------
 
 /** A minimal valid SKILL.md with a `description:` frontmatter field. */
-function makeSkillMd(name: string, description = "Triggers when you need to do something."): string {
+function makeSkillMd(
+  name: string,
+  description = "Triggers when you need to do something.",
+): string {
   return `---
 name: ${name}
 description: ${description}
@@ -139,9 +142,10 @@ describe("listSkillDrafts", () => {
 
       const results = await listSkillDrafts(tmpDir);
       expect(results).toHaveLength(1);
-      expect(results[0]!.meta.name).toBe(name);
-      expect(results[0]!.meta.status).toBe("pending");
-      expect(results[0]!.description).toBe(description);
+      const first = results[0];
+      expect(first?.meta.name).toBe(name);
+      expect(first?.meta.status).toBe("pending");
+      expect(first?.description).toBe(description);
     } finally {
       await fs.rm(tmpDir, { recursive: true });
     }
@@ -169,8 +173,8 @@ describe("listSkillDrafts", () => {
 
       const results = await listSkillDrafts(tmpDir);
       expect(results).toHaveLength(2);
-      expect(results[0]!.meta.name).toBe(nameA);
-      expect(results[1]!.meta.name).toBe(nameB);
+      expect(results[0]?.meta.name).toBe(nameA);
+      expect(results[1]?.meta.name).toBe(nameB);
     } finally {
       await fs.rm(tmpDir, { recursive: true });
     }
@@ -205,7 +209,7 @@ name: ${name}
       await writeSkillDraft(name, skillMdNoDesc, makeMeta(name), tmpDir);
       const results = await listSkillDrafts(tmpDir);
       expect(results).toHaveLength(1);
-      expect(results[0]!.description).toBe("");
+      expect(results[0]?.description).toBe("");
     } finally {
       await fs.rm(tmpDir, { recursive: true });
     }
@@ -237,8 +241,8 @@ name: ${name}
       const results = await listSkillDrafts(tmpDir);
       expect(results).toHaveLength(2);
       // Missing createdAt → timestamp falls back to 0 → first in the list
-      expect(results[0]!.meta.name).toBe("undated-skill");
-      expect(results[1]!.meta.name).toBe("dated-skill");
+      expect(results[0]?.meta.name).toBe("undated-skill");
+      expect(results[1]?.meta.name).toBe("dated-skill");
     } finally {
       await fs.rm(tmpDir, { recursive: true });
     }
@@ -255,7 +259,12 @@ name: ${name}
     };
     try {
       // Create a valid draft
-      await writeSkillDraft("good-skill", makeSkillMd("good-skill"), makeMeta("good-skill"), tmpDir);
+      await writeSkillDraft(
+        "good-skill",
+        makeSkillMd("good-skill"),
+        makeMeta("good-skill"),
+        tmpDir,
+      );
 
       // Manually create a broken draft
       const brokenDir = path.join(tmpDir, "broken-skill");
@@ -265,7 +274,7 @@ name: ${name}
 
       const results = await listSkillDrafts(tmpDir);
       expect(results).toHaveLength(1);
-      expect(results[0]!.meta.name).toBe("good-skill");
+      expect(results[0]?.meta.name).toBe("good-skill");
 
       const warnings = stderrLines.join("");
       expect(warnings).toContain("[litopys/skills]");
@@ -648,7 +657,12 @@ describe("rejectSkillDraft", () => {
 
     try {
       const name = "reject-me";
-      await writeSkillDraft(name, makeSkillMd(name), makeMeta(name, { episodeIds: ["ep-rej"], sessions: ["sess-R"] }), qsDir);
+      await writeSkillDraft(
+        name,
+        makeSkillMd(name),
+        makeMeta(name, { episodeIds: ["ep-rej"], sessions: ["sess-R"] }),
+        qsDir,
+      );
 
       await rejectSkillDraft(name, qsDir, graphPath, "not useful");
 
@@ -774,8 +788,8 @@ describe("full cycle integration", () => {
       // List: should see 1
       const listed = await listSkillDrafts(qsDir);
       expect(listed).toHaveLength(1);
-      expect(listed[0]!.meta.name).toBe(name);
-      expect(listed[0]!.description).toBe(description);
+      expect(listed[0]?.meta.name).toBe(name);
+      expect(listed[0]?.description).toBe(description);
 
       // Promote
       const installPath = await promoteSkillDraft(name, qsDir, tmpSkills);
@@ -793,7 +807,8 @@ describe("full cycle integration", () => {
       const promotedLog = path.join(qsDir, "..", "promoted.jsonl");
       const lines = (await fs.readFile(promotedLog, "utf-8")).trim().split("\n");
       expect(lines).toHaveLength(1);
-      const entry = JSON.parse(lines[0]!) as Record<string, unknown>;
+      const line0 = lines[0];
+      const entry = JSON.parse(line0 as string) as Record<string, unknown>;
       expect(entry.name).toBe(name);
     } finally {
       await fs.rm(root, { recursive: true });

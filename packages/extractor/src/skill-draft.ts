@@ -12,10 +12,10 @@
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import { z } from "zod";
-import type { Episode } from "./episode-store.ts";
 import type { ExtractorAdapter } from "./adapters/types.ts";
-import type { SkillDetectorConfig } from "./skill-config.ts";
+import type { Episode } from "./episode-store.ts";
 import { parseKeyedArray, safeReplace, stripCodeFences } from "./llm-utils.ts";
+import type { SkillDetectorConfig } from "./skill-config.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -198,9 +198,10 @@ export async function clusterEpisodes(
   for (const raw of rawGroups) {
     const result = EpisodeGroupSchema.safeParse(raw);
     if (!result.success) {
-      const nameHint = raw !== null && typeof raw === "object"
-        ? (raw as Record<string, unknown>).name ?? "<unknown>"
-        : "<unknown>";
+      const nameHint =
+        raw !== null && typeof raw === "object"
+          ? ((raw as Record<string, unknown>).name ?? "<unknown>")
+          : "<unknown>";
       process.stderr.write(
         `[litopys/skills] skipping invalid group (name="${nameHint}"): ${result.error.message}\n`,
       );
@@ -254,8 +255,8 @@ export function selectDraftable(
 
     // Single-episode errorRecovery criterion
     if (groupEpisodes.length === 1) {
-      const ep = groupEpisodes[0]!;
-      return ep.errorRecovery && ep.toolOps >= cfg.minToolOps;
+      const ep = groupEpisodes[0];
+      return ep?.errorRecovery === true && ep.toolOps >= cfg.minToolOps;
     }
 
     return false;
@@ -392,7 +393,11 @@ export async function writeSkillDraft(
 
   await fs.mkdir(draftDir, { recursive: true });
   await fs.writeFile(path.join(draftDir, "SKILL.md"), skillMd, "utf-8");
-  await fs.writeFile(path.join(draftDir, "meta.json"), JSON.stringify(meta, null, 2) + "\n", "utf-8");
+  await fs.writeFile(
+    path.join(draftDir, "meta.json"),
+    `${JSON.stringify(meta, null, 2)}\n`,
+    "utf-8",
+  );
 
   return draftDir;
 }

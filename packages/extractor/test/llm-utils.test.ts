@@ -29,11 +29,11 @@ describe("stripCodeFences", () => {
 
   test("inner fences are preserved when the whole document is fenced", () => {
     const doc = "# Title\n\n```bash\necho hi\n```\n\nDone.";
-    expect(stripCodeFences("```markdown\n" + doc + "\n```")).toBe(doc);
+    expect(stripCodeFences(`\`\`\`markdown\n${doc}\n\`\`\``)).toBe(doc);
   });
 
   test("text with only a leading fence is not mangled", () => {
-    const text = "```json\n{\"a\":1}";
+    const text = '```json\n{"a":1}';
     // No closing fence — returned trimmed as-is
     expect(stripCodeFences(text)).toBe(text.trim());
   });

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { MockAdapter } from "../src/adapters/mock.ts";
-import { extractEpisodes } from "../src/episodes.ts";
-import { makeEpisodeId } from "../src/episode-store.ts";
 import type { ExtractorAdapter } from "../src/adapters/types.ts";
+import { makeEpisodeId } from "../src/episode-store.ts";
+import { extractEpisodes } from "../src/episodes.ts";
 import type { ParsedTranscript } from "../src/transcript-tools.ts";
 
 // ---------------------------------------------------------------------------
@@ -43,16 +43,16 @@ describe("extractEpisodes", () => {
     });
 
     expect(episodes).toHaveLength(1);
-    const ep = episodes[0]!;
-    expect(ep.goal).toBe("перезапуск syut");
-    expect(ep.sessionId).toBe(SESSION_ID);
-    expect(ep.date).toBe(SESSION_DATE);
-    expect(ep.id).toBe(makeEpisodeId(SESSION_ID, "перезапуск syut"));
-    expect(ep.clusteredInto).toBeNull();
-    expect(ep.project).toBe("syut");
-    expect(ep.tags).toEqual(["deploy"]);
-    expect(ep.errorRecovery).toBe(true);
-    expect(ep.toolOps).toBe(7);
+    const ep = episodes[0];
+    expect(ep?.goal).toBe("перезапуск syut");
+    expect(ep?.sessionId).toBe(SESSION_ID);
+    expect(ep?.date).toBe(SESSION_DATE);
+    expect(ep?.id).toBe(makeEpisodeId(SESSION_ID, "перезапуск syut"));
+    expect(ep?.clusteredInto).toBeNull();
+    expect(ep?.project).toBe("syut");
+    expect(ep?.tags).toEqual(["deploy"]);
+    expect(ep?.errorRecovery).toBe(true);
+    expect(ep?.toolOps).toBe(7);
   });
 
   test("episode with toolOps:2, errorRecovery:false is filtered out", async () => {
@@ -101,7 +101,7 @@ describe("extractEpisodes", () => {
     });
 
     expect(episodes).toHaveLength(1);
-    expect(episodes[0]!.errorRecovery).toBe(true);
+    expect(episodes[0]?.errorRecovery).toBe(true);
   });
 
   test("broken JSON → one retry → completeCalls === 2 → empty array returned", async () => {
@@ -137,7 +137,7 @@ describe("extractEpisodes", () => {
     });
 
     expect(episodes).toHaveLength(1);
-    expect(episodes[0]!.goal).toBe("восстановленный эпизод");
+    expect(episodes[0]?.goal).toBe("восстановленный эпизод");
     expect(adapter.completeCalls).toBe(2);
   });
 
@@ -171,9 +171,9 @@ describe("extractEpisodes", () => {
     });
 
     expect(episodes).toHaveLength(1);
-    expect(episodes[0]!.id).toBe(makeEpisodeId(SESSION_ID, goal));
-    expect(episodes[0]!.toolOps).toBe(9);
-    expect(episodes[0]!.tags).toEqual(["second"]);
+    expect(episodes[0]?.id).toBe(makeEpisodeId(SESSION_ID, goal));
+    expect(episodes[0]?.toolOps).toBe(9);
+    expect(episodes[0]?.tags).toEqual(["second"]);
   });
 
   test("broken JSON on both attempts → empty array, no exception", async () => {
@@ -211,7 +211,7 @@ describe("extractEpisodes", () => {
     });
 
     expect(episodes).toHaveLength(1);
-    expect(episodes[0]!.goal).toBe("тестовый эпизод");
+    expect(episodes[0]?.goal).toBe("тестовый эпизод");
   });
 
   test("response in plain ``` fences (no language tag) → fences stripped", async () => {
@@ -237,7 +237,7 @@ describe("extractEpisodes", () => {
     });
 
     expect(episodes).toHaveLength(1);
-    expect(episodes[0]!.goal).toBe("ещё один эпизод");
+    expect(episodes[0]?.goal).toBe("ещё один эпизод");
   });
 
   test("episode with invalid fields (goal length 500) → skipped, valid episodes survive", async () => {
@@ -271,7 +271,7 @@ describe("extractEpisodes", () => {
     });
 
     expect(episodes).toHaveLength(1);
-    expect(episodes[0]!.goal).toBe("валидный эпизод");
+    expect(episodes[0]?.goal).toBe("валидный эпизод");
   });
 
   test("empty transcript.text → returns [] immediately without LLM call", async () => {
@@ -337,10 +337,7 @@ describe("extractEpisodes", () => {
 
     // toolOps:1, errorRecovery:false → filtered out
     expect(episodes).toHaveLength(2);
-    expect(episodes.map((e) => e.goal)).toEqual([
-      "деплой приложения",
-      "настройка мониторинга",
-    ]);
+    expect(episodes.map((e) => e.goal)).toEqual(["деплой приложения", "настройка мониторинга"]);
   });
 
   test("episode id is stable/deterministic across calls", async () => {
@@ -370,8 +367,8 @@ describe("extractEpisodes", () => {
       minToolOps: 3,
     });
 
-    expect(episodes1[0]!.id).toBe(episodes2[0]!.id);
-    expect(episodes1[0]!.id).toBe(makeEpisodeId(SESSION_ID, goal));
+    expect(episodes1[0]?.id).toBe(episodes2[0]?.id);
+    expect(episodes1[0]?.id).toBe(makeEpisodeId(SESSION_ID, goal));
   });
 
   test("transcript with $& / $' is substituted literally (no replacement-pattern expansion)", async () => {
@@ -409,7 +406,7 @@ describe("extractEpisodes", () => {
 
     expect(episodes).toHaveLength(1);
     expect(capturedPrompts).toHaveLength(1);
-    const prompt = capturedPrompts[0]!;
+    const prompt = capturedPrompts[0];
     // Literal transcript text present, $-patterns NOT expanded
     expect(prompt).toContain("TOOL: Bash(grep $& and $') → ok");
     // The placeholder must be fully consumed — $& expansion would re-inject it

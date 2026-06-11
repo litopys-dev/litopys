@@ -2,20 +2,53 @@ import { describe, expect, test } from "bun:test";
 import { parseClaudeCodeTranscript, sessionDateFromTranscript } from "../src/transcript-tools.ts";
 
 const lines = [
-  JSON.stringify({ type: "user", sessionId: "s1", message: { role: "user", content: "перезапусти syut" } }),
-  JSON.stringify({ type: "assistant", message: { role: "assistant", content: [
-    { type: "text", text: "Рестартую." },
-    { type: "tool_use", id: "t1", name: "Bash", input: { command: "systemctl restart syut" } },
-  ]}}),
-  JSON.stringify({ type: "user", message: { role: "user", content: [
-    { type: "tool_result", tool_use_id: "t1", is_error: true, content: "Exit code 1: unit not found" },
-  ]}}),
-  JSON.stringify({ type: "assistant", message: { role: "assistant", content: [
-    { type: "tool_use", id: "t2", name: "Bash", input: { command: "systemctl --user restart syut" } },
-  ]}}),
-  JSON.stringify({ type: "user", message: { role: "user", content: [
-    { type: "tool_result", tool_use_id: "t2", content: "ok" },
-  ]}}),
+  JSON.stringify({
+    type: "user",
+    sessionId: "s1",
+    message: { role: "user", content: "перезапусти syut" },
+  }),
+  JSON.stringify({
+    type: "assistant",
+    message: {
+      role: "assistant",
+      content: [
+        { type: "text", text: "Рестартую." },
+        { type: "tool_use", id: "t1", name: "Bash", input: { command: "systemctl restart syut" } },
+      ],
+    },
+  }),
+  JSON.stringify({
+    type: "user",
+    message: {
+      role: "user",
+      content: [
+        {
+          type: "tool_result",
+          tool_use_id: "t1",
+          is_error: true,
+          content: "Exit code 1: unit not found",
+        },
+      ],
+    },
+  }),
+  JSON.stringify({
+    type: "assistant",
+    message: {
+      role: "assistant",
+      content: [
+        {
+          type: "tool_use",
+          id: "t2",
+          name: "Bash",
+          input: { command: "systemctl --user restart syut" },
+        },
+      ],
+    },
+  }),
+  JSON.stringify({
+    type: "user",
+    message: { role: "user", content: [{ type: "tool_result", tool_use_id: "t2", content: "ok" }] },
+  }),
 ].join("\n");
 
 describe("parseClaudeCodeTranscript", () => {
@@ -39,12 +72,22 @@ describe("parseClaudeCodeTranscript", () => {
 
   test("string content starting with Exit code N counts as error without is_error", () => {
     const raw = [
-      JSON.stringify({ type: "assistant", message: { role: "assistant", content: [
-        { type: "tool_use", id: "t1", name: "Bash", input: { command: "false" } },
-      ]}}),
-      JSON.stringify({ type: "user", message: { role: "user", content: [
-        { type: "tool_result", tool_use_id: "t1", content: "Exit code 2: command failed" },
-      ]}}),
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [{ type: "tool_use", id: "t1", name: "Bash", input: { command: "false" } }],
+        },
+      }),
+      JSON.stringify({
+        type: "user",
+        message: {
+          role: "user",
+          content: [
+            { type: "tool_result", tool_use_id: "t1", content: "Exit code 2: command failed" },
+          ],
+        },
+      }),
     ].join("\n");
     const r = parseClaudeCodeTranscript(raw, { includeTools: "summary" });
     expect(r.errorCount).toBe(1);
@@ -53,14 +96,26 @@ describe("parseClaudeCodeTranscript", () => {
 
   test("nested-array tool_result content detects error from text sub-block", () => {
     const raw = [
-      JSON.stringify({ type: "assistant", message: { role: "assistant", content: [
-        { type: "tool_use", id: "t1", name: "Bash", input: { command: "broken" } },
-      ]}}),
-      JSON.stringify({ type: "user", message: { role: "user", content: [
-        { type: "tool_result", tool_use_id: "t1", content: [
-          { type: "text", text: "Error: something went wrong" },
-        ]},
-      ]}}),
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [{ type: "tool_use", id: "t1", name: "Bash", input: { command: "broken" } }],
+        },
+      }),
+      JSON.stringify({
+        type: "user",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "t1",
+              content: [{ type: "text", text: "Error: something went wrong" }],
+            },
+          ],
+        },
+      }),
     ].join("\n");
     const r = parseClaudeCodeTranscript(raw, { includeTools: "summary" });
     expect(r.errorCount).toBe(1);
@@ -68,9 +123,13 @@ describe("parseClaudeCodeTranscript", () => {
   });
 
   test("pending tool_use without tool_result is counted but emits no TOOL: line", () => {
-    const raw = JSON.stringify({ type: "assistant", message: { role: "assistant", content: [
-      { type: "tool_use", id: "t9", name: "Bash", input: { command: "sleep 999" } },
-    ]}});
+    const raw = JSON.stringify({
+      type: "assistant",
+      message: {
+        role: "assistant",
+        content: [{ type: "tool_use", id: "t9", name: "Bash", input: { command: "sleep 999" } }],
+      },
+    });
     const r = parseClaudeCodeTranscript(raw, { includeTools: "summary" });
     expect(r.toolOps).toBe(1);
     expect(r.errorCount).toBe(0);
@@ -79,7 +138,11 @@ describe("parseClaudeCodeTranscript", () => {
 
   test("broken/partial JSON lines are skipped without throwing", () => {
     const raw = [
-      JSON.stringify({ type: "user", sessionId: "s2", message: { role: "user", content: "привет" } }),
+      JSON.stringify({
+        type: "user",
+        sessionId: "s2",
+        message: { role: "user", content: "привет" },
+      }),
       '{"type": "assistant", "message": {"role": "assi',
       "not json at all",
     ].join("\n");
@@ -89,14 +152,22 @@ describe("parseClaudeCodeTranscript", () => {
   });
 
   test("gist truncates long Bash command at 80 chars", () => {
-    const longCmd = "echo " + "x".repeat(200);
+    const longCmd = `echo ${"x".repeat(200)}`;
     const raw = [
-      JSON.stringify({ type: "assistant", message: { role: "assistant", content: [
-        { type: "tool_use", id: "t1", name: "Bash", input: { command: longCmd } },
-      ]}}),
-      JSON.stringify({ type: "user", message: { role: "user", content: [
-        { type: "tool_result", tool_use_id: "t1", content: "ok" },
-      ]}}),
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [{ type: "tool_use", id: "t1", name: "Bash", input: { command: longCmd } }],
+        },
+      }),
+      JSON.stringify({
+        type: "user",
+        message: {
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: "t1", content: "ok" }],
+        },
+      }),
     ].join("\n");
     const r = parseClaudeCodeTranscript(raw, { includeTools: "summary" });
     expect(r.text).toContain(`TOOL: Bash(${longCmd.slice(0, 80)}) → ok`);
@@ -105,12 +176,27 @@ describe("parseClaudeCodeTranscript", () => {
 
   test("gist uses file_path for Read/Edit/Write tools", () => {
     const raw = [
-      JSON.stringify({ type: "assistant", message: { role: "assistant", content: [
-        { type: "tool_use", id: "t1", name: "Read", input: { file_path: "/etc/nginx/nginx.conf" } },
-      ]}}),
-      JSON.stringify({ type: "user", message: { role: "user", content: [
-        { type: "tool_result", tool_use_id: "t1", content: "server {}" },
-      ]}}),
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "t1",
+              name: "Read",
+              input: { file_path: "/etc/nginx/nginx.conf" },
+            },
+          ],
+        },
+      }),
+      JSON.stringify({
+        type: "user",
+        message: {
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: "t1", content: "server {}" }],
+        },
+      }),
     ].join("\n");
     const r = parseClaudeCodeTranscript(raw, { includeTools: "summary" });
     expect(r.text).toContain("TOOL: Read(/etc/nginx/nginx.conf) → ok");
@@ -118,12 +204,27 @@ describe("parseClaudeCodeTranscript", () => {
 
   test("gist collapses multi-line command into one line", () => {
     const raw = [
-      JSON.stringify({ type: "assistant", message: { role: "assistant", content: [
-        { type: "tool_use", id: "t1", name: "Bash", input: { command: "git add .\n  git commit -m 'x'" } },
-      ]}}),
-      JSON.stringify({ type: "user", message: { role: "user", content: [
-        { type: "tool_result", tool_use_id: "t1", content: "ok" },
-      ]}}),
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "t1",
+              name: "Bash",
+              input: { command: "git add .\n  git commit -m 'x'" },
+            },
+          ],
+        },
+      }),
+      JSON.stringify({
+        type: "user",
+        message: {
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: "t1", content: "ok" }],
+        },
+      }),
     ].join("\n");
     const r = parseClaudeCodeTranscript(raw, { includeTools: "summary" });
     expect(r.text).toContain("TOOL: Bash(git add . git commit -m 'x') → ok");
@@ -138,8 +239,18 @@ describe("sessionDateFromTranscript", () => {
   test("returns YYYY-MM-DD from first event with a parseable timestamp", () => {
     const raw = [
       JSON.stringify({ type: "permission-mode", sessionId: "s1" }),
-      JSON.stringify({ type: "user", sessionId: "s1", timestamp: "2026-03-15T10:00:00.000Z", message: { role: "user", content: "hello" } }),
-      JSON.stringify({ type: "assistant", sessionId: "s1", timestamp: "2026-03-15T10:01:00.000Z", message: { role: "assistant", content: "hi" } }),
+      JSON.stringify({
+        type: "user",
+        sessionId: "s1",
+        timestamp: "2026-03-15T10:00:00.000Z",
+        message: { role: "user", content: "hello" },
+      }),
+      JSON.stringify({
+        type: "assistant",
+        sessionId: "s1",
+        timestamp: "2026-03-15T10:01:00.000Z",
+        message: { role: "assistant", content: "hi" },
+      }),
     ].join("\n");
 
     const date = sessionDateFromTranscript(raw);
@@ -177,7 +288,11 @@ describe("sessionDateFromTranscript", () => {
 
   test("skips events with non-string timestamp field", () => {
     const raw = [
-      JSON.stringify({ type: "user", timestamp: 1234567890, message: { role: "user", content: "hi" } }),
+      JSON.stringify({
+        type: "user",
+        timestamp: 1234567890,
+        message: { role: "user", content: "hi" },
+      }),
       JSON.stringify({ type: "user", timestamp: "2026-04-01T12:00:00.000Z" }),
     ].join("\n");
 
@@ -187,7 +302,11 @@ describe("sessionDateFromTranscript", () => {
 
   test("skips events with invalid/non-parseable timestamp string", () => {
     const raw = [
-      JSON.stringify({ type: "user", timestamp: "not-a-date", message: { role: "user", content: "hi" } }),
+      JSON.stringify({
+        type: "user",
+        timestamp: "not-a-date",
+        message: { role: "user", content: "hi" },
+      }),
       JSON.stringify({ type: "user", timestamp: "2026-05-20T00:00:00.000Z" }),
     ].join("\n");
 

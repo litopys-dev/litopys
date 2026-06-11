@@ -1,8 +1,8 @@
+import * as crypto from "node:crypto";
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
-import * as crypto from "node:crypto";
-import { z } from "zod";
 import { defaultGraphPath } from "@litopys/core";
+import { z } from "zod";
 
 // ---------------------------------------------------------------------------
 // Schema & Types
@@ -32,7 +32,10 @@ export type Episode = z.infer<typeof EpisodeSchema>;
  * Format: "ep-" + first 12 hex chars of sha256(sessionId + goal).
  */
 export function makeEpisodeId(sessionId: string, goal: string): string {
-  const hash = crypto.createHash("sha256").update(sessionId + goal).digest("hex");
+  const hash = crypto
+    .createHash("sha256")
+    .update(sessionId + goal)
+    .digest("hex");
   return `ep-${hash.slice(0, 12)}`;
 }
 
@@ -179,7 +182,7 @@ export async function appendEpisodes(episodes: Episode[], episodesDir: string): 
     if (toAppend.length === 0) continue;
 
     // Append new lines to the file
-    const newLines = toAppend.map((ep) => JSON.stringify(ep)).join("\n") + "\n";
+    const newLines = `${toAppend.map((ep) => JSON.stringify(ep)).join("\n")}\n`;
     await fs.appendFile(filePath, newLines, "utf-8");
     totalWritten += toAppend.length;
   }
@@ -207,7 +210,7 @@ export async function listUnclustered(episodesDir: string, sinceDays = 60): Prom
   const windowMonths = monthsInWindow(sinceDays);
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - sinceDays);
-  const cutoffDate = new Date(cutoff.toISOString().slice(0, 10) + "T00:00:00.000Z");
+  const cutoffDate = new Date(`${cutoff.toISOString().slice(0, 10)}T00:00:00.000Z`);
 
   const jsonlFiles = files
     .filter((f) => MONTHLY_FILE_RE.test(f))
@@ -224,7 +227,7 @@ export async function listUnclustered(episodesDir: string, sinceDays = 60): Prom
       if (ep.clusteredInto !== null) continue;
       // Lower bound only: future-dated episodes (e.g. UTC+3 producers near
       // midnight) are intentionally NOT excluded.
-      const epDate = new Date(ep.date + "T00:00:00.000Z");
+      const epDate = new Date(`${ep.date}T00:00:00.000Z`);
       if (epDate >= cutoffDate) {
         result.push(ep);
       }

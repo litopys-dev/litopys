@@ -62,10 +62,7 @@ interface ClaudeCodeEvent {
  * @param raw  - Full JSONL content (newline-separated JSON objects).
  * @param opts - `{ includeTools: "summary" }` to emit TOOL: lines in text.
  */
-export function parseClaudeCodeTranscript(
-  raw: string,
-  opts: ParseOptions = {},
-): ParsedTranscript {
+export function parseClaudeCodeTranscript(raw: string, opts: ParseOptions = {}): ParsedTranscript {
   const includeTools = opts.includeTools === "summary";
 
   // Parse lines into events, skipping broken JSON.
@@ -118,10 +115,7 @@ export function parseClaudeCodeTranscript(
     const msg = ev.message;
     if (!msg) continue;
 
-    const role =
-      typeof msg.role === "string"
-        ? msg.role.toUpperCase()
-        : String(type).toUpperCase();
+    const role = typeof msg.role === "string" ? msg.role.toUpperCase() : String(type).toUpperCase();
 
     const blocks = normalizeContent(msg.content);
     const textParts: string[] = [];
@@ -203,7 +197,7 @@ export function sessionDateFromTranscript(raw: string): string | undefined {
     if (!ISO_DATE_PREFIX_RE.test(ts)) continue;
     // …and be a real calendar date (rejects e.g. "2026-13-45T…")
     const d = new Date(ts);
-    if (isNaN(d.getTime())) continue;
+    if (Number.isNaN(d.getTime())) continue;
     return ts.slice(0, 10);
   }
   return undefined;
@@ -214,9 +208,7 @@ export function sessionDateFromTranscript(raw: string): string | undefined {
 // ---------------------------------------------------------------------------
 
 /** Normalize message content to an array of ContentBlock. */
-function normalizeContent(
-  content: string | ContentBlock[] | undefined,
-): ContentBlock[] {
+function normalizeContent(content: string | ContentBlock[] | undefined): ContentBlock[] {
   if (!content) return [];
   if (typeof content === "string") return [{ type: "text", text: content }];
   return content;

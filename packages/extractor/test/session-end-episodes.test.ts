@@ -54,9 +54,7 @@ function makeFixtureTranscript(toolOpsCount = 6): string {
       timestamp: ts,
       message: {
         role: "user",
-        content: [
-          { type: "tool_result", tool_use_id: toolId, content: "ok" },
-        ],
+        content: [{ type: "tool_result", tool_use_id: toolId, content: "ok" }],
       },
     });
   }
@@ -70,11 +68,7 @@ function makeEpisodeAdapter(goal: string, toolOps = 7): MockAdapter {
     episodes: [
       {
         goal,
-        steps: [
-          "проверить статус сервиса",
-          "перезапустить юнит",
-          "проверить логи",
-        ],
+        steps: ["проверить статус сервиса", "перезапустить юнит", "проверить логи"],
         toolOps,
         errorRecovery: false,
         project: "syut",
@@ -128,7 +122,8 @@ describe("runEpisodeStage", () => {
     const lines = content.split("\n").filter((l) => l.trim());
     expect(lines).toHaveLength(1);
 
-    const ep = JSON.parse(lines[0]!) as {
+    const line0 = lines[0];
+    const ep = JSON.parse(line0 as string) as {
       date: string;
       goal: string;
       sessionId: string;
@@ -182,7 +177,11 @@ describe("runEpisodeStage", () => {
   // -------------------------------------------------------------------------
 
   test("empty transcript → returns 0, no LLM call", async () => {
-    const adapter = new MockAdapter({ completions: ['{"episodes":[{"goal":"x","steps":["a"],"toolOps":10,"errorRecovery":false,"project":null,"tags":[]}]}'] });
+    const adapter = new MockAdapter({
+      completions: [
+        '{"episodes":[{"goal":"x","steps":["a"],"toolOps":10,"errorRecovery":false,"project":null,"tags":[]}]}',
+      ],
+    });
 
     const written = await runEpisodeStage("", SESSION_ID, adapter, {
       minToolOps: 5,
@@ -226,10 +225,7 @@ describe("runEpisodeStage", () => {
     expect(written2).toBe(0);
 
     // Only 1 line in file
-    const content = await fs.readFile(
-      path.join(episodesDir, `${FIXTURE_MONTH}.jsonl`),
-      "utf-8",
-    );
+    const content = await fs.readFile(path.join(episodesDir, `${FIXTURE_MONTH}.jsonl`), "utf-8");
     const lines = content.split("\n").filter((l) => l.trim());
     expect(lines).toHaveLength(1);
   });

@@ -210,12 +210,11 @@ describe("runEpisodesCatchup", () => {
     const stat = await fs.stat(expectedFile);
     expect(stat.isFile()).toBe(true);
 
-    const lines = (await fs.readFile(expectedFile, "utf-8"))
-      .split("\n")
-      .filter((l) => l.trim());
+    const lines = (await fs.readFile(expectedFile, "utf-8")).split("\n").filter((l) => l.trim());
     expect(lines).toHaveLength(1);
 
-    const ep = JSON.parse(lines[0]!) as { date: string; goal: string };
+    const line0 = lines[0];
+    const ep = JSON.parse(line0 as string) as { date: string; goal: string };
     expect(ep.date).toBe("2026-03-15");
     expect(ep.goal).toBe("перезапуск syut");
   });
@@ -261,12 +260,11 @@ describe("runEpisodesCatchup", () => {
 
     // Episode must land in the monthly file derived from the file mtime
     const expectedFile = path.join(episodesDir, "2026-02.jsonl");
-    const lines = (await fs.readFile(expectedFile, "utf-8"))
-      .split("\n")
-      .filter((l) => l.trim());
+    const lines = (await fs.readFile(expectedFile, "utf-8")).split("\n").filter((l) => l.trim());
     expect(lines).toHaveLength(1);
 
-    const ep = JSON.parse(lines[0]!) as { date: string; goal: string };
+    const line0 = lines[0];
+    const ep = JSON.parse(line0 as string) as { date: string; goal: string };
     expect(ep.date).toBe("2026-02-20");
     expect(ep.goal).toBe("работа без таймстампов");
   });
@@ -370,7 +368,7 @@ describe("runEpisodesCatchup", () => {
 
     // Verify episodesState was updated (file won't be retried)
     expect(state.episodesState).toBeDefined();
-    expect(state.episodesState![filePath]).toBeDefined();
+    expect(state.episodesState?.[filePath]).toBeDefined();
 
     // Repeated call must not touch the file again
     const r2 = await runEpisodesCatchup(
@@ -493,8 +491,8 @@ describe("runEpisodesCatchup", () => {
 
     // episodesState must survive the round-trip
     expect(restored.episodesState).toBeDefined();
-    expect(restored.episodesState![filePath]).toBeDefined();
-    expect(typeof restored.episodesState![filePath]!.mtime).toBe("string");
+    expect(restored.episodesState?.[filePath]).toBeDefined();
+    expect(typeof restored.episodesState?.[filePath]?.mtime).toBe("string");
 
     // Using restored state: repeated call must not process the file again
     const r2 = await runEpisodesCatchup(

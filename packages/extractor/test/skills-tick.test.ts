@@ -4,10 +4,10 @@
  * Uses tmp-dirs and MockAdapter to exercise the full tick cycle without LLM calls.
  */
 
+import { describe, expect, test } from "bun:test";
+import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as fs from "node:fs/promises";
-import { describe, expect, test } from "bun:test";
 import { MockAdapter } from "../src/adapters/mock.ts";
 import type { Episode } from "../src/episode-store.ts";
 import { appendEpisodes } from "../src/episode-store.ts";
@@ -188,13 +188,23 @@ describe("runSkillsTick", () => {
 
       // First run
       const adapter1 = new MockAdapter({ completions: [clusterResponse, draftMd] });
-      const result1 = await runSkillsTick({ episodesDir, quarantineSkillsDir, cfg, adapter: adapter1 });
+      const result1 = await runSkillsTick({
+        episodesDir,
+        quarantineSkillsDir,
+        cfg,
+        adapter: adapter1,
+      });
       expect(result1.drafts).toHaveLength(1);
       expect(adapter1.completeCalls).toBeGreaterThan(0);
 
       // Second run: episodes already clustered → no LLM calls
       const adapter2 = new MockAdapter({ completions: ['{"groups":[]}'] });
-      const result2 = await runSkillsTick({ episodesDir, quarantineSkillsDir, cfg, adapter: adapter2 });
+      const result2 = await runSkillsTick({
+        episodesDir,
+        quarantineSkillsDir,
+        cfg,
+        adapter: adapter2,
+      });
       expect(result2.drafts).toHaveLength(0);
       expect(adapter2.completeCalls).toBe(0);
     } finally {
@@ -295,7 +305,7 @@ describe("runSkillsTick", () => {
       // Use an invalid command that will definitely fail
       const cfg: SkillDetectorConfig = {
         skillsDir,
-        notifyCommand: "false",  // `false` is a shell command that always exits 1
+        notifyCommand: "false", // `false` is a shell command that always exits 1
         minToolOps: 5,
         minSessions: 2,
       };

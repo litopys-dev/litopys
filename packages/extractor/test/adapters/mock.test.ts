@@ -5,6 +5,7 @@ import {
   extractCandidateRelations,
   toKebabId,
 } from "../../src/adapters/mock.ts";
+import { AdapterCompleteError } from "../../src/adapters/types.ts";
 
 describe("toKebabId", () => {
   test("lowercases and replaces whitespace", () => {
@@ -109,6 +110,33 @@ describe("MockAdapter", () => {
     const a = new MockAdapter();
     expect(a.name).toBe("mock");
     expect(a.model).toBe("mock-v1");
+  });
+
+  test("failWith option makes complete() throw AdapterCompleteError", async () => {
+    const adapter = new MockAdapter({ failWith: new Error("rate limited") });
+    await expect(adapter.complete({ prompt: "test" })).rejects.toBeInstanceOf(AdapterCompleteError);
+  });
+
+  test("failWith: completeCalls increments even on throw", async () => {
+    const adapter = new MockAdapter({ failWith: new Error("boom") });
+    try {
+      await adapter.complete({ prompt: "test" });
+    } catch {
+      // expected
+    }
+    expect(adapter.completeCalls).toBe(1);
+  });
+
+  test("failWith: message from original error is preserved in AdapterCompleteError", async () => {
+    const adapter = new MockAdapter({ failWith: new Error("HTTP 429 Too Many Requests") });
+    let caught: unknown;
+    try {
+      await adapter.complete({ prompt: "test" });
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(AdapterCompleteError);
+    expect(String(caught)).toContain("HTTP 429 Too Many Requests");
   });
 
   test("custom model label", () => {

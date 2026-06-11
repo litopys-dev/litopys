@@ -8,6 +8,7 @@ import type {
   ExtractorInput,
   ExtractorOutput,
 } from "./types.ts";
+import { AdapterCompleteError } from "./types.ts";
 
 // ---------------------------------------------------------------------------
 // MockAdapter
@@ -66,6 +67,12 @@ export interface MockAdapterOptions {
    * once exhausted the last entry is repeated on every subsequent call.
    */
   completions?: string[];
+  /**
+   * When set, every `complete()` call throws this error instead of returning
+   * a queued response. Simulates an API/transport failure for testing the
+   * circuit-breaker and non-marking behavior in runEpisodesCatchup.
+   */
+  failWith?: Error;
 }
 
 export class MockAdapter implements ExtractorAdapter {
@@ -77,10 +84,12 @@ export class MockAdapter implements ExtractorAdapter {
 
   private readonly completionQueue: string[];
   private completionIndex = 0;
+  private readonly failWith: Error | undefined;
 
   constructor(opts: MockAdapterOptions = {}) {
     this.model = opts.model ?? "mock-v1";
     this.completionQueue = opts.completions ?? ['{"groups":[]}'];
+    this.failWith = opts.failWith;
   }
 
   async extract(input: ExtractorInput): Promise<ExtractorOutput> {
@@ -107,6 +116,9 @@ export class MockAdapter implements ExtractorAdapter {
 
   async complete(input: CompleteInput): Promise<CompleteOutput> {
     this.completeCalls += 1;
+    if (this.failWith !== undefined) {
+      throw new AdapterCompleteError(this.failWith.message, this.failWith);
+    }
     const text = this.completionQueue[this.completionIndex] ?? "";
     if (this.completionIndex < this.completionQueue.length - 1) {
       this.completionIndex += 1;

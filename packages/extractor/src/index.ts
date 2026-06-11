@@ -17,7 +17,12 @@ export type {
   CandidateNode,
   CandidateRelation,
 } from "./adapters/types.ts";
-export { CandidateNodeSchema, CandidateRelationSchema, LLMOutputSchema } from "./adapters/types.ts";
+export {
+  AdapterCompleteError,
+  CandidateNodeSchema,
+  CandidateRelationSchema,
+  LLMOutputSchema,
+} from "./adapters/types.ts";
 
 export { buildSystemPrompt, buildUserPrompt } from "./prompt.ts";
 

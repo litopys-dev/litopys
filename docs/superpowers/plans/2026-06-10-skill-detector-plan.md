@@ -323,8 +323,8 @@ listUnclustered → пусто? → `{drafts:[]}` БЕЗ LLM-вызовов → 
 
 **Files:** Modify: `packages/extractor/src/digest.ts` (`generateManualDigest`, после секции Pending Quarantine). Test: дополнить `packages/extractor/test/` существующий digest-тест или новый `digest-skills.test.ts`
 
-- [ ] **12.1** В `generateDigest` добавить `listSkillDrafts()` в `Promise.all`; в манифест — секция `## Skill Drafts Pending`: имя, description, episodes/sessions count, `litopys skills show <name>`; при пустом списке секция с «No skill drafts pending.». Тест: digest в tmp-окружении с 1 черновиком содержит имя черновика.
-- [ ] **12.2 Commit:** `feat(extractor): skill drafts section in weekly digest`
+- [x] **12.1** В `generateDigest` добавить `listSkillDrafts()` в `Promise.all`; в манифест — секция `## Skill Drafts Pending`: имя, description, episodes/sessions count, `litopys skills show <name>`; при пустом списке секция с «No skill drafts pending.». Тест: digest в tmp-окружении с 1 черновиком содержит имя черновика.
+- [x] **12.2 Commit:** `feat(extractor): skill drafts section in weekly digest`
 
 ---
 

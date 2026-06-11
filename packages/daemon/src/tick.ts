@@ -106,6 +106,11 @@ export interface EpisodesCatchupOptions {
    * Default: 10. Override via env LITOPYS_EPISODES_MAX_LLM_FILES.
    */
   maxLlmFilesPerTick?: number;
+  /**
+   * Language for generated episode prose.
+   * Default: "English".
+   */
+  lang?: string;
 }
 
 export interface EpisodesCatchupResult {
@@ -269,6 +274,7 @@ export async function runEpisodesCatchup(
     try {
       const episodes = await extractEpisodes(parsed, sessionId, sessionDate, opts.adapter, {
         minToolOps,
+        lang: opts.lang,
       });
 
       let written = 0;

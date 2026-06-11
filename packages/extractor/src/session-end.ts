@@ -15,6 +15,7 @@ import type { ExtractorAdapter } from "./adapters/types.ts";
 import { appendEpisodes, defaultEpisodesDir } from "./episode-store.ts";
 import { extractEpisodes } from "./episodes.ts";
 import { writeQuarantine } from "./quarantine.ts";
+import { loadSkillConfig } from "./skill-config.ts";
 import { parseClaudeCodeTranscript, sessionDateFromTranscript } from "./transcript-tools.ts";
 
 // ---------------------------------------------------------------------------
@@ -221,17 +222,20 @@ async function doExtract(
  * @param adapter        LLM adapter (reused from doExtract).
  * @param opts.minToolOps  Minimum tool operations for an episode to qualify (default: 5).
  * @param opts.episodesDir  Directory where monthly .jsonl files are stored (default: defaultEpisodesDir()).
+ * @param opts.lang  Language for generated episode prose (default: from loadSkillConfig()).
  * @returns Number of episodes actually written (0 on any error or no qualifying episodes).
  */
 export async function runEpisodeStage(
   transcriptRaw: string,
   sessionId: string,
   adapter: ExtractorAdapter,
-  opts?: { minToolOps?: number; episodesDir?: string },
+  opts?: { minToolOps?: number; episodesDir?: string; lang?: string },
 ): Promise<number> {
   try {
-    const minToolOps = opts?.minToolOps ?? 5;
+    const cfg = loadSkillConfig();
+    const minToolOps = opts?.minToolOps ?? cfg.minToolOps;
     const episodesDir = opts?.episodesDir ?? defaultEpisodesDir();
+    const lang = opts?.lang ?? cfg.lang;
 
     const parsed = parseClaudeCodeTranscript(transcriptRaw, { includeTools: "summary" });
 
@@ -253,7 +257,10 @@ export async function runEpisodeStage(
       );
     }
 
-    const episodes = await extractEpisodes(parsed, sessionId, sessionDate, adapter, { minToolOps });
+    const episodes = await extractEpisodes(parsed, sessionId, sessionDate, adapter, {
+      minToolOps,
+      lang,
+    });
 
     if (episodes.length === 0) {
       return 0;

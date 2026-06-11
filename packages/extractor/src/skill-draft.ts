@@ -64,7 +64,7 @@ EPISODES:
 
 /**
  * Skill draft prompt — generates a ready-to-use SKILL.md document.
- * Placeholders: {name}, {episodes}
+ * Placeholders: {name}, {lang}, {episodes}
  */
 export const DRAFT_PROMPT = `You are given a cluster name and a list of work episodes. Generate a SKILL.md skill document.
 The document MUST follow this exact structure (respond with the markdown document only, no fences around the whole document):
@@ -85,10 +85,10 @@ description: <trigger conditions in one paragraph, English>
 ## Verification
 
 Rules:
-- Section bodies in Russian.
+- Section bodies in {lang}.
 - Each section body must be non-empty — at least one sentence or step.
 - Procedure: numbered generalized steps with concrete commands where they appeared.
-- Pitfalls: extract from errorRecovery episodes — what did NOT work. If there are no errorRecovery episodes, derive the most likely mistake from the steps, or write "Нет известных подводных камней".
+- Pitfalls: extract from errorRecovery episodes — what did NOT work. If there are no errorRecovery episodes, derive the most likely mistake from the steps, or write a brief note in {lang}.
 - Verification: how to confirm the procedure succeeded.
 
 EPISODES:
@@ -282,6 +282,7 @@ export async function draftSkill(
   group: EpisodeGroup,
   episodes: Episode[],
   adapter: ExtractorAdapter,
+  lang = "English",
 ): Promise<string> {
   const groupEpisodes = episodes.filter((ep) => group.episodeIds.includes(ep.id));
 
@@ -296,7 +297,7 @@ export async function draftSkill(
   }));
 
   const prompt = safeReplace(
-    safeReplace(DRAFT_PROMPT, "{name}", group.name),
+    safeReplace(DRAFT_PROMPT, "{name}", group.name).replace(/\{lang\}/g, () => lang),
     "{episodes}",
     JSON.stringify(episodePayload, null, 2),
   );

@@ -181,6 +181,7 @@ All optional — defaults are sensible:
 | `LITOPYS_SKILLS_MIN_TOOL_OPS` | `5` | Min tool operations for a session to be considered non-trivial |
 | `LITOPYS_SKILLS_MIN_SESSIONS` | `2` | Sessions a cluster must span before it's drafted |
 | `LITOPYS_EPISODES_MAX_LLM_FILES` | `10` | Per-tick budget of transcripts sent to the LLM during catch-up |
+| `LITOPYS_SKILLS_LANG` | `English` | Language of generated draft prose (frontmatter stays English) |
 
 ### Built for flaky quotas
 
@@ -189,7 +190,6 @@ Episode extraction is engineered to survive rate-limited free tiers: API errors 
 ### Current limitations
 
 - Episodes are extracted from **Claude Code** transcripts (the `claude-code` source adapter); other transcript formats are a follow-up.
-- Draft prose is currently generated with Russian section bodies and English frontmatter (the author's own setup); a language setting is planned — see [What's next](#whats-next).
 
 ## Setup recipes
 
@@ -365,7 +365,6 @@ The skill detector rides the same extractor budget: episode extraction adds roug
 
 ## What's next
 
-- **Skill-draft language setting.** Draft prose currently follows the author's locale (Russian bodies, English frontmatter). A `LITOPYS_SKILLS_LANG` setting — or simply matching the transcript's language — is the next skill-detector increment.
 - **Real benchmark adapters.** `@litopys/bench` currently ships only a synthetic 15-question fixture. Next step is concrete adapters for LongMemEval and LOCOMO so the numbers become directly comparable to other memory systems.
 - **`litopys evolve --restore`.** The archive manifest (`archive/manifest.jsonl`) records every tombstoned node moved to `archive/` with its original path. A `--restore <id>` flag will replay a single entry in reverse so archived nodes can be brought back without leaving the CLI.
 - **Vector search.** Considered and deliberately skipped — the keyword + typed-graph traversal model has been good enough in practice, and adding an embedding index would re-introduce the heavy footprint Litopys was designed to avoid. We'll revisit only if a concrete recall gap on a real benchmark dataset shows up.

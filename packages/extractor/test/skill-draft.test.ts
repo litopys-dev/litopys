@@ -46,6 +46,7 @@ const DEFAULT_CFG: SkillDetectorConfig = {
   notifyCommand: null,
   minToolOps: 5,
   minSessions: 2,
+  lang: "English",
 };
 
 // Minimal valid SKILL.md template
@@ -534,6 +535,64 @@ description: Some description.
     const result = await draftSkill(group, [ep], adapter);
     expect(result).toStartWith("---");
     expect(adapter.completeCalls).toBe(2);
+  });
+
+  test("default lang is English — prompt contains 'in English'", async () => {
+    const ep = makeEpisode({ id: "ep-lang-default01", sessionId: "sess-A" });
+    const group = {
+      name: "lang-default",
+      episodeIds: [ep.id],
+      worthSkill: true,
+      reason: "Test.",
+    };
+
+    const validMd = makeValidSkillMd("lang-default");
+    const capturedPrompts: string[] = [];
+    const inner = new MockAdapter({ completions: [validMd] });
+    const adapter = {
+      name: inner.name,
+      model: inner.model,
+      extract: (input: Parameters<typeof inner.extract>[0]) => inner.extract(input),
+      complete: (input: Parameters<typeof inner.complete>[0]) => {
+        capturedPrompts.push(input.prompt);
+        return inner.complete(input);
+      },
+    };
+
+    await draftSkill(group, [ep], adapter);
+
+    expect(capturedPrompts).toHaveLength(1);
+    expect(capturedPrompts[0]).toContain("in English");
+    expect(capturedPrompts[0]).not.toContain("{lang}");
+  });
+
+  test("custom lang is substituted into prompt", async () => {
+    const ep = makeEpisode({ id: "ep-lang-custom001", sessionId: "sess-A" });
+    const group = {
+      name: "lang-custom",
+      episodeIds: [ep.id],
+      worthSkill: true,
+      reason: "Test.",
+    };
+
+    const validMd = makeValidSkillMd("lang-custom");
+    const capturedPrompts: string[] = [];
+    const inner = new MockAdapter({ completions: [validMd] });
+    const adapter = {
+      name: inner.name,
+      model: inner.model,
+      extract: (input: Parameters<typeof inner.extract>[0]) => inner.extract(input),
+      complete: (input: Parameters<typeof inner.complete>[0]) => {
+        capturedPrompts.push(input.prompt);
+        return inner.complete(input);
+      },
+    };
+
+    await draftSkill(group, [ep], adapter, "Ukrainian");
+
+    expect(capturedPrompts).toHaveLength(1);
+    expect(capturedPrompts[0]).toContain("in Ukrainian");
+    expect(capturedPrompts[0]).not.toContain("{lang}");
   });
 });
 

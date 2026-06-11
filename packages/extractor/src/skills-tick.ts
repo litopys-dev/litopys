@@ -152,6 +152,11 @@ export async function runSkillsTick(opts: SkillsTickOptions): Promise<SkillsTick
     }
 
     // Mark episodes as clustered (best-effort: error doesn't abort)
+    // KNOWN WINDOW: markClustered's read→modify→rename can lose an
+    // appendEpisodes write that lands in between (see episode-store.ts) — the
+    // skills timer runs independently of the SessionEnd hook/daemon, so this
+    // is reachable but bounded: a lost append is re-extracted on the next
+    // catch-up pass, no corruption.
     try {
       await markClustered(group.episodeIds, normalizedName, episodesDir);
     } catch (err) {

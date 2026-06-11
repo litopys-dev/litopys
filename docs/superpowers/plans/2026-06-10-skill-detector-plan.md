@@ -46,7 +46,7 @@
 
 **Files:** Modify: `packages/extractor/src/adapters/types.ts`, `openai.ts`, `ollama.ts`, `anthropic.ts`, `mock.ts`. Test: `packages/extractor/test/adapters-complete.test.ts`
 
-- [ ] **1.1 Тест (mock):**
+- [x] **1.1 Тест (mock):**
 
 ```ts
 import { describe, expect, test } from "bun:test";
@@ -62,8 +62,8 @@ describe("adapter.complete", () => {
 });
 ```
 
-- [ ] **1.2 Запустить — FAIL** (`bun test packages/extractor/test/adapters-complete.test.ts`; нет метода/опции).
-- [ ] **1.3 Интерфейс в `types.ts`:**
+- [x] **1.2 Запустить — FAIL** (`bun test packages/extractor/test/adapters-complete.test.ts`; нет метода/опции).
+- [x] **1.3 Интерфейс в `types.ts`:**
 
 ```ts
 export interface CompleteInput {
@@ -80,8 +80,8 @@ export interface CompleteOutput {
 
 Реализации: openai — `chat.completions.create` с тем же клиентом/моделью, system prompt не нужен; ollama/anthropic — аналогично их существующим вызовам в `extract()` (переиспользуй приватные методы запроса, не дублируй HTTP-код); mock — опция `completions: string[]`, отдаёт по очереди, последняя повторяется.
 
-- [ ] **1.4 Тесты пакета зелёные:** `bun test packages/extractor` (все существующие тоже).
-- [ ] **1.5 Commit:** `feat(extractor): add complete() to LLM adapters`
+- [x] **1.4 Тесты пакета зелёные:** `bun test packages/extractor` (все существующие тоже).
+- [x] **1.5 Commit:** `feat(extractor): add complete() to LLM adapters`
 
 ---
 
@@ -91,7 +91,7 @@ export interface CompleteOutput {
 
 **Files:** Create: `packages/extractor/src/transcript-tools.ts`. Modify: `packages/extractor/src/index.ts` (экспорт). Test: `packages/extractor/test/transcript-tools.test.ts`
 
-- [ ] **2.1 Тест с фикстурой:**
+- [x] **2.1 Тест с фикстурой:**
 
 ```ts
 import { describe, expect, test } from "bun:test";
@@ -130,7 +130,7 @@ describe("parseClaudeCodeTranscript", () => {
 });
 ```
 
-- [ ] **2.2 FAIL** → **2.3 Реализация.** Сигнатура:
+- [x] **2.2 FAIL** → **2.3 Реализация.** Сигнатура:
 
 ```ts
 export interface ParsedTranscript { text: string; toolOps: number; errorCount: number; sessionId?: string; }
@@ -142,7 +142,7 @@ export function parseClaudeCodeTranscript(
 
 Правила: input-gist — `input.command` для Bash, `input.file_path` для Read/Edit/Write, иначе первые 60 симв. JSON.stringify(input); gist обрезать до 80 симв. Ошибка tool_result: `is_error === true` ИЛИ содержимое начинается с `Exit code [1-9]` / `Error`. Тела tool_result НЕ включать. Сопоставление result→use по `tool_use_id` (для определения имени тулза не обязательно — достаточно последнего pending tool_use; но если просто, сопоставляй по id через Map). Неполные/битые строки пропускать (как `parseJsonlContent` в `daemon/tick.ts:307`).
 
-- [ ] **2.4 PASS**, `bun test packages/extractor` зелёный. **2.5 Commit:** `feat(extractor): tool-aware claude-code transcript parsing`
+- [x] **2.4 PASS**, `bun test packages/extractor` зелёный. **2.5 Commit:** `feat(extractor): tool-aware claude-code transcript parsing`
 
 ---
 
@@ -150,7 +150,7 @@ export function parseClaudeCodeTranscript(
 
 **Files:** Create: `packages/extractor/src/episode-store.ts`. Modify: `packages/extractor/src/index.ts`. Test: `packages/extractor/test/episode-store.test.ts`
 
-- [ ] **3.1 Типы и схема (zod, в episode-store.ts):**
+- [x] **3.1 Типы и схема (zod, в episode-store.ts):**
 
 ```ts
 export const EpisodeSchema = z.object({
@@ -176,8 +176,8 @@ listUnclustered(episodesDir, sinceDays = 60): Promise<Episode[]>
 markClustered(ids: string[], draftName: string, episodesDir): Promise<void> // атомарно: tmp + rename
 ```
 
-- [ ] **3.2 Тест:** append двух эпизодов → файл `2026-06.jsonl` существует, повторный append тех же id возвращает 0; `listUnclustered` отдаёт оба; `markClustered([id1], "restart-syut")` → listUnclustered отдаёт один, в файле у первого `clusteredInto: "restart-syut"`. Использовать `fs.mkdtemp(os.tmpdir())`.
-- [ ] **3.3 FAIL → реализация → PASS.** **3.4 Commit:** `feat(extractor): episode store (jsonl, monthly files)`
+- [x] **3.2 Тест:** append двух эпизодов → файл `2026-06.jsonl` существует, повторный append тех же id возвращает 0; `listUnclustered` отдаёт оба; `markClustered([id1], "restart-syut")` → listUnclustered отдаёт один, в файле у первого `clusteredInto: "restart-syut"`. Использовать `fs.mkdtemp(os.tmpdir())`.
+- [x] **3.3 FAIL → реализация → PASS.** **3.4 Commit:** `feat(extractor): episode store (jsonl, monthly files)`
 
 ---
 
@@ -185,7 +185,7 @@ markClustered(ids: string[], draftName: string, episodesDir): Promise<void> // �
 
 **Files:** Create: `packages/extractor/src/episodes.ts`. Modify: `index.ts`. Test: `packages/extractor/test/episodes.test.ts`
 
-- [ ] **4.1 Промпт (константа в episodes.ts, на английском, ответ — строго JSON):**
+- [x] **4.1 Промпт (константа в episodes.ts, на английском, ответ — строго JSON):**
 
 ```
 You analyze a work-session transcript of a coding agent. Identify completed work EPISODES — coherent units of work with a clear goal (e.g. "restart service X and verify logs", "fix failing test Y").
@@ -196,8 +196,8 @@ TRANSCRIPT:
 {transcript}
 ```
 
-- [ ] **4.2 Тест на mock-адаптере:** mock возвращает `{"episodes":[{goal,steps,toolOps:7,errorRecovery:true,project:"syut",tags:["deploy"]}]}` → `extractEpisodes(parsed, "sess-1", adapter, {minToolOps:5})` отдаёт 1 Episode c проставленными id/sessionId/date; второй тест — эпизод `toolOps:2, errorRecovery:false` отфильтрован; третий — битый JSON от LLM → один ретрай (mock: `completions: ["not json", '{"episodes":[]}']`) → пустой массив без исключения.
-- [ ] **4.3 FAIL → реализация.** Сигнатура: `extractEpisodes(transcript: ParsedTranscript, sessionId: string, adapter: ExtractorAdapter, opts: { minToolOps: number }): Promise<Episode[]>`. Парс ответа: вырезать ```json-фенсы при наличии, JSON.parse, zod safeParse поэлементно (битый эпизод — пропустить, не валить всё). **4.4 PASS → Commit:** `feat(extractor): stage A episode extraction`
+- [x] **4.2 Тест на mock-адаптере:** mock возвращает `{"episodes":[{goal,steps,toolOps:7,errorRecovery:true,project:"syut",tags:["deploy"]}]}` → `extractEpisodes(parsed, "sess-1", adapter, {minToolOps:5})` отдаёт 1 Episode c проставленными id/sessionId/date; второй тест — эпизод `toolOps:2, errorRecovery:false` отфильтрован; третий — битый JSON от LLM → один ретрай (mock: `completions: ["not json", '{"episodes":[]}']`) → пустой массив без исключения.
+- [x] **4.3 FAIL → реализация.** Сигнатура: `extractEpisodes(transcript: ParsedTranscript, sessionId: string, adapter: ExtractorAdapter, opts: { minToolOps: number }): Promise<Episode[]>`. Парс ответа: вырезать ```json-фенсы при наличии, JSON.parse, zod safeParse поэлементно (битый эпизод — пропустить, не валить всё). **4.4 PASS → Commit:** `feat(extractor): stage A episode extraction`
 
 ---
 
@@ -205,9 +205,9 @@ TRANSCRIPT:
 
 **Files:** Modify: `packages/extractor/src/session-end.ts` (после `writeQuarantine` в `doExtract`, строки ~123-128). Test: `packages/extractor/test/session-end-episodes.test.ts` (если в пакете есть тест хука — рядом; иначе тестируй выделенную функцию).
 
-- [ ] **5.1** Выделить в session-end.ts экспортируемую функцию `runEpisodeStage(transcriptRaw: string, sessionId: string, adapter: ExtractorAdapter): Promise<number>` — парсит через `parseClaudeCodeTranscript(raw, {includeTools:"summary"})`, зовёт `extractEpisodes`, пишет через `appendEpisodes`, возвращает число записанных. Вызвать её из `doExtract` в try/catch: ошибка пишется в stderr, НЕ роняет хук и не мешает уже записанному карантину.
-- [ ] **5.2 Тест:** mock-адаптер + tmp episodesDir (прокинуть параметром с дефолтом) → после `runEpisodeStage` файл с эпизодом существует; при mock, кидающем исключение, функция возвращает 0 и не бросает.
-- [ ] **5.3 Commit:** `feat(extractor): episode stage in SessionEnd hook (best-effort)`
+- [x] **5.1** Выделить в session-end.ts экспортируемую функцию `runEpisodeStage(transcriptRaw: string, sessionId: string, adapter: ExtractorAdapter): Promise<number>` — парсит через `parseClaudeCodeTranscript(raw, {includeTools:"summary"})`, зовёт `extractEpisodes`, пишет через `appendEpisodes`, возвращает число записанных. Вызвать её из `doExtract` в try/catch: ошибка пишется в stderr, НЕ роняет хук и не мешает уже записанному карантину.
+- [x] **5.2 Тест:** mock-адаптер + tmp episodesDir (прокинуть параметром с дефолтом) → после `runEpisodeStage` файл с эпизодом существует; при mock, кидающем исключение, функция возвращает 0 и не бросает.
+- [x] **5.3 Commit:** `feat(extractor): episode stage in SessionEnd hook (best-effort)`
 
 ---
 
@@ -215,9 +215,9 @@ TRANSCRIPT:
 
 **Files:** Modify: `packages/daemon/src/state.ts` (поле `episodesState?: Record<string, { mtime: string }>`), `packages/daemon/src/tick.ts`. Test: `packages/daemon/test/episodes-catchup.test.ts`
 
-- [ ] **6.1** Новая функция в tick.ts: `runEpisodesCatchup(opts: { sources: SourceConfig[]; adapter: ExtractorAdapter; episodesDir: string; minAgeMs?: number /* default 3_600_000 */ }, state: DaemonState): Promise<{ filesProcessed: number; episodesFound: number }>`. Логика: expandSources (переиспользовать) → файлы claude-code, у которых `mtime < now - minAgeMs` и (`episodesState[path]` отсутствует или `mtime` изменился) → читать файл ЦЕЛИКОМ → `parseClaudeCodeTranscript(..., {includeTools:"summary"})` → если `toolOps >= minToolOps` или `errorCount >= 2` — `extractEpisodes` + `appendEpisodes` (дедуп по id защищает от пересечения с хуком) → обновить `episodesState[path] = { mtime }`. Файлы с малым числом тулзов тоже помечать обработанными (чтобы не перечитывать).
-- [ ] **6.2 Тест:** tmp-дир с фикстурой JSONL (из Task 2) + mock → первый вызов processed=1, второй (без изменений файла) processed=0; свежий файл (mtime = сейчас) — не трогается.
-- [ ] **6.3** Вызвать `runEpisodesCatchup` из `cmdDaemon tick` (cli) после `runTick`, с адаптером из той же фабрики; ошибки — в stderr, не валят tick. **Commit:** `feat(daemon): episodes catch-up pass in daemon tick`
+- [x] **6.1** Новая функция в tick.ts: `runEpisodesCatchup(opts: { sources: SourceConfig[]; adapter: ExtractorAdapter; episodesDir: string; minAgeMs?: number /* default 3_600_000 */ }, state: DaemonState): Promise<{ filesProcessed: number; episodesFound: number }>`. Логика: expandSources (переиспользовать) → файлы claude-code, у которых `mtime < now - minAgeMs` и (`episodesState[path]` отсутствует или `mtime` изменился) → читать файл ЦЕЛИКОМ → `parseClaudeCodeTranscript(..., {includeTools:"summary"})` → если `toolOps >= minToolOps` или `errorCount >= 2` — `extractEpisodes` + `appendEpisodes` (дедуп по id защищает от пересечения с хуком) → обновить `episodesState[path] = { mtime }`. Файлы с малым числом тулзов тоже помечать обработанными (чтобы не перечитывать).
+- [x] **6.2 Тест:** tmp-дир с фикстурой JSONL (из Task 2) + mock → первый вызов processed=1, второй (без изменений файла) processed=0; свежий файл (mtime = сейчас) — не трогается.
+- [x] **6.3** Вызвать `runEpisodesCatchup` из `cmdDaemon tick` (cli) после `runTick`, с адаптером из той же фабрики; ошибки — в stderr, не валят tick. **Commit:** `feat(daemon): episodes catch-up pass in daemon tick`
 
 ---
 
@@ -225,7 +225,7 @@ TRANSCRIPT:
 
 **Files:** Create: `packages/extractor/src/skill-config.ts`. Test: `packages/extractor/test/skill-config.test.ts`
 
-- [ ] **7.1**
+- [x] **7.1**
 
 ```ts
 export interface SkillDetectorConfig {
@@ -238,7 +238,7 @@ export function loadSkillConfig(env = process.env): SkillDetectorConfig;
 ```
 
 Тест: дефолты без env; переопределение через env; кривое число в env → дефолт + stderr-warning (паттерн как в `daemon/config.ts`).
-- [ ] **7.2 Commit:** `feat(extractor): skill-detector config via env`
+- [x] **7.2 Commit:** `feat(extractor): skill-detector config via env`
 
 ---
 
@@ -246,7 +246,7 @@ export function loadSkillConfig(env = process.env): SkillDetectorConfig;
 
 **Files:** Create: `packages/extractor/src/skill-draft.ts`. Modify: `index.ts`. Test: `packages/extractor/test/skill-draft.test.ts`
 
-- [ ] **8.1 Промпт кластеризации (JSON-ответ):**
+- [x] **8.1 Промпт кластеризации (JSON-ответ):**
 
 ```
 You are given work episodes from different agent sessions. Group episodes that describe the SAME recurring procedure (same goal pattern, similar steps). 
@@ -256,8 +256,8 @@ EPISODES:
 {json array: id, goal, steps, tags, sessionId, errorRecovery, toolOps}
 ```
 
-- [ ] **8.2 Промпт генерации SKILL.md:** на вход name + эпизоды группы; на выход — готовый markdown с frontmatter `name`, `description` (description = триггер-условия, один абзац) и секциями `## When to use`, `## Procedure` (нумерованные шаги, обобщённые из эпизодов, с конкретными командами где были), `## Pitfalls` (из errorRecovery-эпизодов: что не сработало), `## Verification`. Язык тела — русский, name/description — английский kebab/прозa.
-- [ ] **8.3 Функции:**
+- [x] **8.2 Промпт генерации SKILL.md:** на вход name + эпизоды группы; на выход — готовый markdown с frontmatter `name`, `description` (description = триггер-условия, один абзац) и секциями `## When to use`, `## Procedure` (нумерованные шаги, обобщённые из эпизодов, с конкретными командами где были), `## Pitfalls` (из errorRecovery-эпизодов: что не сработало), `## Verification`. Язык тела — русский, name/description — английский kebab/прозa.
+- [x] **8.3 Функции:**
 
 ```ts
 export interface EpisodeGroup { name: string; episodeIds: string[]; worthSkill: boolean; reason: string; }
@@ -267,8 +267,8 @@ draftSkill(group, episodes, adapter): Promise<string>                        // 
 writeSkillDraft(name, skillMd, meta, quarantineSkillsDir): Promise<string>   // <dir>/<name>/SKILL.md + meta.json {name, createdAt, episodeIds, sessions, model, status:"pending"}
 ```
 
-- [ ] **8.4 Тесты (mock):** группа из эпизодов 2 разных сессий → draftable; группа из 2 эпизодов одной сессии → нет; одиночный errorRecovery → draftable; нормализация имени `"Restart SYUT!"` → `restart-syut`; writeSkillDraft создаёт оба файла, повторный вызов с тем же name — бросает `Error("draft already exists: <name>")` (тест через `expect(...).rejects.toThrow()`).
-- [ ] **8.5 FAIL → реализация → PASS → Commit:** `feat(extractor): stage B clustering and SKILL.md drafting`
+- [x] **8.4 Тесты (mock):** группа из эпизодов 2 разных сессий → draftable; группа из 2 эпизодов одной сессии → нет; одиночный errorRecovery → draftable; нормализация имени `"Restart SYUT!"` → `restart-syut`; writeSkillDraft создаёт оба файла, повторный вызов с тем же name — бросает `Error("draft already exists: <name>")` (тест через `expect(...).rejects.toThrow()`).
+- [x] **8.5 FAIL → реализация → PASS → Commit:** `feat(extractor): stage B clustering and SKILL.md drafting`
 
 ---
 
@@ -276,7 +276,7 @@ writeSkillDraft(name, skillMd, meta, quarantineSkillsDir): Promise<string>   // 
 
 **Files:** Create: `packages/extractor/src/skill-quarantine.ts`. Modify: `index.ts`. Test: `packages/extractor/test/skill-quarantine.test.ts`
 
-- [ ] **9.1 API (все пути параметрами, дефолты от `defaultGraphPath()`):**
+- [x] **9.1 API (все пути параметрами, дефолты от `defaultGraphPath()`):**
 
 ```ts
 export interface SkillDraftMeta { name: string; createdAt: string; episodeIds: string[]; sessions: string[]; model: string; status: "pending"; }
@@ -286,8 +286,8 @@ promoteSkillDraft(name, qsDir, skillsDir, opts?: { force?: boolean }): Promise<s
 rejectSkillDraft(name, qsDir, graphPath, reason?): Promise<void>                       // запись в существующий quarantine/rejected.jsonl c kind:"skill", удаление папки
 ```
 
-- [ ] **9.2 Тесты:** полный цикл в tmp-дирах — write (из Task 8) → list видит 1 → promote → файл в skillsDir/<name>/SKILL.md есть, meta.json НЕТ, черновик удалён, promoted.jsonl содержит строку; promote при существующем скилле без force → throw, с force → ок; reject пишет в rejected.jsonl с `kind:"skill"` и reason.
-- [ ] **9.3 Commit:** `feat(extractor): skill draft quarantine (list/promote/reject)`
+- [x] **9.2 Тесты:** полный цикл в tmp-дирах — write (из Task 8) → list видит 1 → promote → файл в skillsDir/<name>/SKILL.md есть, meta.json НЕТ, черновик удалён, promoted.jsonl содержит строку; promote при существующем скилле без force → throw, с force → ок; reject пишет в rejected.jsonl с `kind:"skill"` и reason.
+- [x] **9.3 Commit:** `feat(extractor): skill draft quarantine (list/promote/reject)`
 
 ---
 

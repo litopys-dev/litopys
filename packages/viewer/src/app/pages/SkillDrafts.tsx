@@ -1,6 +1,6 @@
 import { CheckCircle, ChevronDown, ChevronRight, X } from "lucide-solid";
 import { For, type Setter, Show, createResource, createSignal } from "solid-js";
-import { type SkillDraftListItem, api } from "../api.ts";
+import { ApiError, type SkillDraftListItem, api } from "../api.ts";
 import { SkeletonCard } from "../components/Skeleton.tsx";
 import { episodesWord, sessionsWord, t } from "../i18n.ts";
 
@@ -69,13 +69,7 @@ export default function SkillDrafts() {
             <For each={drafts()}>
               {(draft) => {
                 if (hiddenNames().has(draft.meta.name)) return null;
-                return (
-                  <DraftCard
-                    draft={draft}
-                    onAction={onAction}
-                    setError={setGlobalError}
-                  />
-                );
+                return <DraftCard draft={draft} onAction={onAction} setError={setGlobalError} />;
               }}
             </For>
           </ul>
@@ -129,9 +123,8 @@ function DraftCard(props: {
       await api.promoteSkill(d.meta.name);
       props.onAction(t("skills.promoted", { name: d.meta.name }), d.meta.name);
     } catch (e) {
-      const msg = String((e as Error).message ?? e);
       // 409 = already installed — ask user to confirm force
-      if (msg.includes("409") || msg.toLowerCase().includes("already installed")) {
+      if (e instanceof ApiError && e.status === 409) {
         if (!confirm(t("skills.promoteConflict", { name: d.meta.name }))) {
           setBusy(false);
           return;
@@ -143,7 +136,7 @@ function DraftCard(props: {
           props.setError(String((e2 as Error).message ?? e2));
         }
       } else {
-        props.setError(msg);
+        props.setError(String((e as Error).message ?? e));
       }
     } finally {
       setBusy(false);

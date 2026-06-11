@@ -57,20 +57,14 @@ const ru: Record<string, string> = {
     "Сгенерированные SKILL.md ждут проверки. Установить — скопировать в ~/.claude/skills, отклонить — выбросить.",
   "skills.empty": "Нет черновиков для проверки.",
   "skills.loadError": "Ошибка загрузки черновиков: {msg}",
-  "skills.episodes": "{n} {word}",
-  "skills.sessions": "{n} {word}",
   "skills.install": "Установить",
   "skills.reject": "Отклонить",
   "skills.promoted": "Установлен навык «{name}»",
   "skills.rejected": "Отклонён черновик «{name}»",
-  "skills.promoteConflict":
-    "Навык «{name}» уже установлен. Перезаписать?",
+  "skills.promoteConflict": "Навык «{name}» уже установлен. Перезаписать?",
   "skills.rejectPrompt": "Причина отклонения «{name}» (необязательно):",
   "skills.preview": "SKILL.md",
   "skills.hidePreview": "Скрыть",
-  "skills.metaEpisodes": "Эпизодов",
-  "skills.metaSessions": "Сессий",
-  "skills.metaCreated": "Создан",
 
   // Sidebar / navigation
   "nav.brandSuffix": "дашборд",

@@ -15,19 +15,19 @@ import type { AnyNode } from "@litopys/core";
 import type { Edge, ResolvedGraph } from "@litopys/core";
 import {
   acceptMergeProposal,
+  defaultQuarantineSkillsDir,
   isMergeProposalContent,
   listQuarantine,
+  listSkillDrafts,
+  loadSkillConfig,
   parseMergeProposal,
   promoteCandidate,
+  promoteSkillDraft,
+  readSkillDraft,
   rejectCandidate,
   rejectMergeProposal,
-  listSkillDrafts,
-  readSkillDraft,
-  promoteSkillDraft,
   rejectSkillDraft,
-  defaultQuarantineSkillsDir,
 } from "@litopys/extractor";
-import { loadSkillConfig } from "@litopys/extractor";
 import { type RefSource, resolveRelation } from "./quarantine-resolve.ts";
 
 // ---------------------------------------------------------------------------
@@ -408,6 +408,7 @@ async function apiSkillsRead(name: string): Promise<Response> {
     const code = (e as NodeJS.ErrnoException & { code?: string }).code;
     if (code === "ENOTFOUND") return json({ error: (e as Error).message }, 404);
     if (code === "EINVALIDNAME") return json({ error: (e as Error).message }, 400);
+    if (code === "ECORRUPT") return json({ error: (e as Error).message }, 400);
     return json({ error: String((e as Error).message ?? e) }, 500);
   }
 }
@@ -423,7 +424,6 @@ async function apiSkillsPromote(req: Request): Promise<Response> {
 
   const qsDir = resolveQuarantineSkillsDir();
   const skillsDir = resolveSkillsDir();
-  const gp = defaultGraphPath();
 
   try {
     const installedTo = await promoteSkillDraft(name, qsDir, skillsDir, { force });

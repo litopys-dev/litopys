@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { promises as fs } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { Server } from "bun";
 import { writeSkillDraft } from "@litopys/extractor";
 import type { SkillDraftMeta } from "@litopys/extractor";
+import type { Server } from "bun";
 
 // ---------------------------------------------------------------------------
 // Test fixture helpers
@@ -110,7 +110,12 @@ describe("viewer skills API", () => {
   });
 
   test("GET /api/skills returns draft list with meta and description", async () => {
-    await writeSkillDraft("test-skill", SAMPLE_SKILL_MD, makeMeta("test-skill"), quarantineSkillsDir);
+    await writeSkillDraft(
+      "test-skill",
+      SAMPLE_SKILL_MD,
+      makeMeta("test-skill"),
+      quarantineSkillsDir,
+    );
 
     const res = await fetch(`${base}/api/skills`);
     expect(res.status).toBe(200);
@@ -119,8 +124,9 @@ describe("viewer skills API", () => {
       description: string;
     }>;
     expect(body).toHaveLength(1);
-    expect(body[0]!.meta.name).toBe("test-skill");
-    expect(body[0]!.description).toBe("Trigger condition: when testing skill drafts.");
+    const first = body[0];
+    expect(first?.meta.name).toBe("test-skill");
+    expect(first?.description).toBe("Trigger condition: when testing skill drafts.");
   });
 
   test("GET /api/skills does not require auth", async () => {
@@ -134,7 +140,12 @@ describe("viewer skills API", () => {
   // -------------------------------------------------------------------------
 
   test("GET /api/skills/:name returns skillMd and meta", async () => {
-    await writeSkillDraft("test-skill", SAMPLE_SKILL_MD, makeMeta("test-skill"), quarantineSkillsDir);
+    await writeSkillDraft(
+      "test-skill",
+      SAMPLE_SKILL_MD,
+      makeMeta("test-skill"),
+      quarantineSkillsDir,
+    );
 
     const res = await fetch(`${base}/api/skills/test-skill`);
     expect(res.status).toBe(200);
@@ -153,7 +164,12 @@ describe("viewer skills API", () => {
   // -------------------------------------------------------------------------
 
   test("POST /api/skills/promote installs the draft", async () => {
-    await writeSkillDraft("test-skill", SAMPLE_SKILL_MD, makeMeta("test-skill"), quarantineSkillsDir);
+    await writeSkillDraft(
+      "test-skill",
+      SAMPLE_SKILL_MD,
+      makeMeta("test-skill"),
+      quarantineSkillsDir,
+    );
 
     const res = await fetch(`${base}/api/skills/promote`, {
       method: "POST",
@@ -172,7 +188,10 @@ describe("viewer skills API", () => {
 
     // Skill file should exist in skillsDir
     const skillFile = path.join(skillsDir, "test-skill", "SKILL.md");
-    const exists = await fs.access(skillFile).then(() => true).catch(() => false);
+    const exists = await fs
+      .access(skillFile)
+      .then(() => true)
+      .catch(() => false);
     expect(exists).toBe(true);
   });
 
@@ -199,7 +218,12 @@ describe("viewer skills API", () => {
   });
 
   test("POST /api/skills/promote with force=true overwrites existing skill", async () => {
-    await writeSkillDraft("force-skill", SAMPLE_SKILL_MD, makeMeta("force-skill"), quarantineSkillsDir);
+    await writeSkillDraft(
+      "force-skill",
+      SAMPLE_SKILL_MD,
+      makeMeta("force-skill"),
+      quarantineSkillsDir,
+    );
     // First promote
     const r1 = await fetch(`${base}/api/skills/promote`, {
       method: "POST",
@@ -209,7 +233,12 @@ describe("viewer skills API", () => {
     expect(r1.status).toBe(200);
 
     // Write second draft with same name
-    await writeSkillDraft("force-skill", SAMPLE_SKILL_MD, makeMeta("force-skill"), quarantineSkillsDir);
+    await writeSkillDraft(
+      "force-skill",
+      SAMPLE_SKILL_MD,
+      makeMeta("force-skill"),
+      quarantineSkillsDir,
+    );
 
     // Promote with force → 200
     const r2 = await fetch(`${base}/api/skills/promote`, {
@@ -243,7 +272,12 @@ describe("viewer skills API", () => {
   // -------------------------------------------------------------------------
 
   test("POST /api/skills/reject removes the draft", async () => {
-    await writeSkillDraft("test-skill", SAMPLE_SKILL_MD, makeMeta("test-skill"), quarantineSkillsDir);
+    await writeSkillDraft(
+      "test-skill",
+      SAMPLE_SKILL_MD,
+      makeMeta("test-skill"),
+      quarantineSkillsDir,
+    );
 
     const res = await fetch(`${base}/api/skills/reject`, {
       method: "POST",

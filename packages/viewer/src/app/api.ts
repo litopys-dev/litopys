@@ -186,9 +186,22 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+/** Error thrown by the API client, carrying the HTTP status code. */
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function get<T>(url: string): Promise<T> {
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText} — ${url}`);
+  if (!res.ok) {
+    throw new ApiError(`HTTP ${res.status} ${res.statusText} — ${url}`, res.status);
+  }
   return res.json() as Promise<T>;
 }
 
@@ -225,7 +238,7 @@ async function send<T>(url: string, method: string, body?: unknown): Promise<T> 
     } catch {
       /* ignore */
     }
-    throw new Error(msg);
+    throw new ApiError(msg, res.status);
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;

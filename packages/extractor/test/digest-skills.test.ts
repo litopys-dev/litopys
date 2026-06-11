@@ -165,8 +165,7 @@ describe("generateDigest — Skill Drafts Pending section", () => {
     );
 
     const result = await generateDigest({ graphPath: graphDir, skillDraftsDir: skillsQDir });
-    // Should mention number of episodes or sessions
-    expect(result.content).toContain("3");
+    expect(result.content).toContain("Episodes: 3");
   });
 
   test("digest lists multiple drafts", async () => {

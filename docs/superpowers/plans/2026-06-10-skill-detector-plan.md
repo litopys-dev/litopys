@@ -313,9 +313,9 @@ listUnclustered → пусто? → `{drafts:[]}` БЕЗ LLM-вызовов → 
 
 **Files:** Modify: `packages/viewer/src/server.ts` (роуты рядом с `/api/quarantine`, строки ~677-690: GET `/api/skills` без auth; POST `/api/skills/promote`, `/api/skills/reject` через `authGate`), `packages/viewer/src/app/api.ts` (методы по образцу `quarantine`/`accept`/`reject`, строки ~262-270), `packages/viewer/src/app/components/Layout.tsx` (пункт меню), `packages/viewer/src/app/i18n.ts` (ru-строки). Create: `packages/viewer/src/app/pages/SkillDrafts.tsx`. Test: `packages/viewer/test/skills-api.test.ts`
 
-- [ ] **11.1 API-тест:** поднять `createServer({port:0})` c tmp-окружением (как существующие тесты viewer, посмотри их паттерн) → GET `/api/skills` отдаёт `[]`; после `writeSkillDraft` в tmp — отдаёт 1 запись с `meta.name` и `description`; POST promote/reject меняют состояние.
-- [ ] **11.2 Страница:** список черновиков (имя, описание, N эпизодов/сессий, дата) → клик: предпросмотр SKILL.md тем же markdown-рендером, что у узлов (найди компонент рендера в существующих страницах и переиспользуй) → кнопки «Установить» (promote; confirm при перезаписи → force) и «Отклонить» (prompt причины). Стиль и i18n — как у `Quarantine.tsx`.
-- [ ] **11.3 Commit:** `feat(viewer): skill drafts review tab`
+- [x] **11.1 API-тест:** поднять `createServer({port:0})` c tmp-окружением (как существующие тесты viewer, посмотри их паттерн) → GET `/api/skills` отдаёт `[]`; после `writeSkillDraft` в tmp — отдаёт 1 запись с `meta.name` и `description`; POST promote/reject меняют состояние.
+- [x] **11.2 Страница:** список черновиков (имя, описание, N эпизодов/сессий, дата) → клик: предпросмотр SKILL.md тем же markdown-рендером, что у узлов (найди компонент рендера в существующих страницах и переиспользуй) → кнопки «Установить» (promote; confirm при перезаписи → force) и «Отклонить» (prompt причины). Стиль и i18n — как у `Quarantine.tsx`.
+- [x] **11.3 Commit:** `feat(viewer): skill drafts review tab`
 
 ---
 

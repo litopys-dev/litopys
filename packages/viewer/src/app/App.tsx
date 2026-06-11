@@ -7,6 +7,7 @@ const NodesTable = lazy(() => import("./pages/NodesTable.tsx"));
 const NodeDetail = lazy(() => import("./pages/NodeDetail.tsx"));
 const Graph = lazy(() => import("./pages/Graph.tsx"));
 const Quarantine = lazy(() => import("./pages/Quarantine.tsx"));
+const SkillDrafts = lazy(() => import("./pages/SkillDrafts.tsx"));
 
 export function App() {
   return (
@@ -16,6 +17,7 @@ export function App() {
       <Route path="/node/:id" component={NodeDetail} />
       <Route path="/graph" component={Graph} />
       <Route path="/quarantine" component={Quarantine} />
+      <Route path="/skills" component={SkillDrafts} />
     </Route>
   );
 }

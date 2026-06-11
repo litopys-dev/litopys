@@ -1,5 +1,5 @@
 import { A, useLocation } from "@solidjs/router";
-import { GitGraph, LayoutDashboard, Plus, ShieldAlert, Table2 } from "lucide-solid";
+import { BookOpen, GitGraph, LayoutDashboard, Plus, ShieldAlert, Table2 } from "lucide-solid";
 import { For, type ParentProps, Show, Suspense, createSignal } from "solid-js";
 import { t } from "../i18n.ts";
 import { NewNodeModal } from "./NewNodeModal.tsx";
@@ -16,6 +16,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/table", label: t("nav.nodes"), icon: () => <Table2 size={16} /> },
   { href: "/graph", label: t("nav.graph"), icon: () => <GitGraph size={16} /> },
   { href: "/quarantine", label: t("nav.quarantine"), icon: () => <ShieldAlert size={16} /> },
+  { href: "/skills", label: t("nav.skills"), icon: () => <BookOpen size={16} /> },
 ];
 
 function NavLink(props: NavItem) {

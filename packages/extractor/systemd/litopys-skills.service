@@ -1,17 +1,16 @@
 [Unit]
-Description=Litopys Daily Skills Detector (cluster episodes and draft SKILL.md files)
+Description=Litopys daily skills detector (cluster episodes, draft SKILL.md)
+Documentation=https://github.com/litopys-dev/litopys
 After=network.target
 
 [Service]
 Type=oneshot
-# Adjust User= and paths to match your installation
-User=%i
-WorkingDirectory=/home/%i/litopys
-ExecStart=/usr/local/bin/bun packages/cli/src/index.ts skills tick
+Environment=LITOPYS_GRAPH_PATH=%h/.litopys/graph
 EnvironmentFile=-%h/.litopys/.env
-Environment=LITOPYS_GRAPH_PATH=/home/%i/.litopys/graph
-# Uncomment and set your preferred provider:
-# Environment=LITOPYS_EXTRACTOR_PROVIDER=openai
-# Environment=LITOPYS_EXTRACTOR_BASE_URL=http://localhost:8080/v1
+ExecStart=litopys skills tick
 StandardOutput=journal
 StandardError=journal
+SyslogIdentifier=litopys-skills
+
+[Install]
+WantedBy=default.target

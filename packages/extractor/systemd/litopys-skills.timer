@@ -1,8 +1,10 @@
 [Unit]
-Description=Run Litopys Skills Detector daily at 08:30
+Description=Run Litopys skills detector once a day
+Documentation=https://github.com/litopys-dev/litopys
 
 [Timer]
-OnCalendar=*-*-* 08:30:00
+# 08:33 deliberately dodges the litopys-daemon timer (fires on 5-minute marks)
+OnCalendar=*-*-* 08:33:00
 Persistent=true
 
 [Install]

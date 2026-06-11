@@ -128,3 +128,10 @@ export {
   rejectSkillDraft,
 } from "./skill-quarantine.ts";
 export type { SkillDraftErrorCode } from "./skill-quarantine.ts";
+
+// ---------------------------------------------------------------------------
+// Stage B — skills-tick orchestration
+// ---------------------------------------------------------------------------
+
+export { runSkillsTick } from "./skills-tick.ts";
+export type { SkillsTickOptions, SkillsTickResult } from "./skills-tick.ts";

@@ -295,17 +295,17 @@ rejectSkillDraft(name, qsDir, graphPath, reason?): Promise<void>                
 
 **Files:** Modify: `packages/cli/src/index.ts` (по образцу блока `quarantine` в `main()`, см. строки ~265-280), `usage()`. Create: `packages/extractor/src/skills-tick.ts`, `packages/extractor/systemd/litopys-skills.service`, `litopys-skills.timer`. Test: `packages/extractor/test/skills-tick.test.ts`
 
-- [ ] **10.1 Оркестрация `skills-tick.ts`:**
+- [x] **10.1 Оркестрация `skills-tick.ts`:**
 
 ```ts
 export async function runSkillsTick(opts: { episodesDir; quarantineSkillsDir; cfg: SkillDetectorConfig; adapter: ExtractorAdapter }): Promise<{ drafts: string[] }>
 ```
 
 listUnclustered → пусто? → `{drafts:[]}` БЕЗ LLM-вызовов → иначе cluster → selectDraftable → дедуп против существующих черновиков и skillsDir (по name) → draft+write → markClustered(episodeIds, name) → если `cfg.notifyCommand` задан, на каждый новый черновик вызвать `Bun.spawn(["sh", "-c", `${cfg.notifyCommand} "$1"`, "_", message])`, где message: `Litopys: новый черновик скилла "<name>" (<N> эпизодов, <M> сессий). Ревью: litopys skills show <name>`. Ошибка notify — stderr, не валит tick.
-- [ ] **10.2 Тест:** mock на полный цикл (2 эпизода 2 сессий) → 1 черновик, эпизоды помечены; повторный запуск → 0 черновиков и 0 вызовов complete (проверить счётчиком вызовов в mock).
-- [ ] **10.3 CLI:** `skills list|show <name>|promote <name> [--force]|reject <name> [reason]|tick`. Вывод в стиле существующих cmd (см. `cmdQuarantineList`). Обновить `usage()`.
-- [ ] **10.4 systemd** (по образцу `packages/extractor/systemd/litopys-digest.*`): service — `ExecStart=… index.ts skills tick`, `EnvironmentFile=-%h/.litopys/.env`; timer — `OnCalendar=*-*-* 08:30:00`, `Persistent=true`. НЕ устанавливать юниты на сервере в рамках задачи — только файлы в репо (установка — руками Denis, Tier 2/3).
-- [ ] **10.5 Commit:** `feat(cli,extractor): litopys skills command + daily tick units`
+- [x] **10.2 Тест:** mock на полный цикл (2 эпизода 2 сессий) → 1 черновик, эпизоды помечены; повторный запуск → 0 черновиков и 0 вызовов complete (проверить счётчиком вызовов в mock).
+- [x] **10.3 CLI:** `skills list|show <name>|promote <name> [--force]|reject <name> [reason]|tick`. Вывод в стиле существующих cmd (см. `cmdQuarantineList`). Обновить `usage()`.
+- [x] **10.4 systemd** (по образцу `packages/extractor/systemd/litopys-digest.*`): service — `ExecStart=… index.ts skills tick`, `EnvironmentFile=-%h/.litopys/.env`; timer — `OnCalendar=*-*-* 08:30:00`, `Persistent=true`. НЕ устанавливать юниты на сервере в рамках задачи — только файлы в репо (установка — руками Denis, Tier 2/3).
+- [x] **10.5 Commit:** `feat(cli,extractor): litopys skills command + daily tick units`
 
 ---
 

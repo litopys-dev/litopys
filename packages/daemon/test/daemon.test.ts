@@ -2,13 +2,14 @@
  * Tests for @litopys/daemon — state management, tick logic, config.
  */
 
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import { promises as fs } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { setAnthropicCreate, setOpenAICreate } from "../../../test-support/llm-sdk-mock.ts";
 
 // ---------------------------------------------------------------------------
-// Mock LLM SDKs before any imports
+// Per-file mock response — returns one candidate so quarantine tests pass
 // ---------------------------------------------------------------------------
 
 const MOCK_CANDIDATE = {
@@ -20,43 +21,35 @@ const MOCK_CANDIDATE = {
   sourceSessionId: "test-session",
 };
 
-mock.module("@anthropic-ai/sdk", () => ({
-  default: class MockAnthropic {
-    messages = {
-      create: mock(async () => ({
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({
-              candidateNodes: [MOCK_CANDIDATE],
-              candidateRelations: [],
-            }),
-          },
-        ],
-        usage: { input_tokens: 100, output_tokens: 50 },
-      })),
-    };
-  },
-}));
-
-mock.module("openai", () => ({
-  default: class MockOpenAI {
-    chat = {
-      completions: {
-        create: mock(async () => ({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({ candidateNodes: [], candidateRelations: [] }),
-              },
-            },
-          ],
-          usage: { prompt_tokens: 0, completion_tokens: 0 },
-        })),
+beforeAll(() => {
+  setAnthropicCreate(async () => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify({
+          candidateNodes: [MOCK_CANDIDATE],
+          candidateRelations: [],
+        }),
       },
-    };
-  },
-}));
+    ],
+    usage: { input_tokens: 100, output_tokens: 50 },
+  }));
+  setOpenAICreate(async () => ({
+    choices: [
+      {
+        message: {
+          content: JSON.stringify({ candidateNodes: [], candidateRelations: [] }),
+        },
+      },
+    ],
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+  }));
+});
+
+afterAll(() => {
+  setAnthropicCreate(null);
+  setOpenAICreate(null);
+});
 
 process.env.ANTHROPIC_API_KEY = "sk-mock-daemon-test";
 process.env.LITOPYS_EXTRACTOR_PROVIDER = "anthropic";

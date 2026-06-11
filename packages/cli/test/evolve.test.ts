@@ -1,23 +1,23 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { promises as fs } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { type AnyNode, writeNode } from "@litopys/core";
+import { setAnthropicCreate, setOpenAICreate } from "../../../test-support/llm-sdk-mock.ts";
 
-// Mock the LLM SDKs before loading @litopys/extractor. We don't call them in
-// this file, but extractor's adapter modules import them at module-graph time
-// — without this mock, other tests' mock.module calls would race against the
-// real packages already being in the process cache.
-mock.module("@anthropic-ai/sdk", () => ({
-  default: class MockAnthropic {
-    messages = { create: mock(async () => ({ content: [], usage: {} })) };
-  },
-}));
-mock.module("openai", () => ({
-  default: class MockOpenAI {
-    chat = { completions: { create: mock(async () => ({ choices: [], usage: {} })) } };
-  },
-}));
+// extractor's adapter modules import @anthropic-ai/sdk and openai at module-graph
+// time. The shared preload already stubs both, so we just set a minimal override
+// here to match the previous per-file mock semantics.
+beforeAll(() => {
+  setAnthropicCreate(async () => ({ content: [], usage: {} }));
+  setOpenAICreate(async () => ({ choices: [], usage: {} }));
+});
+
+afterAll(() => {
+  setAnthropicCreate(null);
+  setOpenAICreate(null);
+});
+
 process.env.ANTHROPIC_API_KEY ??= "sk-mock-evolve-test";
 
 const { proposeMerge, writeMergeProposal } = await import("@litopys/extractor");

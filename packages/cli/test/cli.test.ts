@@ -1,44 +1,37 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { promises as fs } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { setAnthropicCreate, setOpenAICreate } from "../../../test-support/llm-sdk-mock.ts";
 
 // ---------------------------------------------------------------------------
-// Mock adapters before imports
+// Override mock response — empty candidates
 // ---------------------------------------------------------------------------
 
-mock.module("@anthropic-ai/sdk", () => ({
-  default: class MockAnthropic {
-    messages = {
-      create: mock(async () => ({
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({ candidateNodes: [], candidateRelations: [] }),
-          },
-        ],
-        usage: { input_tokens: 5, output_tokens: 3 },
-      })),
-    };
-  },
-}));
-
-mock.module("openai", () => ({
-  default: class MockOpenAI {
-    chat = {
-      completions: {
-        create: mock(async () => ({
-          choices: [
-            {
-              message: { content: JSON.stringify({ candidateNodes: [], candidateRelations: [] }) },
-            },
-          ],
-          usage: { prompt_tokens: 0, completion_tokens: 0 },
-        })),
+beforeAll(() => {
+  setAnthropicCreate(async () => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify({ candidateNodes: [], candidateRelations: [] }),
       },
-    };
-  },
-}));
+    ],
+    usage: { input_tokens: 5, output_tokens: 3 },
+  }));
+  setOpenAICreate(async () => ({
+    choices: [
+      {
+        message: { content: JSON.stringify({ candidateNodes: [], candidateRelations: [] }) },
+      },
+    ],
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+  }));
+});
+
+afterAll(() => {
+  setAnthropicCreate(null);
+  setOpenAICreate(null);
+});
 
 process.env.ANTHROPIC_API_KEY = "sk-mock-cli-test";
 
@@ -66,7 +59,6 @@ describe("CLI quarantine commands", () => {
   });
 
   test("quarantine list shows no items on empty directory", async () => {
-    const { execSync } = await import("node:child_process");
     // Just verify the function logic directly
     const { listQuarantine } = await import("@litopys/extractor");
     const items = await listQuarantine(graphDir);

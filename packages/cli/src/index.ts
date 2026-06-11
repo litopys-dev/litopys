@@ -3,12 +3,21 @@ import * as path from "node:path";
 import { defaultGraphPath } from "@litopys/core";
 import {
   acceptMergeProposal,
+  createAdapter,
+  defaultEpisodesDir,
+  defaultQuarantineSkillsDir,
   generateDigest,
   isMergeProposalContent,
   listQuarantine,
+  listSkillDrafts,
+  loadSkillConfig,
   promoteCandidate,
+  promoteSkillDraft,
+  readSkillDraft,
   rejectCandidate,
   rejectMergeProposal,
+  rejectSkillDraft,
+  runSkillsTick,
 } from "@litopys/extractor";
 import { generateStartupContext } from "@litopys/mcp";
 import { cmdBench } from "./bench.ts";
@@ -104,6 +113,14 @@ Commands:
                                             JSON report (default: ./bench-report.json).
                                             See docs/benchmark.md for dataset format.
 
+  skills list                               List pending skill drafts in quarantine
+  skills show <name>                        Show full SKILL.md content for a draft
+  skills promote <name> [--force]           Install a draft skill to skillsDir
+    --force                                 Overwrite if already installed
+  skills reject <name> [reason]             Reject a skill draft with optional reason
+  skills tick [--provider N]               Run one skills-detection tick (cluster + draft)
+    --provider <name>                        Override LLM provider
+
 Source adapters:
   text:<path>         Plain text file
   jsonl:<path>        Generic JSONL (one {"role","content"} object per line)
@@ -116,6 +133,10 @@ Environment:
   LITOPYS_EXTRACTOR_API_KEY      API key for self-hosted endpoint (omit if not required)
   LITOPYS_DAEMON_STATE           Override daemon state file path
   LITOPYS_DAEMON_SOURCES         JSON array of {adapter,glob} source configs
+  LITOPYS_SKILLS_DIR             Skills install directory (default: ~/.claude/skills)
+  LITOPYS_SKILLS_NOTIFY_CMD      Shell command to notify on new skill draft
+  LITOPYS_SKILLS_MIN_TOOL_OPS    Min tool operations per episode to be considered (default: 5)
+  LITOPYS_SKILLS_MIN_SESSIONS    Min sessions a cluster must span (default: 2)
 `);
 }
 
@@ -246,6 +267,123 @@ async function cmdStartupContext(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Skills command handlers
+// ---------------------------------------------------------------------------
+
+async function cmdSkillsList(): Promise<void> {
+  const qsDir = defaultQuarantineSkillsDir();
+  const drafts = await listSkillDrafts(qsDir);
+
+  if (drafts.length === 0) {
+    process.stdout.write("No pending skill drafts.\n");
+    return;
+  }
+
+  for (const { meta, description } of drafts) {
+    const epCount = meta.episodeIds.length;
+    const sessCount = meta.sessions.length;
+    const date = meta.createdAt.slice(0, 10);
+    process.stdout.write(`\nSkill: ${meta.name}\n`);
+    process.stdout.write(`  Created:  ${date}\n`);
+    process.stdout.write(`  Episodes: ${epCount} (${sessCount} session(s))\n`);
+    if (description) {
+      process.stdout.write(`  Trigger:  ${description}\n`);
+    }
+  }
+}
+
+async function cmdSkillsShow(args: string[]): Promise<void> {
+  const name = args[0];
+  if (!name) {
+    process.stderr.write("Usage: skills show <name>\n");
+    process.exit(1);
+  }
+
+  const qsDir = defaultQuarantineSkillsDir();
+
+  let draft: { skillMd: string; meta: Awaited<ReturnType<typeof readSkillDraft>>["meta"] };
+  try {
+    draft = await readSkillDraft(name, qsDir);
+  } catch (err) {
+    const e = err as Error & { code?: string };
+    process.stderr.write(`${e.message}\n`);
+    process.exit(1);
+  }
+
+  process.stdout.write(draft.skillMd);
+}
+
+async function cmdSkillsPromote(args: string[]): Promise<void> {
+  const name = args[0];
+  if (!name) {
+    process.stderr.write("Usage: skills promote <name> [--force]\n");
+    process.exit(1);
+  }
+
+  const force = args.includes("--force");
+  const cfg = loadSkillConfig();
+  const qsDir = defaultQuarantineSkillsDir();
+
+  let installPath: string;
+  try {
+    installPath = await promoteSkillDraft(name, qsDir, cfg.skillsDir, { force });
+  } catch (err) {
+    const e = err as Error & { code?: string };
+    process.stderr.write(`${e.message}\n`);
+    process.exit(1);
+  }
+
+  process.stdout.write(`Installed skill "${name}" to: ${installPath}\n`);
+}
+
+async function cmdSkillsReject(args: string[]): Promise<void> {
+  const name = args[0];
+  if (!name) {
+    process.stderr.write("Usage: skills reject <name> [reason]\n");
+    process.exit(1);
+  }
+
+  const reason = args.slice(1).join(" ") || undefined;
+  const qsDir = defaultQuarantineSkillsDir();
+
+  try {
+    await rejectSkillDraft(name, qsDir, graphPath(), reason);
+  } catch (err) {
+    const e = err as Error & { code?: string };
+    process.stderr.write(`${e.message}\n`);
+    process.exit(1);
+  }
+
+  process.stdout.write(`Rejected skill draft "${name}"${reason ? ` (${reason})` : ""}\n`);
+}
+
+async function cmdSkillsTick(args: string[]): Promise<void> {
+  let provider: string | undefined;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i] ?? "";
+    if (arg === "--provider" && args[i + 1]) {
+      provider = args[++i];
+    }
+  }
+
+  const cfg = loadSkillConfig();
+  const adapter = createAdapter(provider);
+  const episodesDir = defaultEpisodesDir();
+  const quarantineSkillsDir = defaultQuarantineSkillsDir();
+
+  const result = await runSkillsTick({ episodesDir, quarantineSkillsDir, cfg, adapter });
+
+  if (result.drafts.length === 0) {
+    process.stdout.write("Skills tick: no new drafts.\n");
+  } else {
+    process.stdout.write(`Skills tick: created ${result.drafts.length} new draft(s).\n`);
+    for (const name of result.drafts) {
+      process.stdout.write(`  → ${name}\n`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main entry
 // ---------------------------------------------------------------------------
 
@@ -297,6 +435,22 @@ async function main(): Promise<void> {
     await cmdImport(args.slice(1), graphPath());
   } else if (cmd === "bench") {
     await cmdBench(args.slice(1));
+  } else if (cmd === "skills") {
+    if (sub === "list") {
+      await cmdSkillsList();
+    } else if (sub === "show") {
+      await cmdSkillsShow(args.slice(2));
+    } else if (sub === "promote") {
+      await cmdSkillsPromote(args.slice(2));
+    } else if (sub === "reject") {
+      await cmdSkillsReject(args.slice(2));
+    } else if (sub === "tick") {
+      await cmdSkillsTick(args.slice(2));
+    } else {
+      process.stderr.write(`Unknown skills subcommand: ${sub ?? "(none)"}\n`);
+      usage();
+      process.exit(1);
+    }
   } else {
     process.stderr.write(`Unknown command: ${cmd}\n`);
     usage();

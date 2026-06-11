@@ -26,6 +26,13 @@ export interface DaemonState {
   lastTick?: string;
   /** Per-file state keyed by absolute path. */
   sources: Record<string, FileState>;
+  /**
+   * Per-file episode catch-up state keyed by absolute path.
+   * Tracks the mtime at the time the file was last processed for episodes
+   * so that already-processed files are not re-sent to the LLM.
+   * Survives serialisation via JSON.stringify/JSON.parse.
+   */
+  episodesState?: Record<string, { mtime: string }>;
 }
 
 // ---------------------------------------------------------------------------

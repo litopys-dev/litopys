@@ -51,12 +51,28 @@ const ru: Record<string, string> = {
   "common.clear": "сбросить",
   "common.close": "Закрыть",
 
+  // Skill drafts page
+  "skills.title": "Черновики навыков",
+  "skills.subtitle":
+    "Сгенерированные SKILL.md ждут проверки. Установить — скопировать в ~/.claude/skills, отклонить — выбросить.",
+  "skills.empty": "Нет черновиков для проверки.",
+  "skills.loadError": "Ошибка загрузки черновиков: {msg}",
+  "skills.install": "Установить",
+  "skills.reject": "Отклонить",
+  "skills.promoted": "Установлен навык «{name}»",
+  "skills.rejected": "Отклонён черновик «{name}»",
+  "skills.promoteConflict": "Навык «{name}» уже установлен. Перезаписать?",
+  "skills.rejectPrompt": "Причина отклонения «{name}» (необязательно):",
+  "skills.preview": "SKILL.md",
+  "skills.hidePreview": "Скрыть",
+
   // Sidebar / navigation
   "nav.brandSuffix": "дашборд",
   "nav.dashboard": "Обзор",
   "nav.nodes": "Узлы",
   "nav.graph": "Граф",
   "nav.quarantine": "Карантин",
+  "nav.skills": "Навыки",
   "nav.newNode": "Новый узел",
   "nav.ariaMain": "Основная навигация",
 
@@ -142,6 +158,16 @@ export function nodesWord(n: number): string {
 /** Russian plural form for the word "relation/edge". */
 export function relationsWord(n: number): string {
   return plural(n, ["связь", "связи", "связей"]);
+}
+
+/** Russian plural form for the word "episode". */
+export function episodesWord(n: number): string {
+  return plural(n, ["эпизод", "эпизода", "эпизодов"]);
+}
+
+/** Russian plural form for the word "session". */
+export function sessionsWord(n: number): string {
+  return plural(n, ["сессия", "сессии", "сессий"]);
 }
 
 export function t(key: string, params?: Params): string {

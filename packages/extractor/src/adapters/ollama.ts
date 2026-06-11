@@ -1,5 +1,7 @@
 import { buildSystemPrompt, buildUserPrompt } from "../prompt.ts";
 import {
+  type CompleteInput,
+  type CompleteOutput,
   type ExtractorAdapter,
   type ExtractorInput,
   type ExtractorOutput,
@@ -86,6 +88,53 @@ export class OllamaAdapter implements ExtractorAdapter {
     }
 
     return parseOutput(rawText, this.model, sessionId);
+  }
+
+  async complete(input: CompleteInput): Promise<CompleteOutput> {
+    const timeoutMs = Number(process.env.LITOPYS_OLLAMA_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS;
+    let text = "";
+
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      let res: Response;
+      try {
+        res = await fetch(`${this.baseUrl}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            model: this.model,
+            stream: false,
+            messages: [{ role: "user", content: input.prompt }],
+            options: { num_predict: input.maxTokens ?? 2048 },
+          }),
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          `Ollama responded with HTTP ${res.status}: ${await res.text().catch(() => "(no body)")}`,
+        );
+      }
+
+      const json = (await res.json()) as { message?: { content?: string } };
+      text = json.message?.content ?? "";
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("ECONNREFUSED") || message.includes("fetch failed")) {
+        process.stderr.write(
+          `[litopys/extractor] Ollama is not available at ${this.baseUrl}. Ensure ollama is running and OLLAMA_BASE_URL is set correctly.\n`,
+        );
+      } else {
+        process.stderr.write(`[litopys/extractor] Ollama complete() error: ${message}\n`);
+      }
+    }
+
+    return { text, usage: { inputTokens: 0, outputTokens: 0 } };
   }
 }
 

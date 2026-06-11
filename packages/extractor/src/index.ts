@@ -64,3 +64,74 @@ export { TextAdapter } from "./sources/text.ts";
 export { JsonlAdapter } from "./sources/jsonl.ts";
 export { ClaudeCodeAdapter } from "./sources/claude-code.ts";
 export type { SourceAdapter, TranscriptChunk } from "./sources/types.ts";
+
+export { parseClaudeCodeTranscript, sessionDateFromTranscript } from "./transcript-tools.ts";
+export type { ParsedTranscript, ParseOptions } from "./transcript-tools.ts";
+
+// ---------------------------------------------------------------------------
+// Episode store (Stage A / skill-detector)
+// ---------------------------------------------------------------------------
+
+export {
+  EpisodeSchema,
+  makeEpisodeId,
+  defaultEpisodesDir,
+  appendEpisodes,
+  listUnclustered,
+  markClustered,
+} from "./episode-store.ts";
+export type { Episode } from "./episode-store.ts";
+
+// ---------------------------------------------------------------------------
+// Episode extraction — Stage A LLM stage
+// ---------------------------------------------------------------------------
+
+export { extractEpisodes, EPISODE_EXTRACTION_PROMPT } from "./episodes.ts";
+
+// ---------------------------------------------------------------------------
+// SessionEnd hook — episode stage
+// ---------------------------------------------------------------------------
+
+export { runEpisodeStage } from "./session-end.ts";
+
+// ---------------------------------------------------------------------------
+// Skill-detector config
+// ---------------------------------------------------------------------------
+
+export { loadSkillConfig } from "./skill-config.ts";
+export type { SkillDetectorConfig } from "./skill-config.ts";
+
+// ---------------------------------------------------------------------------
+// Stage B — episode clustering and SKILL.md drafting
+// ---------------------------------------------------------------------------
+
+export {
+  clusterEpisodes,
+  selectDraftable,
+  draftSkill,
+  normalizeSkillName,
+  writeSkillDraft,
+  CLUSTER_PROMPT,
+  DRAFT_PROMPT,
+} from "./skill-draft.ts";
+export type { EpisodeGroup, SkillDraftMeta } from "./skill-draft.ts";
+
+// ---------------------------------------------------------------------------
+// Stage B — skill draft quarantine (list/promote/reject)
+// ---------------------------------------------------------------------------
+
+export {
+  defaultQuarantineSkillsDir,
+  listSkillDrafts,
+  readSkillDraft,
+  promoteSkillDraft,
+  rejectSkillDraft,
+} from "./skill-quarantine.ts";
+export type { SkillDraftErrorCode } from "./skill-quarantine.ts";
+
+// ---------------------------------------------------------------------------
+// Stage B — skills-tick orchestration
+// ---------------------------------------------------------------------------
+
+export { runSkillsTick } from "./skills-tick.ts";
+export type { SkillsTickOptions, SkillsTickResult } from "./skills-tick.ts";

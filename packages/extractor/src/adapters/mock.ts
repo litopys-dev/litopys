@@ -2,6 +2,8 @@ import type { NodeType, RelationName } from "@litopys/core";
 import type {
   CandidateNode,
   CandidateRelation,
+  CompleteInput,
+  CompleteOutput,
   ExtractorAdapter,
   ExtractorInput,
   ExtractorOutput,
@@ -59,14 +61,26 @@ const RELATION_PATTERNS: Array<{ regex: RegExp; type: RelationName }> = [
 export interface MockAdapterOptions {
   /** Override the model label reported in usage. Default: "mock-v1". */
   model?: string;
+  /**
+   * Queued responses for `complete()`. Each call dequeues the next entry;
+   * once exhausted the last entry is repeated on every subsequent call.
+   */
+  completions?: string[];
 }
 
 export class MockAdapter implements ExtractorAdapter {
   readonly name = "mock";
   readonly model: string;
 
+  /** Number of times `complete()` has been called. */
+  completeCalls = 0;
+
+  private readonly completionQueue: string[];
+  private completionIndex = 0;
+
   constructor(opts: MockAdapterOptions = {}) {
     this.model = opts.model ?? "mock-v1";
+    this.completionQueue = opts.completions ?? ['{"groups":[]}'];
   }
 
   async extract(input: ExtractorInput): Promise<ExtractorOutput> {
@@ -88,6 +102,21 @@ export class MockAdapter implements ExtractorAdapter {
       candidateRelations: relations,
       usage: { inputTokens: 0, outputTokens: 0 },
       modelUsed: this.model,
+    };
+  }
+
+  async complete(input: CompleteInput): Promise<CompleteOutput> {
+    this.completeCalls += 1;
+    const text = this.completionQueue[this.completionIndex] ?? "";
+    if (this.completionIndex < this.completionQueue.length - 1) {
+      this.completionIndex += 1;
+    }
+    return {
+      text,
+      usage: {
+        inputTokens: input.prompt.length,
+        outputTokens: text.length,
+      },
     };
   }
 }

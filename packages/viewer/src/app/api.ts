@@ -186,9 +186,22 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+/** Error thrown by the API client, carrying the HTTP status code. */
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function get<T>(url: string): Promise<T> {
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText} — ${url}`);
+  if (!res.ok) {
+    throw new ApiError(`HTTP ${res.status} ${res.statusText} — ${url}`, res.status);
+  }
   return res.json() as Promise<T>;
 }
 
@@ -225,7 +238,7 @@ async function send<T>(url: string, method: string, body?: unknown): Promise<T> 
     } catch {
       /* ignore */
     }
-    throw new Error(msg);
+    throw new ApiError(msg, res.status);
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
@@ -254,12 +267,49 @@ export interface RelationInput {
   target: string;
 }
 
+// ---------------------------------------------------------------------------
+// Skill drafts
+// ---------------------------------------------------------------------------
+
+export interface SkillDraftMeta {
+  name: string;
+  createdAt: string;
+  episodeIds: string[];
+  sessions: string[];
+  model: string;
+  status: "pending";
+}
+
+export interface SkillDraftListItem {
+  meta: SkillDraftMeta;
+  description: string;
+}
+
+export interface SkillDraftDetail {
+  meta: SkillDraftMeta;
+  skillMd: string;
+}
+
+// ---------------------------------------------------------------------------
+
 export const api = {
   stats: () => get<StatsResponse>("/api/stats"),
   nodes: () => get<NodeRow[]>("/api/nodes"),
   node: (id: string) => get<NodeDetailResponse>(`/api/node/${encodeURIComponent(id)}`),
   graph: () => get<GraphResponse>("/api/graph"),
   quarantine: () => get<QuarantineFile[]>("/api/quarantine"),
+  skillDrafts: () => get<SkillDraftListItem[]>("/api/skills"),
+  skillDraft: (name: string) => get<SkillDraftDetail>(`/api/skills/${encodeURIComponent(name)}`),
+  promoteSkill: (name: string, force?: boolean) =>
+    send<{ ok: boolean; installedTo: string }>("/api/skills/promote", "POST", {
+      name,
+      ...(force ? { force: true } : {}),
+    }),
+  rejectSkill: (name: string, reason?: string) =>
+    send<{ ok: boolean }>("/api/skills/reject", "POST", {
+      name,
+      ...(reason ? { reason } : {}),
+    }),
   acceptQuarantine: (filePath: string, index?: number) =>
     send<{ ok: boolean; result?: unknown }>("/api/quarantine/accept", "POST", {
       filePath,

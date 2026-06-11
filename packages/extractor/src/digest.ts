@@ -14,6 +14,7 @@ import { defaultGraphPath, loadGraph } from "@litopys/core";
 import type { AnyNode } from "@litopys/core";
 import { createAdapter } from "./adapters/factory.ts";
 import { listQuarantine } from "./quarantine.ts";
+import { defaultQuarantineSkillsDir, listSkillDrafts } from "./skill-quarantine.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -22,6 +23,7 @@ import { listQuarantine } from "./quarantine.ts";
 export interface DigestOptions {
   graphPath?: string;
   weekDays?: number; // default 7
+  skillDraftsDir?: string; // default: <graphPath>/../quarantine/skills
 }
 
 export interface DigestResult {
@@ -111,13 +113,15 @@ async function getRejectedLog(graphPath: string): Promise<string[]> {
 export async function generateDigest(options: DigestOptions = {}): Promise<DigestResult> {
   const graphPath = options.graphPath ?? defaultGraphPath();
   const days = options.weekDays ?? 7;
+  const qsDir = options.skillDraftsDir ?? defaultQuarantineSkillsDir();
   const weekLabel = isoWeek(new Date());
 
   // Gather data
-  const [recentNodes, pendingFiles, rejectedLines] = await Promise.all([
+  const [recentNodes, pendingFiles, rejectedLines, skillDrafts] = await Promise.all([
     getRecentNodes(graphPath, days),
     listQuarantine(graphPath),
     getRejectedLog(graphPath),
+    listSkillDrafts(qsDir).catch(() => [] as Awaited<ReturnType<typeof listSkillDrafts>>),
   ]);
 
   const pendingCount = pendingFiles.reduce((acc, f) => acc + f.candidates.length, 0);
@@ -182,7 +186,14 @@ Be concise and actionable. Use markdown formatting.`;
   }
 
   // Generate digest manually (LLM prose would replace this in production via a direct chat API call)
-  digestContent = generateManualDigest(weekLabel, recentNodes, pendingFiles, rejectedLines, days);
+  digestContent = generateManualDigest(
+    weekLabel,
+    recentNodes,
+    pendingFiles,
+    rejectedLines,
+    days,
+    skillDrafts,
+  );
 
   // Write to digests directory
   const digestsDir = path.join(graphPath, "..", "digests");
@@ -199,6 +210,7 @@ function generateManualDigest(
   pendingFiles: Awaited<ReturnType<typeof listQuarantine>>,
   rejectedLines: string[],
   days: number,
+  skillDrafts: Awaited<ReturnType<typeof listSkillDrafts>> = [],
 ): string {
   const now = new Date().toISOString().slice(0, 10);
   const pendingCount = pendingFiles.reduce((acc, f) => acc + f.candidates.length, 0);
@@ -247,6 +259,27 @@ function generateManualDigest(
           lines.push(`  - [${c.type}] \`${c.id}\`: ${c.summary} *(confidence: ${c.confidence})*`);
         }
       }
+    }
+  }
+
+  lines.push("");
+  lines.push("## Skill Drafts Pending");
+  if (skillDrafts.length === 0) {
+    lines.push("No skill drafts pending.");
+  } else {
+    lines.push(`**${skillDrafts.length} skill draft(s)** awaiting promotion.`);
+    lines.push("");
+    for (const draft of skillDrafts) {
+      lines.push(`### ${draft.meta.name}`);
+      if (draft.description) {
+        lines.push(`${draft.description}`);
+        lines.push("");
+      }
+      lines.push(
+        `- Episodes: ${draft.meta.episodeIds.length}, Sessions: ${draft.meta.sessions.length}`,
+      );
+      lines.push(`- Review: \`litopys skills show ${draft.meta.name}\``);
+      lines.push("");
     }
   }
 

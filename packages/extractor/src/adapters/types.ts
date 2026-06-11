@@ -50,10 +50,26 @@ export interface ExtractorOutput {
   modelUsed: string;
 }
 
+export interface CompleteInput {
+  /**
+   * Freeform prompt sent as a single user message. JSON mode is intentionally
+   * not forced: callers that want JSON output must instruct the model in the
+   * prompt itself and strip markdown code fences from the reply themselves.
+   */
+  prompt: string;
+  maxTokens?: number; // default 2048
+}
+
+export interface CompleteOutput {
+  text: string;
+  usage: { inputTokens: number; outputTokens: number };
+}
+
 export interface ExtractorAdapter {
   readonly name: string;
   readonly model: string;
   extract(input: ExtractorInput): Promise<ExtractorOutput>;
+  complete(input: CompleteInput): Promise<CompleteOutput>;
 }
 
 // ---------------------------------------------------------------------------

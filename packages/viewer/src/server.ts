@@ -15,12 +15,18 @@ import type { AnyNode } from "@litopys/core";
 import type { Edge, ResolvedGraph } from "@litopys/core";
 import {
   acceptMergeProposal,
+  defaultQuarantineSkillsDir,
   isMergeProposalContent,
   listQuarantine,
+  listSkillDrafts,
+  loadSkillConfig,
   parseMergeProposal,
   promoteCandidate,
+  promoteSkillDraft,
+  readSkillDraft,
   rejectCandidate,
   rejectMergeProposal,
+  rejectSkillDraft,
 } from "@litopys/extractor";
 import { type RefSource, resolveRelation } from "./quarantine-resolve.ts";
 
@@ -365,6 +371,97 @@ async function apiQuarantineReject(req: Request): Promise<Response> {
 }
 
 // ---------------------------------------------------------------------------
+// Skill draft handlers
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the quarantine skills directory from env or default.
+ * Uses LITOPYS_QUARANTINE_SKILLS_DIR if set, otherwise derives from graphPath.
+ */
+function resolveQuarantineSkillsDir(): string {
+  const fromEnv = process.env.LITOPYS_QUARANTINE_SKILLS_DIR;
+  if (fromEnv) return fromEnv;
+  return defaultQuarantineSkillsDir();
+}
+
+/**
+ * Resolve the installed skills directory from env or skill config default.
+ * Uses LITOPYS_SKILLS_DIR if set (which loadSkillConfig also reads), otherwise
+ * falls back to the default (~/.claude/skills).
+ */
+function resolveSkillsDir(): string {
+  return loadSkillConfig().skillsDir;
+}
+
+async function apiSkillsList(): Promise<Response> {
+  const qsDir = resolveQuarantineSkillsDir();
+  const drafts = await listSkillDrafts(qsDir);
+  return json(drafts);
+}
+
+async function apiSkillsRead(name: string): Promise<Response> {
+  const qsDir = resolveQuarantineSkillsDir();
+  try {
+    const draft = await readSkillDraft(name, qsDir);
+    return json(draft);
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException & { code?: string }).code;
+    if (code === "ENOTFOUND") return json({ error: (e as Error).message }, 404);
+    if (code === "EINVALIDNAME") return json({ error: (e as Error).message }, 400);
+    if (code === "ECORRUPT") return json({ error: (e as Error).message }, 400);
+    return json({ error: String((e as Error).message ?? e) }, 500);
+  }
+}
+
+async function apiSkillsPromote(req: Request): Promise<Response> {
+  const body = (await readJson(req)) as Record<string, unknown> | null;
+  if (!body) return validationError("Invalid JSON body");
+
+  const name = typeof body.name === "string" ? body.name : "";
+  if (!name) return validationError("Missing 'name'");
+
+  const force = body.force === true;
+
+  const qsDir = resolveQuarantineSkillsDir();
+  const skillsDir = resolveSkillsDir();
+
+  try {
+    const installedTo = await promoteSkillDraft(name, qsDir, skillsDir, { force });
+    return json({ ok: true, installedTo });
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException & { code?: string }).code;
+    if (code === "ENOTFOUND") return json({ error: (e as Error).message }, 404);
+    if (code === "ECONFLICT") return json({ error: (e as Error).message }, 409);
+    if (code === "EINVALIDNAME") return json({ error: (e as Error).message }, 400);
+    if (code === "ECORRUPT") return json({ error: (e as Error).message }, 400);
+    return json({ error: String((e as Error).message ?? e) }, 500);
+  }
+}
+
+async function apiSkillsReject(req: Request): Promise<Response> {
+  const body = (await readJson(req)) as Record<string, unknown> | null;
+  if (!body) return validationError("Invalid JSON body");
+
+  const name = typeof body.name === "string" ? body.name : "";
+  if (!name) return validationError("Missing 'name'");
+
+  const reason = typeof body.reason === "string" ? body.reason : undefined;
+
+  const qsDir = resolveQuarantineSkillsDir();
+  const gp = defaultGraphPath();
+
+  try {
+    await rejectSkillDraft(name, qsDir, gp, reason);
+    return json({ ok: true });
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException & { code?: string }).code;
+    if (code === "ENOTFOUND") return json({ error: (e as Error).message }, 404);
+    if (code === "EINVALIDNAME") return json({ error: (e as Error).message }, 400);
+    return json({ error: String((e as Error).message ?? e) }, 500);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Write handlers
 // ---------------------------------------------------------------------------
 
@@ -676,6 +773,14 @@ export function createServer(opts: CreateServerOptions | number = {}) {
       if (p === "/api/nodes") return apiNodes();
       if (p === "/api/graph") return apiGraph();
       if (p === "/api/quarantine" && req.method === "GET") return apiQuarantine();
+      if (p === "/api/skills" && req.method === "GET") return apiSkillsList();
+
+      // Skill draft read by name — no auth required
+      const skillReadMatch = p.match(/^\/api\/skills\/([^/]+)$/);
+      if (skillReadMatch?.[1] && req.method === "GET") {
+        const name = decodeURIComponent(skillReadMatch[1]);
+        return apiSkillsRead(name);
+      }
 
       // Mutating API routes — gated by auth
       if (p === "/api/quarantine/accept" && req.method === "POST") {
@@ -685,6 +790,14 @@ export function createServer(opts: CreateServerOptions | number = {}) {
       if (p === "/api/quarantine/reject" && req.method === "POST") {
         const denied = authGate(req, auth);
         return denied ?? apiQuarantineReject(req);
+      }
+      if (p === "/api/skills/promote" && req.method === "POST") {
+        const denied = authGate(req, auth);
+        return denied ?? apiSkillsPromote(req);
+      }
+      if (p === "/api/skills/reject" && req.method === "POST") {
+        const denied = authGate(req, auth);
+        return denied ?? apiSkillsReject(req);
       }
 
       if (p === "/api/node" && req.method === "POST") {

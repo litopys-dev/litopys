@@ -89,7 +89,7 @@ export async function extractEpisodes(
   const prompt = safeReplace(
     EPISODE_EXTRACTION_PROMPT.replace("{minToolOps}", String(opts.minToolOps)).replace(
       /\{lang\}/g,
-      lang,
+      () => lang,
     ),
     "{transcript}",
     transcript.text,

@@ -297,7 +297,7 @@ export async function draftSkill(
   }));
 
   const prompt = safeReplace(
-    safeReplace(DRAFT_PROMPT, "{name}", group.name).replace(/\{lang\}/g, lang),
+    safeReplace(DRAFT_PROMPT, "{name}", group.name).replace(/\{lang\}/g, () => lang),
     "{episodes}",
     JSON.stringify(episodePayload, null, 2),
   );

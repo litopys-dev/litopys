@@ -19,7 +19,7 @@ import {
   runTick,
   saveState,
 } from "@litopys/daemon";
-import { createAdapter, defaultEpisodesDir } from "@litopys/extractor";
+import { createAdapter, defaultEpisodesDir, loadSkillConfig } from "@litopys/extractor";
 
 // ---------------------------------------------------------------------------
 // tick
@@ -70,6 +70,7 @@ export async function cmdDaemonTick(args: string[], graphPath: string): Promise<
     const maxLlmFilesPerTick = process.env.LITOPYS_EPISODES_MAX_LLM_FILES
       ? Number(process.env.LITOPYS_EPISODES_MAX_LLM_FILES)
       : undefined; // falls back to default (10) in runEpisodesCatchup
+    const skillCfg = loadSkillConfig();
     catchupResult = await runEpisodesCatchup(
       {
         sources,
@@ -77,6 +78,8 @@ export async function cmdDaemonTick(args: string[], graphPath: string): Promise<
         episodesDir: defaultEpisodesDir(),
         dryRun,
         maxLlmFilesPerTick,
+        minToolOps: skillCfg.minToolOps,
+        lang: skillCfg.lang,
       },
       state,
     );

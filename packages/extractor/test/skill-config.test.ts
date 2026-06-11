@@ -206,3 +206,34 @@ describe("loadSkillConfig — full override", () => {
     expect(cfg.minSessions).toBe(4);
   });
 });
+
+// ---------------------------------------------------------------------------
+// lang — LITOPYS_SKILLS_LANG
+// ---------------------------------------------------------------------------
+
+describe("loadSkillConfig — lang", () => {
+  test("default is English when env is empty", () => {
+    const cfg = loadSkillConfig({});
+    expect(cfg.lang).toBe("English");
+  });
+
+  test("LITOPYS_SKILLS_LANG overrides lang", () => {
+    const cfg = loadSkillConfig({ LITOPYS_SKILLS_LANG: "Russian" });
+    expect(cfg.lang).toBe("Russian");
+  });
+
+  test("whitespace-only LITOPYS_SKILLS_LANG → uses default English", () => {
+    const cfg = loadSkillConfig({ LITOPYS_SKILLS_LANG: "   " });
+    expect(cfg.lang).toBe("English");
+  });
+
+  test("empty string LITOPYS_SKILLS_LANG → uses default English", () => {
+    const cfg = loadSkillConfig({ LITOPYS_SKILLS_LANG: "" });
+    expect(cfg.lang).toBe("English");
+  });
+
+  test("value is trimmed", () => {
+    const cfg = loadSkillConfig({ LITOPYS_SKILLS_LANG: "  Ukrainian  " });
+    expect(cfg.lang).toBe("Ukrainian");
+  });
+});

@@ -137,6 +137,7 @@ Environment:
   LITOPYS_SKILLS_NOTIFY_CMD      Shell command to notify on new skill draft
   LITOPYS_SKILLS_MIN_TOOL_OPS    Min tool operations per episode to be considered (default: 5)
   LITOPYS_SKILLS_MIN_SESSIONS    Min sessions a cluster must span (default: 2)
+  LITOPYS_SKILLS_LANG            Language of generated draft prose (frontmatter stays English) (default: English)
 `);
 }
 

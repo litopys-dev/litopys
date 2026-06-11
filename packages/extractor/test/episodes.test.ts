@@ -471,4 +471,51 @@ describe("extractEpisodes", () => {
     expect(threw).toBeInstanceOf(AdapterCompleteError);
     expect(callCount).toBe(2);
   });
+
+  test("default lang is English — prompt contains 'in English'", async () => {
+    const mockResponse = JSON.stringify({ episodes: [] });
+    const capturedPrompts: string[] = [];
+    const inner = new MockAdapter({ completions: [mockResponse] });
+    const adapter: ExtractorAdapter = {
+      name: inner.name,
+      model: inner.model,
+      extract: (input) => inner.extract(input),
+      complete: (input) => {
+        capturedPrompts.push(input.prompt);
+        return inner.complete(input);
+      },
+    };
+    const transcript = makeTranscript("ASSISTANT: did some work");
+
+    await extractEpisodes(transcript, SESSION_ID, SESSION_DATE, adapter, { minToolOps: 3 });
+
+    expect(capturedPrompts).toHaveLength(1);
+    expect(capturedPrompts[0]).toContain("in English");
+    expect(capturedPrompts[0]).not.toContain("{lang}");
+  });
+
+  test("custom lang is substituted into prompt", async () => {
+    const mockResponse = JSON.stringify({ episodes: [] });
+    const capturedPrompts: string[] = [];
+    const inner = new MockAdapter({ completions: [mockResponse] });
+    const adapter: ExtractorAdapter = {
+      name: inner.name,
+      model: inner.model,
+      extract: (input) => inner.extract(input),
+      complete: (input) => {
+        capturedPrompts.push(input.prompt);
+        return inner.complete(input);
+      },
+    };
+    const transcript = makeTranscript("ASSISTANT: did some work");
+
+    await extractEpisodes(transcript, SESSION_ID, SESSION_DATE, adapter, {
+      minToolOps: 3,
+      lang: "Russian",
+    });
+
+    expect(capturedPrompts).toHaveLength(1);
+    expect(capturedPrompts[0]).toContain("in Russian");
+    expect(capturedPrompts[0]).not.toContain("{lang}");
+  });
 });

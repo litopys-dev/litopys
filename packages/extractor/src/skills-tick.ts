@@ -120,7 +120,7 @@ export async function runSkillsTick(opts: SkillsTickOptions): Promise<SkillsTick
     // Generate SKILL.md via LLM
     let skillMd: string;
     try {
-      skillMd = await draftSkill(normalizedGroup, unclustered, adapter);
+      skillMd = await draftSkill(normalizedGroup, unclustered, adapter, cfg.lang);
     } catch (err) {
       process.stderr.write(
         `[litopys/skills] draftSkill failed for group "${normalizedName}": ${String(err)}\n`,

@@ -20,6 +20,8 @@ export interface SkillDetectorConfig {
   minToolOps: number;
   /** Minimum number of sessions a cluster must span to promote a skill. */
   minSessions: number;
+  /** Language for generated skill-draft prose (frontmatter stays English). */
+  lang: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -30,6 +32,7 @@ const DEFAULT_SKILLS_DIR = path.join(os.homedir(), ".claude", "skills");
 const DEFAULT_NOTIFY_COMMAND = null;
 const DEFAULT_MIN_TOOL_OPS = 5;
 const DEFAULT_MIN_SESSIONS = 2;
+const DEFAULT_LANG = "English";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -102,5 +105,12 @@ export function loadSkillConfig(env: NodeJS.ProcessEnv = process.env): SkillDete
     );
   }
 
-  return { skillsDir, notifyCommand, minToolOps, minSessions };
+  // --- lang ---
+  let lang = DEFAULT_LANG;
+  const rawLang = env.LITOPYS_SKILLS_LANG;
+  if (rawLang !== undefined && rawLang.trim() !== "") {
+    lang = rawLang.trim();
+  }
+
+  return { skillsDir, notifyCommand, minToolOps, minSessions, lang };
 }

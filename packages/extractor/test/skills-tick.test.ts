@@ -92,6 +92,7 @@ async function mkTickFixture(): Promise<{
     notifyCommand: null,
     minToolOps: 5,
     minSessions: 2,
+    lang: "English",
   };
 
   return { root, episodesDir, quarantineSkillsDir, skillsDir, cfg };
@@ -308,6 +309,7 @@ describe("runSkillsTick", () => {
         notifyCommand: "false", // `false` is a shell command that always exits 1
         minToolOps: 5,
         minSessions: 2,
+        lang: "English",
       };
 
       const clusterResponse = JSON.stringify({

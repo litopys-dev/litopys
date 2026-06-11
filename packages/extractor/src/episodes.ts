@@ -5,7 +5,6 @@
  * prompt and parse the JSON response into validated Episode objects.
  */
 
-import { AdapterCompleteError } from "./adapters/types.ts";
 import type { ExtractorAdapter } from "./adapters/types.ts";
 import { EpisodeSchema, makeEpisodeId } from "./episode-store.ts";
 import type { Episode } from "./episode-store.ts";
@@ -101,16 +100,9 @@ export async function extractEpisodes(
     process.stderr.write(
       `[litopys/episodes] Failed to parse episode response, retrying once: ${firstResult.text.slice(0, 200)}\n`,
     );
-    // Second call: if the API is down this also throws AdapterCompleteError — let it propagate
-    let retryResult: Awaited<ReturnType<typeof adapter.complete>>;
-    try {
-      retryResult = await adapter.complete({ prompt, maxTokens: 4096 });
-    } catch (err) {
-      if (err instanceof AdapterCompleteError) {
-        throw err; // API still down — propagate, don't waste quota on further retries
-      }
-      throw err;
-    }
+    // Second call: if the API is down this throws AdapterCompleteError — propagate,
+    // don't waste quota on further retries
+    const retryResult = await adapter.complete({ prompt, maxTokens: 4096 });
     rawEpisodes = parseEpisodesResponse(retryResult.text);
 
     // If still unparseable after retry, give up and return empty

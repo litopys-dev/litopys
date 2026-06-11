@@ -4,3 +4,4 @@ frozenLockfile = false
 [test]
 coverage = true
 coverageReporter = ["text"]
+preload = ["./test-support/llm-sdk-mock.ts"]

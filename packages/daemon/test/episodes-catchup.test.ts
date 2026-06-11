@@ -2,47 +2,15 @@
  * Tests for runEpisodesCatchup — daemon catch-up pass for episode extraction.
  */
 
-// NOTE: All imports from packages that transitively load @anthropic-ai/sdk must
-// be DYNAMIC (await import) placed AFTER mock.module() calls. Static imports are
-// hoisted to the top of the ESM module before any module-level code executes, so
-// a static `import { MockAdapter } from "@litopys/extractor"` would load the real
-// SDK before mock.module() has a chance to intercept it, breaking daemon.test.ts
-// whose mock.module() would find the SDK already loaded in the module cache.
+// LLM SDK mocks are registered via the shared preload (test-support/llm-sdk-mock.ts).
+// This file uses the preload's safe default (empty candidateNodes) and does not
+// need to override it — runEpisodesCatchup uses its own MockAdapter for episode
+// extraction, not the LLM SDK directly.
 
-import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { promises as fs } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-
-// ---------------------------------------------------------------------------
-// Mock LLM SDKs — MUST come before any dynamic import of extractor / tick.
-// Mirror the exact mocks used in daemon.test.ts so both test files work
-// correctly when run together in the same bun test invocation.
-// ---------------------------------------------------------------------------
-
-mock.module("@anthropic-ai/sdk", () => ({
-  default: class MockAnthropic {
-    messages = {
-      create: mock(async () => ({
-        content: [{ type: "text", text: '{"candidateNodes":[],"candidateRelations":[]}' }],
-        usage: { input_tokens: 0, output_tokens: 0 },
-      })),
-    };
-  },
-}));
-
-mock.module("openai", () => ({
-  default: class MockOpenAI {
-    chat = {
-      completions: {
-        create: mock(async () => ({
-          choices: [{ message: { content: '{"candidateNodes":[],"candidateRelations":[]}' } }],
-          usage: { prompt_tokens: 0, completion_tokens: 0 },
-        })),
-      },
-    };
-  },
-}));
 
 // Save originals before mutating env (must happen at module level, before the
 // dynamic imports below) — restored in afterAll so the mutation does not leak

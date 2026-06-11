@@ -1,37 +1,30 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { promises as fs } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { setAnthropicCreate, setOpenAICreate } from "../../../test-support/llm-sdk-mock.ts";
 
 // The bench command only ever uses the deterministic "mock" extractor, but
 // createAdapter() imports the Anthropic and OpenAI adapter modules eagerly —
-// which in turn `import @anthropic-ai/sdk` / `import openai` at the top
-// level. If we let the real SDKs load, Bun caches them and a *later* test
-// suite that calls `mock.module("@anthropic-ai/sdk", …)` silently loses the
-// mock (its substitution arrives after the cache is warm). Stubbing here
-// keeps suite-order independence.
-mock.module("@anthropic-ai/sdk", () => ({
-  default: class StubAnthropic {
-    messages = {
-      create: mock(async () => ({
-        content: [{ type: "text", text: "{}" }],
-        usage: { input_tokens: 0, output_tokens: 0 },
-      })),
-    };
-  },
-}));
-mock.module("openai", () => ({
-  default: class StubOpenAI {
-    chat = {
-      completions: {
-        create: mock(async () => ({
-          choices: [{ message: { content: "{}" } }],
-          usage: { prompt_tokens: 0, completion_tokens: 0 },
-        })),
-      },
-    };
-  },
-}));
+// which in turn import @anthropic-ai/sdk / openai at the top level. The shared
+// preload (test-support/llm-sdk-mock.ts) already stubs both SDKs before any
+// test file runs, so no per-file mock.module calls are needed here.
+
+beforeAll(() => {
+  setAnthropicCreate(async () => ({
+    content: [{ type: "text", text: "{}" }],
+    usage: { input_tokens: 0, output_tokens: 0 },
+  }));
+  setOpenAICreate(async () => ({
+    choices: [{ message: { content: "{}" } }],
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+  }));
+});
+
+afterAll(() => {
+  setAnthropicCreate(null);
+  setOpenAICreate(null);
+});
 
 const { cmdBench } = await import("../src/bench.ts");
 

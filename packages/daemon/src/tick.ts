@@ -118,6 +118,12 @@ export interface EpisodesCatchupResult {
   episodesFound: number;
 }
 
+// Backoff after API failures (429/503): base delay doubles per consecutive
+// failed pass, capped. Prevents the catch-up loop from burning the provider's
+// daily quota by retrying the backlog on every timer tick (incident 2026-06-12).
+const BACKOFF_BASE_MS = 30 * 60 * 1000; // 30 min
+const BACKOFF_MAX_MS = 8 * 60 * 60 * 1000; // 8 h
+
 /**
  * Episodes catch-up pass — scan all claude-code source files and extract
  * work episodes from "cooled-down" sessions that have not yet been processed.
@@ -168,6 +174,16 @@ export async function runEpisodesCatchup(
   const minAgeMs = opts.minAgeMs ?? 3_600_000;
   const minToolOps = opts.minToolOps ?? 5;
   const now = Date.now();
+
+  // API backoff: a previous pass hit an API error (429/503) — skip the whole
+  // pass (zero LLM calls) until the backoff window expires. Files stay
+  // unmarked in episodesState, so nothing is lost.
+  if (state.episodesBackoff && now < Date.parse(state.episodesBackoff.until)) {
+    process.stderr.write(
+      `[litopys/episodes] API backoff active until ${state.episodesBackoff.until} (failure #${state.episodesBackoff.failures}) — skipping catch-up pass\n`,
+    );
+    return { filesProcessed: 0, episodesFound: 0 };
+  }
   const maxLlmFilesPerTick =
     opts.maxLlmFilesPerTick ??
     (process.env.LITOPYS_EPISODES_MAX_LLM_FILES
@@ -277,6 +293,10 @@ export async function runEpisodesCatchup(
         lang: opts.lang,
       });
 
+      // API answered — clear any backoff left from previous failed passes
+      // (undefined is dropped by JSON.stringify on state save)
+      state.episodesBackoff = undefined;
+
       let written = 0;
       if (episodes.length > 0) {
         written = await appendEpisodes(episodes, opts.episodesDir);
@@ -286,9 +306,16 @@ export async function runEpisodesCatchup(
     } catch (err) {
       if (err instanceof AdapterCompleteError) {
         // Circuit breaker: API is down — abort the whole pass, leave remaining
-        // files unmarked so they are retried on the next tick.
+        // files unmarked, and arm an exponential backoff so subsequent ticks
+        // don't keep burning quota while the provider is rate-limiting us.
+        const failures = (state.episodesBackoff?.failures ?? 0) + 1;
+        const delayMs = Math.min(BACKOFF_BASE_MS * 2 ** (failures - 1), BACKOFF_MAX_MS);
+        state.episodesBackoff = {
+          until: new Date(Date.now() + delayMs).toISOString(),
+          failures,
+        };
         process.stderr.write(
-          `[litopys/episodes] API error — aborting catch-up pass until next tick: ${String(err)}\n`,
+          `[litopys/episodes] API error — aborting catch-up pass, backoff ${Math.round(delayMs / 60_000)}min (failure #${failures}): ${String(err)}\n`,
         );
         // Do NOT mark processed, do NOT continue — exit the loop immediately
         break;

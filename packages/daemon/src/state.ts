@@ -33,6 +33,15 @@ export interface DaemonState {
    * Survives serialisation via JSON.stringify/JSON.parse.
    */
   episodesState?: Record<string, { mtime: string }>;
+  /**
+   * Exponential backoff after an API failure in the episodes catch-up pass.
+   * While `until` is in the future the pass is skipped entirely (no LLM calls).
+   * `failures` counts consecutive failed passes and drives the doubling delay;
+   * reset on the first successful LLM call.
+   * Added after incident 2026-06-12: retrying the backlog on every 5-minute
+   * tick burned the whole free-tier daily quota around the clock.
+   */
+  episodesBackoff?: { until: string; failures: number };
 }
 
 // ---------------------------------------------------------------------------

@@ -642,6 +642,135 @@ describe("runEpisodesCatchup", () => {
     expect(apiErrorAdapter.completeCalls).toBe(1);
   });
 
+  // -------------------------------------------------------------------------
+  // 429 backoff: repeated API failures must not burn quota every tick
+  // (incident 2026-06-12: retrying the backlog every 5-minute tick exhausted
+  // the free-tier daily quota around the clock)
+  // -------------------------------------------------------------------------
+
+  test("AdapterCompleteError → episodesBackoff recorded in state (failures=1, until ≈ 30min ahead)", async () => {
+    const file1 = path.join(tmpDir, "session1.jsonl");
+    await fs.writeFile(file1, makeFixtureTranscript(6, "2026-03-15", 0, "sess-bo-001"), "utf-8");
+    await setMtimeAgo(file1, 2 * 60 * 60 * 1000);
+
+    const apiErrorAdapter = new MockAdapter({
+      failWith: new Error("HTTP 429 Too Many Requests"),
+    });
+
+    const state = freshState();
+    const before = Date.now();
+    await runEpisodesCatchup(
+      {
+        sources: [{ adapter: "claude-code", glob: file1 }],
+        adapter: apiErrorAdapter,
+        episodesDir,
+        minAgeMs: 60_000,
+        minToolOps: 5,
+      },
+      state,
+    );
+
+    expect(state.episodesBackoff).toBeDefined();
+    expect(state.episodesBackoff?.failures).toBe(1);
+    const until = Date.parse(state.episodesBackoff?.until ?? "");
+    // First failure → base delay 30 min (allow generous slack for test runtime)
+    expect(until).toBeGreaterThan(before + 29 * 60 * 1000);
+    expect(until).toBeLessThan(before + 31 * 60 * 1000);
+  });
+
+  test("active backoff (until in future) → pass skipped entirely: no LLM calls, no state changes", async () => {
+    const file1 = path.join(tmpDir, "session1.jsonl");
+    await fs.writeFile(file1, makeFixtureTranscript(6, "2026-03-15", 0, "sess-bo-002"), "utf-8");
+    await setMtimeAgo(file1, 2 * 60 * 60 * 1000);
+
+    const adapter = makeEpisodeAdapter();
+    const state = freshState();
+    state.episodesBackoff = {
+      until: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 min in future
+      failures: 1,
+    };
+
+    const result = await runEpisodesCatchup(
+      {
+        sources: [{ adapter: "claude-code", glob: file1 }],
+        adapter,
+        episodesDir,
+        minAgeMs: 60_000,
+        minToolOps: 5,
+      },
+      state,
+    );
+
+    expect(result.filesProcessed).toBe(0);
+    expect(result.episodesFound).toBe(0);
+    expect(adapter.completeCalls).toBe(0); // quota untouched
+    expect(state.episodesState?.[file1]).toBeUndefined(); // file left for later
+    expect(state.episodesBackoff?.failures).toBe(1); // backoff unchanged
+  });
+
+  test("expired backoff + another API failure → failures incremented, delay doubled (capped)", async () => {
+    const file1 = path.join(tmpDir, "session1.jsonl");
+    await fs.writeFile(file1, makeFixtureTranscript(6, "2026-03-15", 0, "sess-bo-003"), "utf-8");
+    await setMtimeAgo(file1, 2 * 60 * 60 * 1000);
+
+    const apiErrorAdapter = new MockAdapter({
+      failWith: new Error("HTTP 429 Too Many Requests"),
+    });
+
+    const state = freshState();
+    state.episodesBackoff = {
+      until: new Date(Date.now() - 1000).toISOString(), // expired → pass proceeds
+      failures: 2,
+    };
+
+    const before = Date.now();
+    await runEpisodesCatchup(
+      {
+        sources: [{ adapter: "claude-code", glob: file1 }],
+        adapter: apiErrorAdapter,
+        episodesDir,
+        minAgeMs: 60_000,
+        minToolOps: 5,
+      },
+      state,
+    );
+
+    expect(apiErrorAdapter.completeCalls).toBe(1); // expired backoff lets the pass run
+    expect(state.episodesBackoff?.failures).toBe(3);
+    const until = Date.parse(state.episodesBackoff?.until ?? "");
+    // failure #3 → 30min * 2^2 = 120 min
+    expect(until).toBeGreaterThan(before + 119 * 60 * 1000);
+    expect(until).toBeLessThan(before + 121 * 60 * 1000);
+  });
+
+  test("successful LLM call clears episodesBackoff", async () => {
+    const file1 = path.join(tmpDir, "session1.jsonl");
+    await fs.writeFile(file1, makeFixtureTranscript(6, "2026-03-15", 0, "sess-bo-004"), "utf-8");
+    await setMtimeAgo(file1, 2 * 60 * 60 * 1000);
+
+    const adapter = makeEpisodeAdapter("восстановление после 429");
+    const state = freshState();
+    state.episodesBackoff = {
+      until: new Date(Date.now() - 1000).toISOString(), // expired
+      failures: 4,
+    };
+
+    const result = await runEpisodesCatchup(
+      {
+        sources: [{ adapter: "claude-code", glob: file1 }],
+        adapter,
+        episodesDir,
+        minAgeMs: 60_000,
+        minToolOps: 5,
+      },
+      state,
+    );
+
+    expect(result.filesProcessed).toBe(1);
+    expect(result.episodesFound).toBe(1);
+    expect(state.episodesBackoff).toBeUndefined(); // API healthy → backoff reset
+  });
+
   test("non-AdapterCompleteError → file skipped but pass continues to next file", async () => {
     // File 1 will fail with a non-API error (parse error from transcript)
     // File 2 should still be processed.

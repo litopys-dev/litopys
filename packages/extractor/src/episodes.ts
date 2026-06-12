@@ -95,8 +95,14 @@ export async function extractEpisodes(
     transcript.text,
   );
 
+  // 16384, not 4096: reasoning models (gemini-2.5-flash) spend "thinking"
+  // tokens from the same output budget, so 4096 deterministically truncated
+  // mid-JSON on verbose sessions — parse failed, and the retry (same params)
+  // was guaranteed to truncate again, doubling quota burn for nothing.
+  const maxTokens = 16_384;
+
   // First attempt — AdapterCompleteError propagates immediately (no retry for API failures)
-  const firstResult = await adapter.complete({ prompt, maxTokens: 4096 });
+  const firstResult = await adapter.complete({ prompt, maxTokens });
   let rawEpisodes = parseEpisodesResponse(firstResult.text);
 
   // Retry once on parse failure (response received but not parseable as JSON episodes)
@@ -106,7 +112,7 @@ export async function extractEpisodes(
     );
     // Second call: if the API is down this throws AdapterCompleteError — propagate,
     // don't waste quota on further retries
-    const retryResult = await adapter.complete({ prompt, maxTokens: 4096 });
+    const retryResult = await adapter.complete({ prompt, maxTokens });
     rawEpisodes = parseEpisodesResponse(retryResult.text);
 
     // If still unparseable after retry, give up and return empty

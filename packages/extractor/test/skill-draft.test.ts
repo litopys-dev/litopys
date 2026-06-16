@@ -417,6 +417,99 @@ describe("draftSkill", () => {
     expect(result).toContain("## Verification");
   });
 
+  test("localized section headers (Qwen-style) → normalized to English → accepted on first try", async () => {
+    const ep = makeEpisode({ id: "ep-localized0001", sessionId: "sess-A" });
+    const group = {
+      name: "localized-skill",
+      episodeIds: [ep.id],
+      worthSkill: true,
+      reason: "Test.",
+    };
+
+    // Model translated two of the four headers into Russian (observed with
+    // Qwen3-Next). Exactly 4 level-2 headers, all bodies non-empty.
+    const localized = `---
+name: localized-skill
+description: Use this when a systemd service has failed.
+---
+
+# Перезапуск сервиса
+
+## Когда использовать
+
+Когда сервис упал.
+
+## Процедура
+
+1. Посмотреть логи.
+2. Перезапустить.
+
+## Pitfalls
+
+Не менять конфиг.
+
+## Verification
+
+Проверить статус.
+`;
+    const adapter = new MockAdapter({ completions: [localized] });
+
+    const result = await draftSkill(group, [ep], adapter);
+    expect(adapter.completeCalls).toBe(1);
+    expect(result).toContain("## When to use");
+    expect(result).toContain("## Procedure");
+    expect(result).toContain("## Pitfalls");
+    expect(result).toContain("## Verification");
+    expect(result).not.toContain("## Когда использовать");
+    expect(result).not.toContain("## Процедура");
+    // model's body content is preserved
+    expect(result).toContain("Посмотреть логи.");
+  });
+
+  test("more than 4 level-2 headers → normalization skipped (guard) → localized headers rejected → retry", async () => {
+    const ep = makeEpisode({ id: "ep-localized0002", sessionId: "sess-A" });
+    const group = {
+      name: "extra-header-skill",
+      episodeIds: [ep.id],
+      worthSkill: true,
+      reason: "Test.",
+    };
+
+    // 5 level-2 headers (an extra `## ` inside the body) with localized ones →
+    // positional remap must NOT fire → English headers stay missing → invalid.
+    const extra = `---
+name: extra-header-skill
+description: Use this when something.
+---
+
+# Title
+
+## Когда использовать
+
+Когда нужно.
+
+## Процедура
+
+1. Шаг.
+
+## Детали
+
+Подробности.
+
+## Pitfalls
+
+Осторожно.
+
+## Verification
+
+Проверить.
+`;
+    const adapter = new MockAdapter({ completions: [extra] });
+
+    await expect(draftSkill(group, [ep], adapter)).rejects.toThrow();
+    expect(adapter.completeCalls).toBe(2);
+  });
+
   test("response wrapped in code fences → fences stripped", async () => {
     const ep = makeEpisode({ id: "ep-draft000002", sessionId: "sess-A" });
     const group = {

@@ -7,6 +7,23 @@
  */
 
 // ---------------------------------------------------------------------------
+// Output budget
+// ---------------------------------------------------------------------------
+
+/**
+ * Output token budget for every extractor LLM call.
+ *
+ * gemini-2.5-flash spends thinking tokens from the same output budget, so a low
+ * cap truncates JSON mid-response: the closing code fence never prints,
+ * stripCodeFences can't pair the fences, and JSON.parse chokes on the leading
+ * ```json. Both the call and its retry then burn quota for nothing. 16384 is the
+ * value Stage A (episodes) settled on; keeping every call on one constant stops
+ * a single forgotten site from regressing (clustering was stuck at 2048, draft
+ * generation at 4096 — see the 2026-06-12 episodes fix that missed them).
+ */
+export const EXTRACTOR_MAX_TOKENS = 16_384;
+
+// ---------------------------------------------------------------------------
 // Code fences
 // ---------------------------------------------------------------------------
 

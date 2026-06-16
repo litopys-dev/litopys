@@ -8,7 +8,7 @@
 import type { ExtractorAdapter } from "./adapters/types.ts";
 import { EpisodeSchema, makeEpisodeId } from "./episode-store.ts";
 import type { Episode } from "./episode-store.ts";
-import { parseKeyedArray, safeReplace } from "./llm-utils.ts";
+import { EXTRACTOR_MAX_TOKENS, parseKeyedArray, safeReplace } from "./llm-utils.ts";
 import type { ParsedTranscript } from "./transcript-tools.ts";
 
 // ---------------------------------------------------------------------------
@@ -99,7 +99,8 @@ export async function extractEpisodes(
   // tokens from the same output budget, so 4096 deterministically truncated
   // mid-JSON on verbose sessions — parse failed, and the retry (same params)
   // was guaranteed to truncate again, doubling quota burn for nothing.
-  const maxTokens = 16_384;
+  // Shared with Stage B clustering/drafting via EXTRACTOR_MAX_TOKENS.
+  const maxTokens = EXTRACTOR_MAX_TOKENS;
 
   // First attempt — AdapterCompleteError propagates immediately (no retry for API failures)
   const firstResult = await adapter.complete({ prompt, maxTokens });

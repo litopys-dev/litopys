@@ -14,7 +14,12 @@ import * as path from "node:path";
 import { z } from "zod";
 import type { ExtractorAdapter } from "./adapters/types.ts";
 import type { Episode } from "./episode-store.ts";
-import { parseKeyedArray, safeReplace, stripCodeFences } from "./llm-utils.ts";
+import {
+  EXTRACTOR_MAX_TOKENS,
+  parseKeyedArray,
+  safeReplace,
+  stripCodeFences,
+} from "./llm-utils.ts";
 import type { SkillDetectorConfig } from "./skill-config.ts";
 
 // ---------------------------------------------------------------------------
@@ -85,7 +90,9 @@ description: <trigger conditions in one paragraph, English>
 ## Verification
 
 Rules:
-- Section bodies in {lang}.
+- The four section headers MUST stay EXACTLY in English, verbatim: "## When to use", "## Procedure", "## Pitfalls", "## Verification". Do NOT translate or rephrase them.
+- The "description:" field in the frontmatter MUST be written in English.
+- Only the prose body under each header is written in {lang}.
 - Each section body must be non-empty — at least one sentence or step.
 - Procedure: numbered generalized steps with concrete commands where they appeared.
 - Pitfalls: extract from errorRecovery episodes — what did NOT work. If there are no errorRecovery episodes, derive the most likely mistake from the steps, or write a brief note in {lang}.
@@ -135,6 +142,34 @@ function isValidSkillMd(text: string): boolean {
   return true;
 }
 
+/**
+ * Canonicalize the four section headers by position.
+ *
+ * Some models (observed with Qwen3-Next) translate level-2 headers into the
+ * body language despite the prompt asking to keep them English — only some
+ * headers, non-deterministically — which fails isValidSkillMd's exact-English
+ * check and silently drops the draft. The draft structure is fixed-order, so we
+ * rewrite the headers to English by position; the model's content is preserved.
+ *
+ * Fires ONLY when there are exactly REQUIRED_SECTIONS.length level-2 (`## `)
+ * headers. Any other count means the structure is off (missing section, or an
+ * extra `##` sub-header inside a body) — leave it untouched for the retry/skip
+ * path rather than risk mismapping.
+ */
+function normalizeSectionHeaders(text: string): string {
+  const lines = text.split("\n");
+  const headerLineIdx = lines.reduce<number[]>((acc, line, i) => {
+    if (/^##(?!#)\s+\S/.test(line)) acc.push(i);
+    return acc;
+  }, []);
+  if (headerLineIdx.length !== REQUIRED_SECTIONS.length) return text;
+  REQUIRED_SECTIONS.forEach((canonical, k) => {
+    const lineIdx = headerLineIdx[k];
+    if (lineIdx !== undefined) lines[lineIdx] = canonical;
+  });
+  return lines.join("\n");
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -171,7 +206,7 @@ export async function clusterEpisodes(
   const prompt = safeReplace(CLUSTER_PROMPT, "{episodes}", JSON.stringify(episodePayload, null, 2));
 
   // First attempt
-  const firstResult = await adapter.complete({ prompt, maxTokens: 2048 });
+  const firstResult = await adapter.complete({ prompt, maxTokens: EXTRACTOR_MAX_TOKENS });
   let rawGroups = parseGroupsResponse(firstResult.text);
 
   // Retry once on parse/shape failure
@@ -179,7 +214,7 @@ export async function clusterEpisodes(
     process.stderr.write(
       `[litopys/skills] Failed to parse cluster response, retrying once: ${firstResult.text.slice(0, 200)}\n`,
     );
-    const retryResult = await adapter.complete({ prompt, maxTokens: 2048 });
+    const retryResult = await adapter.complete({ prompt, maxTokens: EXTRACTOR_MAX_TOKENS });
     rawGroups = parseGroupsResponse(retryResult.text);
 
     if (rawGroups === null) {
@@ -303,8 +338,8 @@ export async function draftSkill(
   );
 
   // First attempt
-  const firstResult = await adapter.complete({ prompt, maxTokens: 4096 });
-  const firstText = stripCodeFences(firstResult.text);
+  const firstResult = await adapter.complete({ prompt, maxTokens: EXTRACTOR_MAX_TOKENS });
+  const firstText = normalizeSectionHeaders(stripCodeFences(firstResult.text));
 
   if (isValidSkillMd(firstText)) {
     return firstText;
@@ -314,8 +349,8 @@ export async function draftSkill(
   process.stderr.write(
     `[litopys/skills] draftSkill: invalid SKILL.md response, retrying once for group "${group.name}"\n`,
   );
-  const retryResult = await adapter.complete({ prompt, maxTokens: 4096 });
-  const retryText = stripCodeFences(retryResult.text);
+  const retryResult = await adapter.complete({ prompt, maxTokens: EXTRACTOR_MAX_TOKENS });
+  const retryText = normalizeSectionHeaders(stripCodeFences(retryResult.text));
 
   if (isValidSkillMd(retryText)) {
     return retryText;

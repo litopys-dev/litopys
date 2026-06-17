@@ -510,6 +510,56 @@ description: Use this when something.
     expect(adapter.completeCalls).toBe(2);
   });
 
+  test("section body opening with a ### sub-header is valid (not a false empty body)", async () => {
+    const ep = makeEpisode({ id: "ep-subhdr00001", sessionId: "sess-A" });
+    const group = {
+      name: "install-and-troubleshoot",
+      episodeIds: [ep.id],
+      worthSkill: true,
+      reason: "Test.",
+    };
+
+    // Realistic Qwen output for an "installation AND troubleshooting" cluster:
+    // the Procedure groups steps under ### sub-headers. Exactly 4 level-2
+    // headers, every section non-empty — a ### line is body content, NOT a
+    // section boundary, so the draft MUST be accepted on the first try.
+    const withSubheaders = `---
+name: install-and-troubleshoot
+description: Use this when installing and troubleshooting a systemd user service.
+---
+
+# Установка и диагностика
+
+## When to use
+
+Когда нужно поставить и починить пользовательский сервис systemd.
+
+## Procedure
+
+### Installation
+1. Создать unit-файл в ~/.config/systemd/user/.
+2. systemctl --user daemon-reload.
+
+### Troubleshooting
+1. Проверить XDG_RUNTIME_DIR.
+
+## Pitfalls
+
+Без XDG_RUNTIME_DIR команды systemctl --user падают.
+
+## Verification
+
+systemctl --user status показывает active.
+`;
+    const adapter = new MockAdapter({ completions: [withSubheaders] });
+
+    const result = await draftSkill(group, [ep], adapter);
+    expect(adapter.completeCalls).toBe(1);
+    expect(result).toContain("### Installation");
+    expect(result).toContain("### Troubleshooting");
+    expect(result).toContain("## Procedure");
+  });
+
   test("response wrapped in code fences → fences stripped", async () => {
     const ep = makeEpisode({ id: "ep-draft000002", sessionId: "sess-A" });
     const group = {

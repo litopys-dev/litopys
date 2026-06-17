@@ -131,11 +131,18 @@ function isValidSkillMd(text: string): boolean {
   if (!REQUIRED_SECTIONS.every((section) => t.includes(section))) return false;
 
   // Empty-skeleton guard: each required header must be followed by actual
-  // body content — not immediately by another header or EOF.
+  // body content — not immediately by the NEXT level-2 section header or EOF.
+  // The boundary is level-2 (`## `) only: a `###`+ sub-header is body content,
+  // not a section boundary. Matching any `#{1,6}` here misfired on valid drafts
+  // whose section body opens with a sub-header (observed with Qwen on clusters
+  // like "install AND troubleshoot", where Procedure groups steps under
+  // `### Installation` / `### Troubleshooting`) — the whole draft was silently
+  // dropped. A bare skeleton (`## X` directly followed by `## Y`) is still
+  // caught, since the next level-2 header sits flush against the current one.
   for (const section of REQUIRED_SECTIONS) {
     const idx = t.indexOf(section);
     const after = t.slice(idx + section.length);
-    const nextHeader = after.search(/^#{1,6}\s/m);
+    const nextHeader = after.search(/^##(?!#)\s/m);
     const body = nextHeader === -1 ? after : after.slice(0, nextHeader);
     if (body.trim() === "") return false;
   }

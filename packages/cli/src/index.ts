@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { defaultGraphPath } from "@litopys/core";
 import {
   acceptMergeProposal,
+  autoAcceptCandidates,
   createAdapter,
   defaultEpisodesDir,
   defaultQuarantineSkillsDir,
@@ -59,6 +60,9 @@ Commands:
 
   quarantine list                           List all pending quarantine items
   quarantine accept <file> [index]          Promote a candidate, or accept a merge proposal
+  quarantine auto-accept [flags]            Land every candidate that clears the guards
+                                            (--min-confidence 0.9, --dry-run,
+                                             --no-speculation-guard)
   quarantine reject <file> [index] [reason] Reject a candidate, or reject a merge proposal
   digest                                    Generate weekly digest
   startup-context                           Print MCP startup-context markdown (for hooks)
@@ -221,6 +225,75 @@ async function cmdQuarantineAccept(args: string[]): Promise<void> {
 
   await promoteCandidate(absFile, index, graphPath());
   process.stdout.write(`Promoted candidate [${index}] from ${path.basename(file)}\n`);
+}
+
+async function cmdQuarantineAutoAccept(args: string[]): Promise<void> {
+  let minConfidence = 0.9;
+  let dryRun = false;
+  let guardSpeculation = true;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i] ?? "";
+    if (arg === "--dry-run") {
+      dryRun = true;
+    } else if (arg === "--no-speculation-guard") {
+      guardSpeculation = false;
+    } else if (arg === "--min-confidence" && args[i + 1]) {
+      const parsed = Number.parseFloat(args[++i] as string);
+      if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+        process.stderr.write("--min-confidence must be a number in 0..1\n");
+        process.exit(1);
+      }
+      minConfidence = parsed;
+    } else {
+      process.stderr.write(`Unknown flag: ${arg}\n`);
+      process.exit(1);
+    }
+  }
+
+  const gp = graphPath();
+  const result = await autoAcceptCandidates({
+    quarantineDir: path.join(gp, "..", "quarantine"),
+    graphPath: gp,
+    minConfidence,
+    dryRun,
+    guardSpeculation,
+  });
+
+  const prefix = dryRun ? "[dry-run] " : "";
+  process.stdout.write(
+    `${prefix}Scanned ${result.filesScanned} file(s), ${result.candidatesScanned} candidate(s) at threshold ${minConfidence}\n`,
+  );
+
+  for (const item of result.accepted) {
+    process.stdout.write(
+      `  ${dryRun ? "would accept" : "accepted"}: ${item.candidateId} (${item.type}, ${item.confidence})\n`,
+    );
+  }
+
+  const byReason = new Map<string, number>();
+  for (const skip of result.skipped) {
+    byReason.set(skip.reason, (byReason.get(skip.reason) ?? 0) + 1);
+  }
+  if (byReason.size > 0) {
+    process.stdout.write("  left for review:\n");
+    for (const [reason, count] of [...byReason].sort(([, a], [, b]) => b - a)) {
+      process.stdout.write(`    ${reason}: ${count}\n`);
+    }
+  }
+
+  process.stdout.write(
+    `${prefix}Relations: ${result.relationsApplied} applied, ${result.relationsDeferred} deferred, ` +
+      `${result.relationsInvalid} invalid, ${result.relationsDangling} dangling\n`,
+  );
+  process.stdout.write(
+    `${prefix}Pruned as already-created: ${result.pruned}\n` +
+      `${prefix}Files cleared: ${result.filesRemoved}\n`,
+  );
+
+  for (const err of result.errors) {
+    process.stderr.write(`  [error] ${err.candidateId}: ${err.message}\n`);
+  }
 }
 
 async function cmdQuarantineReject(args: string[]): Promise<void> {
@@ -407,6 +480,8 @@ async function main(): Promise<void> {
       await cmdQuarantineList();
     } else if (sub === "accept") {
       await cmdQuarantineAccept(args.slice(2));
+    } else if (sub === "auto-accept") {
+      await cmdQuarantineAutoAccept(args.slice(2));
     } else if (sub === "reject") {
       await cmdQuarantineReject(args.slice(2));
     } else {

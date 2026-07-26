@@ -230,6 +230,51 @@ export async function listQuarantineFrom(dir: string): Promise<QuarantineFile[]>
 }
 
 /**
+ * Read and parse a single quarantine file.
+ *
+ * Exposed for callers that need to locate a candidate by id rather than by
+ * index (indices shift as candidates are promoted out of the file).
+ */
+export async function readQuarantineFile(filePath: string): Promise<QuarantineFile> {
+  const content = await fs.readFile(filePath, "utf-8");
+  return deserialize(content, filePath);
+}
+
+/**
+ * Overwrite a quarantine file with the given contents, or delete it when
+ * nothing is left to review. Returns true when the file was deleted.
+ *
+ * Used by the auto-accept pass to strip promoted candidates and applied
+ * relations without going through the per-candidate promote path.
+ */
+export async function rewriteQuarantineFile(
+  filePath: string,
+  candidates: CandidateNode[],
+  relations: CandidateRelation[],
+  meta: QuarantineMeta,
+): Promise<boolean> {
+  if (candidates.length === 0 && relations.length === 0) {
+    await fs.rm(filePath, { force: true });
+    return true;
+  }
+  await fs.writeFile(filePath, serialize(candidates, relations, meta), "utf-8");
+  return false;
+}
+
+export interface PromoteOptions {
+  /**
+   * Also create the candidate's outgoing relations whose target already exists.
+   * Default true (the interactive review path relies on it).
+   *
+   * The auto-accept pass passes false: it applies relations itself in a second
+   * pass, where it can enforce the relation-constraint table and refuse to
+   * auto-apply `supersedes` (which tombstones its target). Landing relations
+   * here would bypass both checks.
+   */
+  applyRelations?: boolean;
+}
+
+/**
  * Promote a candidate node to the real graph.
  * - Creates the node via writeNode from @litopys/core
  * - Removes the candidate from the quarantine file
@@ -239,7 +284,9 @@ export async function promoteCandidate(
   quarantineFilePath: string,
   candidateIndex: number,
   graphPath: string,
+  options: PromoteOptions = {},
 ): Promise<void> {
+  const applyRelations = options.applyRelations ?? true;
   return withGraphLock(graphPath, async () => {
     const content = await fs.readFile(quarantineFilePath, "utf-8");
     const qFile = deserialize(content, quarantineFilePath);
@@ -273,7 +320,7 @@ export async function promoteCandidate(
       (r) => r.sourceId === promoted || r.targetId === promoted,
     );
 
-    if (relationsForCandidate.length > 0) {
+    if (applyRelations && relationsForCandidate.length > 0) {
       const loaded = await loadGraph(graphPath);
       const sourceNode = loaded.nodes.get(promoted);
       if (sourceNode) {

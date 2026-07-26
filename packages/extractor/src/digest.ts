@@ -12,9 +12,15 @@ import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import { defaultGraphPath, loadGraph } from "@litopys/core";
 import type { AnyNode } from "@litopys/core";
-import { createAdapter } from "./adapters/factory.ts";
 import { listQuarantine } from "./quarantine.ts";
 import { defaultQuarantineSkillsDir, listSkillDrafts } from "./skill-quarantine.ts";
+
+/**
+ * How many pending quarantine sessions get a detailed block in the digest.
+ * The rest are summarized as a count — a backlog dump is what made the digest
+ * unreadable, and the queue is actionable through `litopys quarantine list`.
+ */
+const QUARANTINE_DETAIL_LIMIT = 8;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -148,45 +154,14 @@ export async function generateDigest(options: DigestOptions = {}): Promise<Diges
       ? `Last ${rejectedLines.length} rejected candidates recorded.`
       : "(no rejections this week)";
 
-  // Try LLM-enhanced digest, fall back to manual on any error (e.g. no API key in tests)
-  let digestContent = "";
-  try {
-    const adapter = createAdapter();
-    const digestPrompt = `You are a knowledge graph assistant. Summarize the following weekly Litopys activity report in a concise, useful markdown document.
-
-WEEK: ${weekLabel}
-DAYS COVERED: ${days}
-
-## Recently Updated Nodes (${recentNodes.length}):
-${recentSummary}
-
-## Pending Quarantine Review (${pendingCount} nodes, ${pendingRelCount} relations in ${pendingFiles.length} sessions):
-${pendingSummary}
-
-## Rejections:
-${rejectedSummary}
-
-Write a useful weekly digest with sections:
-1. What was learned/updated this week
-2. What needs review (quarantine items)
-3. Any potential conflicts or patterns worth noting
-4. Recommended actions
-
-Be concise and actionable. Use markdown formatting.`;
-
-    const output = await adapter.extract({
-      transcript: digestPrompt,
-      existingNodeIds: recentNodes.map((n) => n.id),
-      maxCandidates: 0,
-    });
-    // extract() returns structured candidates; for digest prose we fall back to manual
-    void output;
-  } catch {
-    // No API key or adapter error — use manual digest
-  }
-
-  // Generate digest manually (LLM prose would replace this in production via a direct chat API call)
-  digestContent = generateManualDigest(
+  // The digest is assembled deterministically from the graph.
+  //
+  // There used to be an LLM call here whose result was discarded with `void
+  // output` — it burned a provider request every week and produced nothing.
+  // Worse, it called extract() (a candidate extractor) to ask for prose. If
+  // LLM-written digests are wanted, adapter.complete() is the right primitive
+  // and the output has to actually be used.
+  const digestContent = generateManualDigest(
     weekLabel,
     recentNodes,
     pendingFiles,
@@ -219,6 +194,12 @@ function generateManualDigest(
   lines.push(`# Litopys Weekly Digest — ${weekLabel}`);
   lines.push(`Generated: ${now}`);
   lines.push("");
+  // One line that answers "do I need to open this?" without scrolling.
+  lines.push(
+    `**Итог:** обновлено узлов — ${recentNodes.length}; на приёмке — ${pendingCount} кандидат(ов) ` +
+      `в ${pendingFiles.length} сессиях; черновиков скиллов — ${skillDrafts.length}.`,
+  );
+  lines.push("");
 
   lines.push("## What Was Updated This Week");
   if (recentNodes.length === 0) {
@@ -248,7 +229,11 @@ function generateManualDigest(
     );
     lines.push("");
     lines.push("Run `litopys quarantine list` to see details.");
-    for (const f of pendingFiles) {
+    // Only the oldest sessions are spelled out. Listing every one turned the
+    // digest into a dump of the backlog — it grew to 29 KB, 90% of it this
+    // section, which is what made the whole document go unread.
+    const detailed = pendingFiles.slice(0, QUARANTINE_DETAIL_LIMIT);
+    for (const f of detailed) {
       lines.push(`\n### Session: ${f.meta.sessionId}`);
       lines.push(`- Timestamp: ${f.meta.timestamp}`);
       lines.push(`- Adapter: ${f.meta.adapterName}`);
@@ -259,6 +244,11 @@ function generateManualDigest(
           lines.push(`  - [${c.type}] \`${c.id}\`: ${c.summary} *(confidence: ${c.confidence})*`);
         }
       }
+    }
+    const hidden = pendingFiles.length - detailed.length;
+    if (hidden > 0) {
+      lines.push("");
+      lines.push(`_… and ${hidden} more session(s) — see \`litopys quarantine list\`._`);
     }
   }
 

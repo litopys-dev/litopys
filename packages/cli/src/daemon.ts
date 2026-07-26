@@ -19,7 +19,32 @@ import {
   runTick,
   saveState,
 } from "@litopys/daemon";
-import { createAdapter, defaultEpisodesDir, loadSkillConfig } from "@litopys/extractor";
+import {
+  autoAcceptCandidates,
+  createAdapter,
+  defaultEpisodesDir,
+  loadSkillConfig,
+} from "@litopys/extractor";
+
+/**
+ * Auto-accept threshold for the hourly tick.
+ *
+ * Set LITOPYS_AUTO_ACCEPT to a confidence in 0..1, or to "off" to disable.
+ * Default 0.9: an extraction pipeline whose only exit is manual review silts up,
+ * so the loop closes itself unless an operator opts out.
+ */
+function autoAcceptThreshold(): number | undefined {
+  const raw = (process.env.LITOPYS_AUTO_ACCEPT ?? "0.9").trim().toLowerCase();
+  if (raw === "off" || raw === "false" || raw === "0") return undefined;
+  const parsed = Number.parseFloat(raw);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+    process.stderr.write(
+      `[litopys/daemon] Ignoring invalid LITOPYS_AUTO_ACCEPT="${raw}" — using 0.9\n`,
+    );
+    return 0.9;
+  }
+  return parsed;
+}
 
 // ---------------------------------------------------------------------------
 // tick
@@ -91,6 +116,33 @@ export async function cmdDaemonTick(args: string[], graphPath: string): Promise<
   // Persist state (even in dry-run — offsets are still advanced so we don't re-process)
   // episodesState is part of state and is persisted by the same mechanism.
   await saveState(statePath, state);
+
+  // Auto-accept pass — lands high-confidence candidates so the review queue
+  // does not grow unbounded. Runs after extraction so candidates written by
+  // this very tick are considered. Never aborts the tick.
+  const threshold = autoAcceptThreshold();
+  if (threshold === undefined) {
+    process.stdout.write("Auto-accept: disabled (LITOPYS_AUTO_ACCEPT=off)\n");
+  } else {
+    try {
+      const accept = await autoAcceptCandidates({
+        quarantineDir: path.join(graphPath, "..", "quarantine"),
+        graphPath,
+        minConfidence: threshold,
+        dryRun,
+      });
+      process.stdout.write(
+        `Auto-accept (>=${threshold}): ${accept.accepted.length} node(s), ` +
+          `${accept.relationsApplied} relation(s), ${accept.pruned} pruned, ` +
+          `${accept.skipped.length} left for review, ${accept.filesRemoved} file(s) cleared\n`,
+      );
+      for (const e of accept.errors) {
+        process.stderr.write(`  [auto-accept error] ${e.candidateId}: ${e.message}\n`);
+      }
+    } catch (err) {
+      process.stderr.write(`[litopys/auto-accept] pass failed: ${String(err)}\n`);
+    }
+  }
 
   process.stdout.write(
     `Tick at ${result.tickedAt}: scanned ${result.filesScanned} file(s), updated ${result.filesUpdated}\n`,

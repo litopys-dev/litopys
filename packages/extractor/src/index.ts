@@ -14,6 +14,7 @@ export type {
   ExtractorAdapter,
   ExtractorInput,
   ExtractorOutput,
+  ExtractorFailure,
   CandidateNode,
   CandidateRelation,
 } from "./adapters/types.ts";
@@ -23,6 +24,13 @@ export {
   CandidateRelationSchema,
   LLMOutputSchema,
 } from "./adapters/types.ts";
+export {
+  normalizeEnums,
+  normalizeNodeType,
+  normalizeRelationName,
+  parseExtractorOutput,
+} from "./adapters/parse-output.ts";
+export type { ParseExtractorOutputOptions } from "./adapters/parse-output.ts";
 
 export { buildSystemPrompt, buildUserPrompt } from "./prompt.ts";
 
@@ -31,6 +39,8 @@ export {
   writeQuarantineTo,
   listQuarantine,
   listQuarantineFrom,
+  readQuarantineFile,
+  rewriteQuarantineFile,
   promoteCandidate,
   rejectCandidate,
 } from "./quarantine.ts";
@@ -51,6 +61,15 @@ export {
 } from "./merge-proposal.ts";
 export type { MergeProposal, MergeResult, MergeConflict } from "./merge-proposal.ts";
 export { acceptMergeProposal, rejectMergeProposal } from "./merge-apply.ts";
+export { autoAcceptCandidates, looksSpeculative } from "./auto-accept.ts";
+export type {
+  AutoAcceptOptions,
+  AutoAcceptResult,
+  AutoAcceptedItem,
+  AutoAcceptSkip,
+  AutoAcceptSkipReason,
+  AutoAcceptError,
+} from "./auto-accept.ts";
 export { autoMergeProposals, parseSimilarity } from "./auto-merge.ts";
 export type {
   AutoMergeOptions,

@@ -20,7 +20,9 @@ Behavioral rules — follow these for every conversation:
 
 1. SEARCH FIRST. Before answering questions about the user, their projects, \
 systems, tools, preferences, or past decisions — call litopys_search. \
-Do not rely on in-context recall alone.
+Do not rely on in-context recall alone. Each top hit carries its depth-1 \
+relations in the "neighbours" field: read them, they are why this is a graph \
+and not a keyword index. Call litopys_related only to walk further than one hop.
 
 2. CREATE ON LEARNING. When a new stable fact emerges (a preference, a \
 project decision, a technical constraint, a lesson from an incident) — call \

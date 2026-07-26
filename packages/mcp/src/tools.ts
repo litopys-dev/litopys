@@ -46,6 +46,12 @@ export const SearchInputSchema = z.object({
     .describe(
       "When true, also return tombstoned (until <= today) or not-yet-valid nodes. Default false hides stale/superseded nodes. Ignored when as_of is set.",
     ),
+  neighbours: z
+    .boolean()
+    .optional()
+    .describe(
+      "Attach depth-1 relations to the top hits (default true). Set false for a bare keyword list.",
+    ),
 });
 
 export const GetInputSchema = z.object({
@@ -115,13 +121,37 @@ export const RelatedInputSchema = z.object({
 // Search result types
 // ---------------------------------------------------------------------------
 
+/** One depth-1 edge of a search hit, flattened for cheap inline delivery. */
+export interface SearchNeighbour {
+  id: string;
+  type: NodeType;
+  relation: RelationName;
+  /** "out": the hit points at this neighbour. "in": the neighbour points at the hit. */
+  direction: "out" | "in";
+}
+
 export interface SearchHit {
   id: string;
   type: NodeType;
   name: string;
   snippet: string;
   score: number;
+  /**
+   * Depth-1 neighbours, attached to the highest-scoring hits only.
+   *
+   * A graph memory whose edges have to be fetched by a second, separate call is
+   * used as flat full-text search — the traversal step gets skipped under any
+   * time pressure, and the value that lives in the connections is lost. Shipping
+   * the first ring with the hit removes the discipline problem: the relations
+   * are simply there. Deeper walks still need `litopys_related`.
+   */
+  neighbours?: SearchNeighbour[];
 }
+
+/** How many top hits get their neighbours attached. */
+const NEIGHBOUR_HITS = 5;
+/** Cap per hit, so a hub node cannot flood the response. */
+const NEIGHBOURS_PER_HIT = 8;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -145,8 +175,26 @@ function effectiveAsOf(input: { as_of?: string; include_expired?: boolean }): st
   return input.include_expired ? undefined : todayISO();
 }
 
-function scoreNode(node: AnyNode, queryWords: string[]): number {
+function scoreNode(node: AnyNode, queryWords: string[], rawQuery: string): number {
   let score = 0;
+
+  // Ids were previously unsearchable: scoring read `summary ?? id`, so any node
+  // with a summary — nearly all of them — could not be found by its own id.
+  // Ids are the handles used in relations and [[wikilinks]], so looking one up
+  // has to be the strongest possible hit.
+  // Decisive, not merely large: a multi-word id like "man-drone-tracker" also
+  // appears in the summaries of every node that mentions it, and those pick up
+  // +5 per matched word. Without a clear margin the node you asked for by name
+  // loses to the nodes talking about it.
+  const id = normalize(node.id);
+  if (id === rawQuery) score += 40;
+  else {
+    for (const word of queryWords) {
+      if (id === word) score += 8;
+      else if (id.includes(word)) score += 3;
+    }
+  }
+
   const name = normalize(node.summary ?? node.id);
   for (const word of queryWords) {
     if (name === word) score += 10;
@@ -154,6 +202,7 @@ function scoreNode(node: AnyNode, queryWords: string[]): number {
   }
   for (const alias of node.aliases ?? []) {
     const a = normalize(alias);
+    if (a === rawQuery) score += 10;
     for (const word of queryWords) {
       if (a === word) score += 5;
       else if (a.includes(word)) score += 3;
@@ -221,9 +270,11 @@ export async function toolSearch(
   dir: string,
 ): Promise<ToolResult<SearchHit[]>> {
   const loaded = await loadGraph(dir);
-  const queryWords = normalize(input.query)
-    .split(/\s+/)
-    .filter((w) => w.length > 0);
+  const rawQuery = normalize(input.query).trim();
+  // Hyphens and underscores are word separators, not characters: a query of
+  // "man-drone-tracker" has to match a summary that says "man drone tracker".
+  // rawQuery is kept alongside for exact id/alias hits.
+  const queryWords = rawQuery.split(/[\s\-_]+/).filter((w) => w.length > 0);
 
   const asOf = effectiveAsOf(input);
   const hits: SearchHit[] = [];
@@ -234,7 +285,7 @@ export async function toolSearch(
     if (asOf && !isValidAsOf(node, asOf)) {
       continue;
     }
-    const score = scoreNode(node, queryWords);
+    const score = scoreNode(node, queryWords, rawQuery);
     if (score > 0) {
       hits.push({
         id: node.id,
@@ -247,7 +298,59 @@ export async function toolSearch(
   }
 
   hits.sort((a, b) => b.score - a.score);
-  return { ok: true, data: hits.slice(0, input.limit) };
+  const top = hits.slice(0, input.limit);
+
+  if (input.neighbours !== false && top.length > 0) {
+    attachNeighbours(top, loaded, asOf);
+  }
+
+  return { ok: true, data: top };
+}
+
+/**
+ * Annotate the leading hits with their depth-1 edges, in place.
+ *
+ * Mirrors `toolRelated`'s visibility rules: a neighbour that is tombstoned or
+ * not yet valid at the effective as-of date is not shown, so search and
+ * traversal never disagree about what the graph currently says.
+ */
+function attachNeighbours(
+  hits: SearchHit[],
+  loaded: Awaited<ReturnType<typeof loadGraph>>,
+  asOf: string | undefined,
+): void {
+  const annotated = hits.slice(0, NEIGHBOUR_HITS);
+  const wanted = new Set(annotated.map((h) => h.id));
+  const collected = new Map<string, SearchNeighbour[]>();
+  const { edges } = resolveGraph(loaded);
+
+  for (const edge of edges) {
+    for (const [hitId, neighbourId, direction] of [
+      [edge.from, edge.to, "out"] as const,
+      [edge.to, edge.from, "in"] as const,
+    ]) {
+      if (!wanted.has(hitId)) continue;
+      const list = collected.get(hitId) ?? [];
+      if (list.length >= NEIGHBOURS_PER_HIT) continue;
+
+      const neighbour = loaded.nodes.get(neighbourId);
+      if (!neighbour) continue;
+      if (asOf && !isValidAsOf(neighbour, asOf)) continue;
+
+      list.push({
+        id: neighbour.id,
+        type: neighbour.type,
+        relation: edge.relation,
+        direction,
+      });
+      collected.set(hitId, list);
+    }
+  }
+
+  for (const hit of annotated) {
+    const list = collected.get(hit.id);
+    if (list && list.length > 0) hit.neighbours = list;
+  }
 }
 
 export async function toolGet(

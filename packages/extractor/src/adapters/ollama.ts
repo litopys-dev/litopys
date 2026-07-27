@@ -1,4 +1,5 @@
 import { buildSystemPrompt, buildUserPrompt } from "../prompt.ts";
+import { parseExtractorOutput } from "./parse-output.ts";
 import {
   AdapterCompleteError,
   type CompleteInput,
@@ -6,8 +7,6 @@ import {
   type ExtractorAdapter,
   type ExtractorInput,
   type ExtractorOutput,
-  LLMOutputSchema,
-  normalizeLLMOutput,
 } from "./types.ts";
 
 const DEFAULT_MODEL = "llama3.2";
@@ -80,15 +79,25 @@ export class OllamaAdapter implements ExtractorAdapter {
       } else {
         process.stderr.write(`[litopys/extractor] Ollama error: ${message}\n`);
       }
+      // Flagged as a failure, not as an empty extraction: the transcript was
+      // never examined, so the caller must retry rather than move past it.
       return {
         candidateNodes: [],
         candidateRelations: [],
         usage: { inputTokens: 0, outputTokens: 0 },
         modelUsed: this.model,
+        failure: { kind: "api", message },
       };
     }
 
-    return parseOutput(rawText, this.model, sessionId);
+    return parseExtractorOutput({
+      rawText,
+      modelUsed: this.model,
+      sessionId,
+      inputTokens: 0,
+      outputTokens: 0,
+      providerLabel: "Ollama",
+    });
   }
 
   async complete(input: CompleteInput): Promise<CompleteOutput> {
@@ -138,47 +147,4 @@ export class OllamaAdapter implements ExtractorAdapter {
 
     return { text, usage: { inputTokens: 0, outputTokens: 0 } };
   }
-}
-
-function parseOutput(rawText: string, modelUsed: string, sessionId: string): ExtractorOutput {
-  const cleaned = rawText
-    .replace(/^```(?:json)?\s*/m, "")
-    .replace(/\s*```\s*$/m, "")
-    .trim();
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch {
-    process.stderr.write(
-      `[litopys/extractor] Failed to parse Ollama JSON response: ${rawText.slice(0, 200)}\n`,
-    );
-    return {
-      candidateNodes: [],
-      candidateRelations: [],
-      usage: { inputTokens: 0, outputTokens: 0 },
-      modelUsed,
-    };
-  }
-
-  const normalized = normalizeLLMOutput(parsed, sessionId);
-  const result = LLMOutputSchema.safeParse(normalized);
-  if (!result.success) {
-    process.stderr.write(
-      `[litopys/extractor] Ollama output failed schema validation: ${JSON.stringify(result.error.issues)}\n`,
-    );
-    return {
-      candidateNodes: [],
-      candidateRelations: [],
-      usage: { inputTokens: 0, outputTokens: 0 },
-      modelUsed,
-    };
-  }
-
-  return {
-    candidateNodes: result.data.candidateNodes,
-    candidateRelations: result.data.candidateRelations,
-    usage: { inputTokens: 0, outputTokens: 0 },
-    modelUsed,
-  };
 }

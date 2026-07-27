@@ -124,9 +124,11 @@ describe("AnthropicAdapter", () => {
     const adapter = new AnthropicAdapter({ client });
     const output = await adapter.extract({ transcript: "test", existingNodeIds: [] });
     expect(output.candidateRelations).toHaveLength(0);
+    // Malformed payload is deterministic: retrying the same bytes cannot help.
+    expect(output.failure?.kind).toBe("unparseable");
   });
 
-  test("extract handles API error gracefully", async () => {
+  test("extract reports an API error as a failure, not as an empty extraction", async () => {
     const client = fakeClient(
       { content: [], usage: { input_tokens: 0, output_tokens: 0 } },
       new Error("API rate limit exceeded"),
@@ -135,6 +137,7 @@ describe("AnthropicAdapter", () => {
     const output = await adapter.extract({ transcript: "test", existingNodeIds: [] });
     expect(output.candidateNodes).toHaveLength(0);
     expect(output.usage.inputTokens).toBe(0);
+    expect(output.failure?.kind).toBe("api");
   });
 
   test("extract strips markdown fences from response", async () => {

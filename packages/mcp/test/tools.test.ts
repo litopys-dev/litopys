@@ -30,6 +30,73 @@ describe("litopys_search", () => {
     expect(alice?.score).toBeGreaterThanOrEqual(5);
   });
 
+  test("attaches depth-1 relations to a hit so no second call is needed", async () => {
+    const result = await toolSearch({ query: "alice", limit: 20 }, tmpDir);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const alice = result.data.find((h) => h.id === "alice");
+    const rels = alice?.neighbours ?? [];
+    expect(rels.length).toBeGreaterThan(0);
+    expect(rels).toContainEqual({
+      id: "alpha-project",
+      type: "project",
+      relation: "owns",
+      direction: "out",
+    });
+    expect(rels).toContainEqual({
+      id: "simplicity",
+      type: "concept",
+      relation: "prefers",
+      direction: "out",
+    });
+  });
+
+  test("reports inbound edges too, not only outbound", async () => {
+    const result = await toolSearch({ query: "alpha", limit: 20 }, tmpDir);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const project = result.data.find((h) => h.id === "alpha-project");
+    const inbound = (project?.neighbours ?? []).filter((n) => n.direction === "in");
+    // alice and bob both own alpha-project.
+    expect(inbound.map((n) => n.id).sort()).toContain("alice");
+  });
+
+  test("finds a node by its own hyphenated id", async () => {
+    // Scoring used to read `summary ?? id`, so a node with a summary was
+    // unreachable by the id used in every relation and [[wikilink]].
+    const result = await toolSearch({ query: "alpha-project", limit: 20 }, tmpDir);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data[0]?.id).toBe("alpha-project");
+  });
+
+  test("an exact id match outranks nodes that merely mention it", async () => {
+    const result = await toolSearch({ query: "web-server", limit: 20 }, tmpDir);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data[0]?.id).toBe("web-server");
+  });
+
+  test("neighbours:false returns a bare keyword list", async () => {
+    const result = await toolSearch({ query: "alice", limit: 20, neighbours: false }, tmpDir);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.find((h) => h.id === "alice")?.neighbours).toBeUndefined();
+  });
+
+  test("a node with no edges simply has no neighbours field", async () => {
+    const result = await toolSearch({ query: "refactor", limit: 20 }, tmpDir);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.find((h) => h.id === "refactor-2026-04")?.neighbours).toBeUndefined();
+  });
+
   test("finds node by body keyword", async () => {
     const result = await toolSearch({ query: "scraping", limit: 20 }, tmpDir);
     expect(result.ok).toBe(true);

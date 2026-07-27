@@ -43,11 +43,32 @@ export interface ExtractorInput {
   maxCandidates?: number; // default 20
 }
 
+/**
+ * Why an extraction produced nothing.
+ *
+ * `extract()` returns an empty candidate list for three very different reasons:
+ * the transcript genuinely held no durable facts, the provider call failed, or
+ * the model answered with something unparseable. Collapsing all three into
+ * "empty" is how a rate-limited hour turns into permanently lost knowledge: the
+ * caller advances its read offset over bytes that were never actually examined.
+ *
+ * - `api`: transport/HTTP failure. The transcript was NOT consumed — retry it.
+ * - `unparseable`: the provider answered, but the payload could not be read as
+ *   candidates. Retrying the same bytes will fail the same way, so the caller
+ *   should move on rather than loop forever.
+ */
+export interface ExtractorFailure {
+  kind: "api" | "unparseable";
+  message: string;
+}
+
 export interface ExtractorOutput {
   candidateNodes: CandidateNode[];
   candidateRelations: CandidateRelation[];
   usage: { inputTokens: number; outputTokens: number };
   modelUsed: string;
+  /** Absent on success (including a legitimately empty extraction). */
+  failure?: ExtractorFailure;
 }
 
 export interface CompleteInput {

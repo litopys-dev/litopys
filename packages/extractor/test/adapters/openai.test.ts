@@ -136,7 +136,7 @@ describe("OpenAIAdapter", () => {
     expect(output.candidateRelations).toHaveLength(0);
   });
 
-  test("extract handles API error gracefully", async () => {
+  test("extract reports an API error as a failure, not as an empty extraction", async () => {
     const client = fakeClient(
       { choices: [] },
       new Error("OpenAI API error: 429 Too Many Requests"),
@@ -146,6 +146,10 @@ describe("OpenAIAdapter", () => {
     expect(output.candidateNodes).toHaveLength(0);
     expect(output.usage.inputTokens).toBe(0);
     expect(output.usage.outputTokens).toBe(0);
+    // Callers advance their read offset on success; an unflagged empty result
+    // here would silently discard the transcript.
+    expect(output.failure?.kind).toBe("api");
+    expect(output.failure?.message).toContain("429");
   });
 
   test("handles missing usage gracefully", async () => {

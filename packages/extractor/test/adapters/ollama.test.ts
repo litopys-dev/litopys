@@ -88,6 +88,7 @@ describe("OllamaAdapter", () => {
     const output = await adapter.extract({ transcript: "test", existingNodeIds: [] });
     expect(output.candidateNodes).toHaveLength(0);
     expect(output.candidateRelations).toHaveLength(0);
+    expect(output.failure?.kind).toBe("api");
   });
 
   test("extract handles HTTP error response gracefully", async () => {
@@ -128,8 +129,10 @@ describe("OllamaAdapter", () => {
 
     const adapter = new OllamaAdapter({ baseUrl: "http://localhost:11434" });
     const output = await adapter.extract({ transcript: "test", existingNodeIds: [] });
-    // Schema validation fails on individual items; adapter returns empty
+    // The one malformed candidate is dropped; nothing survived, so the result
+    // is flagged unparseable rather than passed off as an empty transcript.
     expect(output.candidateRelations).toHaveLength(0);
+    expect(output.failure?.kind).toBe("unparseable");
   });
 
   test("extract strips markdown fences", async () => {

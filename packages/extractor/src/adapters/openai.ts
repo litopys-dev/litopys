@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { buildSystemPrompt, buildUserPrompt } from "../prompt.ts";
+import { parseExtractorOutput } from "./parse-output.ts";
 import {
   AdapterCompleteError,
   type CompleteInput,
@@ -7,8 +8,6 @@ import {
   type ExtractorAdapter,
   type ExtractorInput,
   type ExtractorOutput,
-  LLMOutputSchema,
-  normalizeLLMOutput,
 } from "./types.ts";
 
 const DEFAULT_MODEL = "gpt-4o-mini";
@@ -82,15 +81,25 @@ export class OpenAIAdapter implements ExtractorAdapter {
       }
     } catch (err) {
       process.stderr.write(`[litopys/extractor] OpenAI API error: ${String(err)}\n`);
+      // Flagged as a failure, not as an empty extraction: the transcript was
+      // never examined, so the caller must retry rather than move past it.
       return {
         candidateNodes: [],
         candidateRelations: [],
         usage: { inputTokens: 0, outputTokens: 0 },
         modelUsed: this.model,
+        failure: { kind: "api", message: String(err) },
       };
     }
 
-    return parseOutput(rawText, this.model, inputTokens, outputTokens, sessionId);
+    return parseExtractorOutput({
+      rawText,
+      modelUsed: this.model,
+      sessionId,
+      inputTokens,
+      outputTokens,
+      providerLabel: "OpenAI",
+    });
   }
 
   async complete(input: CompleteInput): Promise<CompleteOutput> {
@@ -119,54 +128,4 @@ export class OpenAIAdapter implements ExtractorAdapter {
 
     return { text, usage: { inputTokens, outputTokens } };
   }
-}
-
-function parseOutput(
-  rawText: string,
-  modelUsed: string,
-  inputTokens: number,
-  outputTokens: number,
-  sessionId: string,
-): ExtractorOutput {
-  // Strip potential markdown fences
-  const cleaned = rawText
-    .replace(/^```(?:json)?\s*/m, "")
-    .replace(/\s*```\s*$/m, "")
-    .trim();
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch {
-    process.stderr.write(
-      `[litopys/extractor] Failed to parse LLM JSON response: ${rawText.slice(0, 200)}\n`,
-    );
-    return {
-      candidateNodes: [],
-      candidateRelations: [],
-      usage: { inputTokens, outputTokens },
-      modelUsed,
-    };
-  }
-
-  const normalized = normalizeLLMOutput(parsed, sessionId);
-  const result = LLMOutputSchema.safeParse(normalized);
-  if (!result.success) {
-    process.stderr.write(
-      `[litopys/extractor] LLM output failed schema validation: ${JSON.stringify(result.error.issues)}\n`,
-    );
-    return {
-      candidateNodes: [],
-      candidateRelations: [],
-      usage: { inputTokens, outputTokens },
-      modelUsed,
-    };
-  }
-
-  return {
-    candidateNodes: result.data.candidateNodes,
-    candidateRelations: result.data.candidateRelations,
-    usage: { inputTokens, outputTokens },
-    modelUsed,
-  };
 }

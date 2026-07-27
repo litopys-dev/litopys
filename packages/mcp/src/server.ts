@@ -46,7 +46,9 @@ export function createServer(): McpServer {
     "litopys_search",
     {
       description:
-        "Full-text search over the Litopys knowledge graph. Returns ranked hits by name, alias, body, and tags.",
+        "Full-text search over the Litopys knowledge graph. Returns ranked hits by name, alias, body, and tags. " +
+        "The top hits arrive with their depth-1 relations already attached (`neighbours`), so a follow-up " +
+        "litopys_related call is only needed to walk deeper than one hop.",
       inputSchema: SearchInputSchema,
     },
     async (input) => {

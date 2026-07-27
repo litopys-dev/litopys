@@ -540,6 +540,14 @@ async function tickFile(
       maxCandidates: 20,
     });
 
+    // A provider failure means these bytes were never actually examined.
+    // Leaving byteOffset untouched is the whole point: the state update below
+    // would otherwise mark the transcript as read and the session's knowledge
+    // would be lost for good. Transient by nature, so the next tick retries.
+    if (output.failure?.kind === "api") {
+      return { ...base, error: `extraction failed (api): ${output.failure.message}` };
+    }
+
     const allNodes: CandidateNode[] = output.candidateNodes;
     const allRelations: CandidateRelation[] = output.candidateRelations;
 

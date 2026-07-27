@@ -322,6 +322,68 @@ describe("runTick", () => {
     expect(state.sources[filePath]?.byteOffset).toBeGreaterThan(0);
   });
 
+  test("a provider failure must not consume the transcript", async () => {
+    // The data-loss bug: extract() swallowed API errors and returned an empty
+    // candidate list, indistinguishable from "nothing worth recording here".
+    // The tick then advanced byteOffset past bytes no model had ever seen, and
+    // that session's knowledge was gone for good.
+    const filePath = path.join(tmpDir, "session.jsonl");
+    await fs.writeFile(filePath, ccLine("user", "Hello, I work at Acme Corp"), "utf-8");
+
+    const state = freshState();
+    setAnthropicCreate(async () => {
+      throw new Error("API rate limit exceeded");
+    });
+
+    try {
+      const result = await runTick(
+        makeTickOpts([{ adapter: "claude-code", glob: filePath }]),
+        state,
+      );
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]?.error).toContain("api");
+      // Nothing recorded for this file — the next tick re-reads from byte 0.
+      expect(state.sources[filePath]).toBeUndefined();
+    } finally {
+      setAnthropicCreate(async () => ({
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ candidateNodes: [MOCK_CANDIDATE], candidateRelations: [] }),
+          },
+        ],
+        usage: { input_tokens: 100, output_tokens: 50 },
+      }));
+    }
+  });
+
+  test("after a failed tick the retry succeeds and reads the same bytes", async () => {
+    const filePath = path.join(tmpDir, "session.jsonl");
+    await fs.writeFile(filePath, ccLine("user", "Hello, I work at Acme Corp"), "utf-8");
+
+    const state = freshState();
+    setAnthropicCreate(async () => {
+      throw new Error("API rate limit exceeded");
+    });
+    await runTick(makeTickOpts([{ adapter: "claude-code", glob: filePath }]), state);
+
+    setAnthropicCreate(async () => ({
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({ candidateNodes: [MOCK_CANDIDATE], candidateRelations: [] }),
+        },
+      ],
+      usage: { input_tokens: 100, output_tokens: 50 },
+    }));
+    const retry = await runTick(makeTickOpts([{ adapter: "claude-code", glob: filePath }]), state);
+
+    expect(retry.errors).toHaveLength(0);
+    expect(retry.candidatesTotal).toBe(1);
+    expect(state.sources[filePath]?.byteOffset).toBeGreaterThan(0);
+  });
+
   test("second tick reads only new bytes (incrementality)", async () => {
     const filePath = path.join(tmpDir, "session.jsonl");
     const firstLine = ccLine("user", "Hello, I work at Acme Corp");

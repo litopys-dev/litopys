@@ -271,6 +271,12 @@ litopys ingest ~/.claude/projects/.../*.jsonl
 
 When `LITOPYS_EXTRACTOR_BASE_URL` is set and no API key is provided, authentication is skipped automatically — no dummy key needed. Use `LITOPYS_EXTRACTOR_API_KEY` to pass a key without overwriting the global `OPENAI_API_KEY`.
 
+Provider-specific request fields go in `LITOPYS_EXTRACTOR_EXTRA_BODY` (a JSON object merged into every request). For example, hybrid reasoning models on NVIDIA NIM or vLLM otherwise spend the output budget on thinking and return non-JSON:
+
+```bash
+LITOPYS_EXTRACTOR_EXTRA_BODY='{"chat_template_kwargs":{"enable_thinking":false}}'
+```
+
 ### Agent skill — richer graph behavior (Claude Code)
 
 The MCP connection gives Claude the 5 tools and 5 baseline rules. For **full graph discipline** — mandatory traversal after every search, `supersedes` chain awareness, write decision tree, temporal tombstoning — install the bundled skill:

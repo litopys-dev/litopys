@@ -28,15 +28,38 @@ export interface OpenAIAdapterOptions {
   baseURL?: string;
   model?: string;
   client?: OpenAIClientLike;
+  /**
+   * Provider-specific fields merged into every chat.completions request,
+   * e.g. `{ chat_template_kwargs: { enable_thinking: false } }` to turn off
+   * reasoning on NIM / vLLM hybrid models. Defaults to the JSON in
+   * LITOPYS_EXTRACTOR_EXTRA_BODY.
+   */
+  extraBody?: Record<string, unknown>;
+}
+
+function parseExtraBody(raw: string | undefined): Record<string, unknown> {
+  if (!raw?.trim()) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`LITOPYS_EXTRACTOR_EXTRA_BODY is not valid JSON: ${String(err)}`);
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error("LITOPYS_EXTRACTOR_EXTRA_BODY must be a JSON object");
+  }
+  return parsed as Record<string, unknown>;
 }
 
 export class OpenAIAdapter implements ExtractorAdapter {
   readonly name = "openai";
   readonly model: string;
   private readonly client: OpenAIClientLike;
+  private readonly extraBody: Record<string, unknown>;
 
   constructor(opts: OpenAIAdapterOptions = {}) {
     this.model = opts.model ?? DEFAULT_MODEL;
+    this.extraBody = opts.extraBody ?? parseExtraBody(process.env.LITOPYS_EXTRACTOR_EXTRA_BODY);
     if (opts.client) {
       this.client = opts.client;
       return;
@@ -63,6 +86,7 @@ export class OpenAIAdapter implements ExtractorAdapter {
 
     try {
       const response = await this.client.chat.completions.create({
+        ...this.extraBody,
         model: this.model,
         response_format: { type: "json_object" },
         messages: [
@@ -109,6 +133,7 @@ export class OpenAIAdapter implements ExtractorAdapter {
 
     try {
       const response = await this.client.chat.completions.create({
+        ...this.extraBody,
         model: this.model,
         messages: [{ role: "user", content: input.prompt }],
         max_tokens: input.maxTokens ?? 2048,

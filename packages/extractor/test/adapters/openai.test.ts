@@ -165,3 +165,89 @@ describe("OpenAIAdapter", () => {
     expect(output.usage.outputTokens).toBe(0);
   });
 });
+
+describe("OpenAIAdapter extraBody", () => {
+  function capturingClient(calls: Array<Record<string, unknown>>): OpenAIClientLike {
+    return {
+      chat: {
+        completions: {
+          create: async (params: unknown) => {
+            calls.push(params as Record<string, unknown>);
+            return {
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({ candidateNodes: [], candidateRelations: [] }),
+                  },
+                },
+              ],
+            };
+          },
+        },
+      },
+    };
+  }
+
+  const NO_THINK = { chat_template_kwargs: { enable_thinking: false } };
+
+  test("merges extraBody into extract() and complete() requests", async () => {
+    const calls: Array<Record<string, unknown>> = [];
+    const adapter = new OpenAIAdapter({ client: capturingClient(calls), extraBody: NO_THINK });
+    await adapter.extract({ transcript: "test", existingNodeIds: [] });
+    await adapter.complete({ prompt: "hi" });
+    expect(calls).toHaveLength(2);
+    for (const params of calls) {
+      expect(params.chat_template_kwargs).toEqual({ enable_thinking: false });
+    }
+  });
+
+  test("extraBody cannot override model", async () => {
+    const calls: Array<Record<string, unknown>> = [];
+    const adapter = new OpenAIAdapter({
+      client: capturingClient(calls),
+      model: "real-model",
+      extraBody: { model: "other-model" },
+    });
+    await adapter.complete({ prompt: "hi" });
+    expect(calls[0]?.model).toBe("real-model");
+  });
+
+  test("reads extraBody from LITOPYS_EXTRACTOR_EXTRA_BODY env", async () => {
+    const original = process.env.LITOPYS_EXTRACTOR_EXTRA_BODY;
+    process.env.LITOPYS_EXTRACTOR_EXTRA_BODY = JSON.stringify(NO_THINK);
+    try {
+      const calls: Array<Record<string, unknown>> = [];
+      const adapter = new OpenAIAdapter({ client: capturingClient(calls) });
+      await adapter.complete({ prompt: "hi" });
+      expect(calls[0]?.chat_template_kwargs).toEqual({ enable_thinking: false });
+    } finally {
+      process.env.LITOPYS_EXTRACTOR_EXTRA_BODY = original;
+    }
+  });
+
+  test("rejects invalid LITOPYS_EXTRACTOR_EXTRA_BODY", () => {
+    const original = process.env.LITOPYS_EXTRACTOR_EXTRA_BODY;
+    const client = capturingClient([]);
+    try {
+      process.env.LITOPYS_EXTRACTOR_EXTRA_BODY = "{not json";
+      expect(() => new OpenAIAdapter({ client })).toThrow("not valid JSON");
+      process.env.LITOPYS_EXTRACTOR_EXTRA_BODY = "[1,2]";
+      expect(() => new OpenAIAdapter({ client })).toThrow("must be a JSON object");
+    } finally {
+      process.env.LITOPYS_EXTRACTOR_EXTRA_BODY = original;
+    }
+  });
+
+  test("no env and no option → request carries no extra fields", async () => {
+    const original = process.env.LITOPYS_EXTRACTOR_EXTRA_BODY;
+    process.env.LITOPYS_EXTRACTOR_EXTRA_BODY = undefined;
+    try {
+      const calls: Array<Record<string, unknown>> = [];
+      const adapter = new OpenAIAdapter({ client: capturingClient(calls) });
+      await adapter.complete({ prompt: "hi" });
+      expect(Object.keys(calls[0] ?? {}).sort()).toEqual(["max_tokens", "messages", "model"]);
+    } finally {
+      process.env.LITOPYS_EXTRACTOR_EXTRA_BODY = original;
+    }
+  });
+});

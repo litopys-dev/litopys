@@ -18,6 +18,9 @@ import { runSkillsTick } from "../src/skills-tick.ts";
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Relative to today: listUnclustered only sees the last 60 days.
+const FIXTURE_DATE = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+
 let _epCounter = 0;
 
 function makeEpisode(overrides: Partial<Episode> = {}): Episode {
@@ -25,7 +28,7 @@ function makeEpisode(overrides: Partial<Episode> = {}): Episode {
   return {
     id: `ep-tick-${String(n).padStart(4, "0")}`,
     sessionId: `session-tick-${n}`,
-    date: "2026-06-10",
+    date: FIXTURE_DATE,
     goal: `Tick test goal ${n}`,
     steps: ["step 1", "step 2", "step 3"],
     toolOps: 6,

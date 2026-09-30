@@ -21,8 +21,10 @@ import { runSkillsTick } from "../src/skills-tick.ts";
 // Transcript fixture
 // ---------------------------------------------------------------------------
 
-const FIXTURE_TIMESTAMP = "2026-06-10T10:00:00.000Z";
-const FIXTURE_DATE = "2026-06-10";
+// Relative to today: listUnclustered only sees the last 60 days, so a
+// hardcoded date silently ages out of the window and turns this test red.
+const FIXTURE_DATE = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+const FIXTURE_TIMESTAMP = `${FIXTURE_DATE}T10:00:00.000Z`;
 const FIXTURE_GOAL = "перезапуск сервиса syut";
 
 /**

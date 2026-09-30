@@ -11,12 +11,12 @@ describe("createAdapter", () => {
     if (originalProvider !== undefined) {
       process.env.LITOPYS_EXTRACTOR_PROVIDER = originalProvider;
     } else {
-      process.env.LITOPYS_EXTRACTOR_PROVIDER = undefined;
+      delete process.env.LITOPYS_EXTRACTOR_PROVIDER;
     }
   });
 
   test("creates anthropic adapter by default", () => {
-    process.env.LITOPYS_EXTRACTOR_PROVIDER = undefined;
+    delete process.env.LITOPYS_EXTRACTOR_PROVIDER;
     const adapter = createAdapter(undefined, { apiKey: "sk-test" });
     expect(adapter.name).toBe("anthropic");
   });

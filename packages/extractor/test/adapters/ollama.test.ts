@@ -58,7 +58,7 @@ describe("OllamaAdapter", () => {
     const adapter = new OllamaAdapter();
     expect(adapter.name).toBe("ollama");
     if (original !== undefined) process.env.OLLAMA_BASE_URL = original;
-    else process.env.OLLAMA_BASE_URL = undefined;
+    else delete process.env.OLLAMA_BASE_URL;
   });
 
   test("extract parses valid response", async () => {
@@ -181,7 +181,8 @@ describe("OllamaAdapter", () => {
     const adapter = new OllamaAdapter({ baseUrl: "http://localhost:11434" });
     const output = await adapter.extract({ transcript: "test", existingNodeIds: [] });
 
-    process.env.LITOPYS_OLLAMA_TIMEOUT_MS = orig;
+    if (orig === undefined) delete process.env.LITOPYS_OLLAMA_TIMEOUT_MS;
+    else process.env.LITOPYS_OLLAMA_TIMEOUT_MS = orig;
 
     expect(output.candidateNodes).toHaveLength(0);
     expect(output.candidateRelations).toHaveLength(0);
@@ -200,7 +201,8 @@ describe("OllamaAdapter", () => {
     const adapter = new OllamaAdapter({ baseUrl: "http://localhost:11434" });
     const output = await adapter.extract({ transcript: "test", existingNodeIds: [] });
 
-    process.env.LITOPYS_OLLAMA_TIMEOUT_MS = orig;
+    if (orig === undefined) delete process.env.LITOPYS_OLLAMA_TIMEOUT_MS;
+    else process.env.LITOPYS_OLLAMA_TIMEOUT_MS = orig;
 
     expect(output.candidateNodes).toHaveLength(1);
   });

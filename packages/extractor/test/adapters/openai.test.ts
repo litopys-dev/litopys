@@ -29,14 +29,14 @@ function fakeClient(
 describe("OpenAIAdapter", () => {
   test("throws if OPENAI_API_KEY not set", () => {
     const original = process.env.OPENAI_API_KEY;
-    process.env.OPENAI_API_KEY = undefined;
+    delete process.env.OPENAI_API_KEY;
     expect(() => new OpenAIAdapter()).toThrow("OPENAI_API_KEY");
     if (original !== undefined) process.env.OPENAI_API_KEY = original;
   });
 
   test("does not throw when only baseURL is provided (uses 'none' as apiKey)", () => {
     const original = process.env.OPENAI_API_KEY;
-    process.env.OPENAI_API_KEY = undefined;
+    delete process.env.OPENAI_API_KEY;
     expect(() => new OpenAIAdapter({ baseURL: "http://localhost:8080/v1" })).not.toThrow();
     if (original !== undefined) process.env.OPENAI_API_KEY = original;
   });
@@ -44,10 +44,11 @@ describe("OpenAIAdapter", () => {
   test("reads baseURL from LITOPYS_EXTRACTOR_BASE_URL env", () => {
     const originalKey = process.env.OPENAI_API_KEY;
     const originalBase = process.env.LITOPYS_EXTRACTOR_BASE_URL;
-    process.env.OPENAI_API_KEY = undefined;
+    delete process.env.OPENAI_API_KEY;
     process.env.LITOPYS_EXTRACTOR_BASE_URL = "http://myserver:8080/v1";
     expect(() => new OpenAIAdapter()).not.toThrow();
-    process.env.LITOPYS_EXTRACTOR_BASE_URL = originalBase;
+    if (originalBase === undefined) delete process.env.LITOPYS_EXTRACTOR_BASE_URL;
+    else process.env.LITOPYS_EXTRACTOR_BASE_URL = originalBase;
     if (originalKey !== undefined) process.env.OPENAI_API_KEY = originalKey;
   });
 
@@ -221,7 +222,8 @@ describe("OpenAIAdapter extraBody", () => {
       await adapter.complete({ prompt: "hi" });
       expect(calls[0]?.chat_template_kwargs).toEqual({ enable_thinking: false });
     } finally {
-      process.env.LITOPYS_EXTRACTOR_EXTRA_BODY = original;
+      if (original === undefined) delete process.env.LITOPYS_EXTRACTOR_EXTRA_BODY;
+      else process.env.LITOPYS_EXTRACTOR_EXTRA_BODY = original;
     }
   });
 
@@ -234,20 +236,22 @@ describe("OpenAIAdapter extraBody", () => {
       process.env.LITOPYS_EXTRACTOR_EXTRA_BODY = "[1,2]";
       expect(() => new OpenAIAdapter({ client })).toThrow("must be a JSON object");
     } finally {
-      process.env.LITOPYS_EXTRACTOR_EXTRA_BODY = original;
+      if (original === undefined) delete process.env.LITOPYS_EXTRACTOR_EXTRA_BODY;
+      else process.env.LITOPYS_EXTRACTOR_EXTRA_BODY = original;
     }
   });
 
   test("no env and no option → request carries no extra fields", async () => {
     const original = process.env.LITOPYS_EXTRACTOR_EXTRA_BODY;
-    process.env.LITOPYS_EXTRACTOR_EXTRA_BODY = undefined;
+    delete process.env.LITOPYS_EXTRACTOR_EXTRA_BODY;
     try {
       const calls: Array<Record<string, unknown>> = [];
       const adapter = new OpenAIAdapter({ client: capturingClient(calls) });
       await adapter.complete({ prompt: "hi" });
       expect(Object.keys(calls[0] ?? {}).sort()).toEqual(["max_tokens", "messages", "model"]);
     } finally {
-      process.env.LITOPYS_EXTRACTOR_EXTRA_BODY = original;
+      if (original === undefined) delete process.env.LITOPYS_EXTRACTOR_EXTRA_BODY;
+      else process.env.LITOPYS_EXTRACTOR_EXTRA_BODY = original;
     }
   });
 });

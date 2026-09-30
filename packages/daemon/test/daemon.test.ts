@@ -217,12 +217,12 @@ describe("loadSourceConfigs", () => {
   const ORIG = process.env.LITOPYS_DAEMON_SOURCES;
 
   afterEach(() => {
-    if (ORIG === undefined) process.env.LITOPYS_DAEMON_SOURCES = undefined;
+    if (ORIG === undefined) delete process.env.LITOPYS_DAEMON_SOURCES;
     else process.env.LITOPYS_DAEMON_SOURCES = ORIG;
   });
 
   test("returns default sources when env not set", () => {
-    process.env.LITOPYS_DAEMON_SOURCES = undefined;
+    delete process.env.LITOPYS_DAEMON_SOURCES;
     const sources = loadSourceConfigs();
     expect(sources.length).toBeGreaterThan(0);
     expect(sources[0]?.adapter).toBe("claude-code");
@@ -682,12 +682,12 @@ describe("defaultStatePath", () => {
   const ORIG = process.env.LITOPYS_DAEMON_STATE;
 
   afterEach(() => {
-    if (ORIG === undefined) process.env.LITOPYS_DAEMON_STATE = undefined;
+    if (ORIG === undefined) delete process.env.LITOPYS_DAEMON_STATE;
     else process.env.LITOPYS_DAEMON_STATE = ORIG;
   });
 
   test("returns path under ~/.litopys when env not set", () => {
-    process.env.LITOPYS_DAEMON_STATE = undefined;
+    delete process.env.LITOPYS_DAEMON_STATE;
     const p = defaultStatePath();
     expect(p.includes(".litopys")).toBe(true);
     expect(p.endsWith(".json")).toBe(true);

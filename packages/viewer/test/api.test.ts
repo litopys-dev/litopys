@@ -42,7 +42,7 @@ describe("viewer write API", () => {
   afterEach(async () => {
     server.stop(true);
     await fs.rm(tmpDir, { recursive: true, force: true });
-    process.env.LITOPYS_GRAPH_PATH = undefined;
+    delete process.env.LITOPYS_GRAPH_PATH;
   });
 
   test("POST /api/node creates a node", async () => {
@@ -344,7 +344,7 @@ describe("viewer read-only mode rejects mutations", () => {
   afterEach(async () => {
     server.stop(true);
     await fs.rm(tmpDir, { recursive: true, force: true });
-    process.env.LITOPYS_GRAPH_PATH = undefined;
+    delete process.env.LITOPYS_GRAPH_PATH;
   });
 
   test("POST /api/node returns 403 in read-only mode", async () => {

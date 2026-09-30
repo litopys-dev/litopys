@@ -28,7 +28,7 @@ function fakeClient(
 describe("AnthropicAdapter", () => {
   test("throws if ANTHROPIC_API_KEY not set", () => {
     const original = process.env.ANTHROPIC_API_KEY;
-    process.env.ANTHROPIC_API_KEY = undefined;
+    delete process.env.ANTHROPIC_API_KEY;
     expect(() => new AnthropicAdapter()).toThrow("ANTHROPIC_API_KEY");
     if (original !== undefined) process.env.ANTHROPIC_API_KEY = original;
   });

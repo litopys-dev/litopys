@@ -55,7 +55,7 @@ describe("CLI quarantine commands", () => {
 
   afterEach(async () => {
     await fs.rm(tmpDir, { recursive: true, force: true });
-    process.env.LITOPYS_GRAPH_PATH = undefined;
+    delete process.env.LITOPYS_GRAPH_PATH;
   });
 
   test("quarantine list shows no items on empty directory", async () => {
@@ -160,7 +160,7 @@ describe("CLI digest command", () => {
 
   afterEach(async () => {
     await fs.rm(tmpDir, { recursive: true, force: true });
-    process.env.LITOPYS_GRAPH_PATH = undefined;
+    delete process.env.LITOPYS_GRAPH_PATH;
   });
 
   test("digest generates file in digests directory", async () => {
@@ -202,8 +202,8 @@ describe("cmdDaemonBaseline", () => {
 
   afterEach(async () => {
     await fs.rm(tmpDir, { recursive: true, force: true });
-    process.env.LITOPYS_DAEMON_STATE = undefined;
-    process.env.LITOPYS_DAEMON_SOURCES = undefined;
+    delete process.env.LITOPYS_DAEMON_STATE;
+    delete process.env.LITOPYS_DAEMON_SOURCES;
   });
 
   test("baseline on empty state adds all files with offset=size", async () => {
